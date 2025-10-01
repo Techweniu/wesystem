@@ -1,19 +1,19 @@
-import type { NextRequest } from "next/server"
+import { NextResponse, type NextRequest } from "next/server"
 
+// O middleware continua sendo um pass-through, a lógica de proteção está no layout.
+// O importante é ajustar o 'matcher' para que ele não intercepte rotas públicas.
 export async function middleware(request: NextRequest) {
-  // Não fazemos nada aqui - a proteção de rota é feita no layout do dashboard
-  return
+  return NextResponse.next()
 }
 
 export const config = {
   matcher: [
     /*
-     * Match all request paths except:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - images - .svg, .png, .jpg, .jpeg, .gif, .webp
+     * MUDANÇA AQUI:
+     * Agora o middleware SÓ será ativado para rotas dentro de '/dashboard'.
+     * Rotas como '/nps' ou '/auth' serão completamente ignoradas,
+     * e a Vercel não tentará protegê-las.
      */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/dashboard/:path*",
   ],
 }
