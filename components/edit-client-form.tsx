@@ -32,7 +32,8 @@ interface Client {
   name: string
   contact_email: string | null
   contact_phone: string | null
-  status: "active" | "inactive" | "prospect"
+  status: "active" | "inactive"
+  health_status: "green" | "yellow" | "red" | null
 }
 
 interface EditClientFormProps {
@@ -81,7 +82,6 @@ export function EditClientForm({ client }: EditClientFormProps) {
           </DialogDescription>
         </DialogHeader>
         <form ref={formRef} action={handleFormSubmit} className="space-y-4 py-4">
-          {/* Campo oculto para passar o ID do cliente */}
           <input type="hidden" name="clientId" value={client.id} />
           
           <div className="grid gap-2">
@@ -96,19 +96,36 @@ export function EditClientForm({ client }: EditClientFormProps) {
             <Label htmlFor="contact_phone">Telefone</Label>
             <Input id="contact_phone" name="contact_phone" defaultValue={client.contact_phone || ''} />
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="status">Status*</Label>
-            <Select name="status" defaultValue={client.status} required>
-              <SelectTrigger id="status">
-                <SelectValue placeholder="Selecione o status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="prospect">Prospect</SelectItem>
-                <SelectItem value="active">Ativo</SelectItem>
-                <SelectItem value="inactive">Inativo</SelectItem>
-              </SelectContent>
-            </Select>
+          
+          {/* CAMPOS DE STATUS E SAÚDE */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="status">Status*</Label>
+              <Select name="status" defaultValue={client.status} required>
+                <SelectTrigger id="status">
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Ativo</SelectItem>
+                  <SelectItem value="inactive">Inativo</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="health_status">Saúde do Cliente*</Label>
+              <Select name="health_status" defaultValue={client.health_status || 'green'} required>
+                <SelectTrigger id="health_status">
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="green">🟢 Bom</SelectItem>
+                  <SelectItem value="yellow">🟡 Atenção</SelectItem>
+                  <SelectItem value="red">🔴 Crítico</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
+
           <DialogFooter>
             <DialogClose asChild>
               <Button type="button" variant="outline">Cancelar</Button>

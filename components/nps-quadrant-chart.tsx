@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
-import { CartesianGrid, Scatter, ScatterChart, XAxis, YAxis, ZAxis } from "recharts"
+import { CartesianGrid, Scatter, ScatterChart, XAxis, YAxis, Tooltip } from "recharts"
 
 interface NpsQuadrantChartProps {
   data: Array<{
@@ -13,50 +13,60 @@ interface NpsQuadrantChartProps {
 }
 
 export function NpsQuadrantChart({ data }: NpsQuadrantChartProps) {
-  const chartData = data.map((item) => ({
-    x: item.nps,
-    y: item.revenue,
-    z: item.revenue / 1000,
-    name: item.name,
-  }))
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Matriz NPS vs Receita</CardTitle>
+        <CardTitle>Matriz Receita vs NPS</CardTitle>
       </CardHeader>
       <CardContent>
         <ChartContainer
           config={{
-            scatter: {
+            npsScatter: {
               label: "Clientes",
-              color: "hsl(var(--chart-1))",
+              color: "hsl(0 0% 98%)", 
             },
           }}
-          className="h-[400px]"
+          // MUDANÇA AQUI: Diminuímos a altura para esticar o gráfico horizontalmente
+          className="h-[350px]" 
         >
-          <ScatterChart>
+          <ScatterChart
+            margin={{
+              top: 20,
+              right: 20,
+              bottom: 20,
+              left: 20,
+            }}
+          >
             <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+            
+            {/* EIXO X AGORA É A RECEITA */}
             <XAxis
               type="number"
-              dataKey="x"
-              name="NPS"
-              domain={[0, 10]}
+              dataKey="revenue" // MUDANÇA AQUI
+              name="Receita (R$)"
+              tickFormatter={(value) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", notation: 'compact' }).format(value)}
               className="text-xs"
               tick={{ fill: "hsl(var(--muted-foreground))" }}
-              label={{ value: "NPS Score", position: "insideBottom", offset: -5 }}
             />
+
+            {/* EIXO Y AGORA É O NPS */}
             <YAxis
               type="number"
-              dataKey="y"
-              name="Receita"
+              dataKey="nps" // MUDANÇA AQUI
+              name="NPS Score"
+              domain={[0, 10]}
+              tickCount={11}
               className="text-xs"
               tick={{ fill: "hsl(var(--muted-foreground))" }}
-              label={{ value: "Receita (R$)", angle: -90, position: "insideLeft" }}
             />
-            <ZAxis type="number" dataKey="z" range={[50, 400]} />
-            <ChartTooltip content={<ChartTooltipContent />} />
-            <Scatter data={chartData} fill="hsl(var(--chart-1))" />
+
+            <Tooltip cursor={{ strokeDasharray: '3 3' }} content={<ChartTooltipContent formatter={(value, name, props) => {
+                if (name === 'revenue') return [`${props.payload.name} - Receita: ${new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value)}`];
+                if (name === 'nps') return [`NPS: ${value}`];
+                return value;
+              }} hideLabel />} />
+            <Scatter data={data} fill="hsl(0 0% 98%)" />
           </ScatterChart>
         </ChartContainer>
       </CardContent>

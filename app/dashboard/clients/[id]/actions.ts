@@ -81,13 +81,14 @@ export async function addNpsResponse(formData: FormData) {
   return { success: "Avaliação NPS salva com sucesso!" };
 }
 
-// --- Action para Atualizar Cliente ---
+// --- Action para Atualizar Cliente (Modificada) ---
 const updateClientSchema = z.object({
   clientId: z.string().uuid("ID do cliente inválido."),
   name: z.string().min(3, "O nome do cliente é obrigatório."),
   contact_email: z.string().email("Por favor, insira um email válido.").optional().or(z.literal('')),
   contact_phone: z.string().optional().or(z.literal('')),
-  status: z.enum(["active", "inactive", "prospect"]),
+  status: z.enum(["active", "inactive"]),
+  health_status: z.enum(["green", "yellow", "red"]),
 });
 
 export async function updateClient(formData: FormData) {
@@ -99,9 +100,20 @@ export async function updateClient(formData: FormData) {
     return { error: firstError || "Dados inválidos." };
   }
 
-  const { clientId, name, contact_email, contact_phone, status } = validatedFields.data;
+  const { clientId, name, contact_email, contact_phone, status, health_status } = validatedFields.data;
   const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!);
-  const { error } = await supabaseAdmin.from("clients").update({ name, contact_email: contact_email || null, contact_phone: contact_phone || null, status, updated_at: new Date().toISOString(), }).eq("id", clientId);
+  
+  const { error } = await supabaseAdmin
+    .from("clients")
+    .update({ 
+      name, 
+      contact_email: contact_email || null, 
+      contact_phone: contact_phone || null, 
+      status,
+      health_status,
+      updated_at: new Date().toISOString(), 
+    })
+    .eq("id", clientId);
 
   if (error) {
     return { error: `Ocorreu um erro no banco de dados: ${error.message}` };
@@ -113,7 +125,7 @@ export async function updateClient(formData: FormData) {
   return { success: "Cliente atualizado com sucesso!" };
 }
 
-// --- NOVA ACTION PARA ADICIONAR CONTRATO A UM CLIENTE EXISTENTE ---
+// --- Action para Adicionar Contrato ---
 const addContractSchema = z.object({
   clientId: z.string().uuid(),
   contract_name: z.string().min(3, "O nome do contrato é obrigatório."),
@@ -132,44 +144,27 @@ export async function addContract(formData: FormData) {
   const validatedFields = addContractSchema.safeParse(rawFormData);
 
   if (!validatedFields.success) {
-    console.error("Erro de validação de contrato:", validatedFields.error.flatten().fieldErrors);
     const firstError = Object.values(validatedFields.error.flatten().fieldErrors)[0]?.[0];
     return { error: firstError || "Dados inválidos." };
   }
 
   const { clientId, contract_name, valor_mensal, contract_file } = validatedFields.data;
 
-  // 1. Upload do arquivo
   const supabase = await createClient();
   const fileExtension = contract_file.name.split('.').pop();
   const newFileName = `${Date.now()}.${fileExtension}`;
-  const filePath = `${clientId}/${newFileName}`; // Salva direto na pasta do cliente
+  const filePath = `${clientId}/${newFileName}`;
 
-  const { error: uploadError } = await supabase.storage
-    .from('contracts')
-    .upload(filePath, contract_file);
+  const { error: uploadError } = await supabase.storage.from('contracts').upload(filePath, contract_file);
 
   if (uploadError) {
-    console.error("Erro no upload do contrato:", uploadError);
     return { error: `Não foi possível enviar o arquivo: ${uploadError.message}` };
   }
 
-  // 2. Inserção no banco de dados
-  const supabaseAdmin = createAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_KEY!
-  );
-
-  const { error: insertError } = await supabaseAdmin.from("contracts").insert({
-    client_id: clientId,
-    name: contract_name,
-    valor_mensal: valor_mensal || 0,
-    storage_path: filePath,
-  });
+  const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!);
+  const { error: insertError } = await supabaseAdmin.from("contracts").insert({ client_id: clientId, name: contract_name, valor_mensal: valor_mensal || 0, storage_path: filePath, });
 
   if (insertError) {
-    console.error("Erro ao salvar contrato no DB:", insertError);
-    // Se deu erro aqui, deleta o arquivo que já foi enviado
     await supabase.storage.from('contracts').remove([filePath]);
     return { error: `Ocorreu um erro ao salvar o contrato: ${insertError.message}` };
   }
@@ -178,4 +173,40 @@ export async function addContract(formData: FormData) {
   revalidatePath("/dashboard/clients");
   
   return { success: "Contrato adicionado com sucesso!" };
+}
+
+// --- Action para Atualizar Status do Serviço ---
+const updateServiceStatusSchema = z.object({
+  serviceId: z.string().uuid(),
+  clientId: z.string().uuid(),
+  status: z.enum(["pending", "completed", "cancelled"]),
+});
+
+export async function updateServiceStatus(data: { serviceId: string, clientId: string, status: "pending" | "completed" | "cancelled" }) {
+  const validatedFields = updateServiceStatusSchema.safeParse(data);
+
+  if (!validatedFields.success) {
+    return { error: "Dados inválidos para atualizar o status." };
+  }
+
+  const { serviceId, clientId, status } = validatedFields.data;
+  
+  const supabaseAdmin = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_KEY!
+  );
+
+  const { error } = await supabaseAdmin
+    .from("one_time_services")
+    .update({ status: status })
+    .eq('id', serviceId);
+
+  if (error) {
+    return { error: `Não foi possível atualizar o status: ${error.message}` };
+  }
+
+  revalidatePath(`/dashboard/clients/${clientId}`);
+  revalidatePath("/dashboard/clients");
+  
+  return { success: "Status do serviço atualizado com sucesso!" };
 }

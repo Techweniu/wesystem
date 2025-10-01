@@ -17,6 +17,7 @@ import {
 import { format, parseISO } from 'date-fns'
 import { EditClientForm } from "@/components/edit-client-form"
 import { Button } from "@/components/ui/button"
+import { ServiceStatusChanger } from "@/components/service-status-changer"
 
 async function getClientDetails(id: string) {
   const supabase = await createClient()
@@ -159,9 +160,7 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
                       <TableCell className="font-medium">{service.name}</TableCell>
                       <TableCell>{format(parseISO(service.date), 'dd/MM/yyyy')}</TableCell>
                       <TableCell>
-                        <Badge variant={service.status === 'completed' ? 'default' : service.status === 'pending' ? 'secondary' : 'destructive'}>
-                          {service.status === 'completed' ? 'Concluído' : service.status === 'pending' ? 'Pendente' : 'Cancelado'}
-                        </Badge>
+                        <ServiceStatusChanger service={{ id: service.id, status: service.status, clientId: client.id }} />
                       </TableCell>
                       <TableCell className="text-right">
                         {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(service.value)}
