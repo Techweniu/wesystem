@@ -9,7 +9,7 @@ import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { toast } from "sonner"
 
-// A senha mestra. Em um mundo ideal, isso estaria em uma variável de ambiente.
+// A senha mestra
 const MASTER_PASSWORD = "491hrinh19283"
 
 export default function LoginPage() {
@@ -21,13 +21,11 @@ export default function LoginPage() {
     e.preventDefault()
     setIsLoading(true)
 
+    // A lógica de senha única já está correta
     if (password === MASTER_PASSWORD) {
       localStorage.setItem("isAuthenticated", "true")
       toast.success("Login realizado com sucesso!")
-      
-      // Apenas redireciona usando o router.
       router.push("/dashboard")
-      
     } else {
       toast.error("Senha incorreta. Tente novamente.")
       setIsLoading(false)
@@ -49,6 +47,7 @@ export default function LoginPage() {
           <CardContent>
             <form onSubmit={handleLogin}>
               <div className="flex flex-col gap-6">
+                {/* O campo de email foi removido daqui */}
                 <div className="grid gap-2">
                   <Label htmlFor="password">Senha</Label>
                   <Input
