@@ -1,7 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
+import { NpsChartClient } from "./nps-chart-client"
 
 async function getNpsData() {
   const supabase = await createClient()
@@ -29,23 +28,7 @@ export async function NpsChart() {
         <CardTitle>Distribuição NPS</CardTitle>
       </CardHeader>
       <CardContent>
-        <ChartContainer
-          config={{
-            count: {
-              label: "Respostas",
-              color: "hsl(var(--chart-1))",
-            },
-          }}
-          className="h-[300px]"
-        >
-          <BarChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-            <XAxis dataKey="category" className="text-xs" tick={{ fill: "hsl(var(--muted-foreground))" }} />
-            <YAxis className="text-xs" tick={{ fill: "hsl(var(--muted-foreground))" }} />
-            <ChartTooltip content={<ChartTooltipContent />} />
-            <Bar dataKey="count" radius={[4, 4, 0, 0]} />
-          </BarChart>
-        </ChartContainer>
+        <NpsChartClient data={data} />
       </CardContent>
     </Card>
   )
