@@ -15,88 +15,114 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { addNpsResponse } from "@/app/dashboard/clients/[id]/actions"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { addClient } from "@/app/dashboard/clients/actions"
 import { toast } from "sonner"
 import { PlusCircle } from "lucide-react"
 
-const npsCategories = [
-  "Conteúdos e Roteiros", "Audiovisual", "Edição de Vídeos", "Design",
-  "Atendimento Assessor", "Atendimento VideoMaker", "Comunicação e Presença", "Resultado da Parceria"
-];
-
 function SubmitButton() {
-  const { pending } = useFormStatus();
-  return <Button type="submit" disabled={pending}>{pending ? "Salvando..." : "Salvar Avaliação"}</Button>;
+  const { pending } = useFormStatus()
+  return (
+    <Button type="submit" disabled={pending}>
+      {pending ? "Salvando..." : "Criar Cliente"}
+    </Button>
+  )
 }
 
-export function AddNpsForm({ clientId }: { clientId: string }) {
-  const [open, setOpen] = useState(false);
-  const formRef = useRef<HTMLFormElement>(null);
+export function AddClientForm() {
+  const [open, setOpen] = useState(false)
+  const formRef = useRef<HTMLFormElement>(null)
 
   async function handleFormSubmit(formData: FormData) {
-    formData.append('clientId', clientId);
-    const result = await addNpsResponse(formData);
+    const result = await addClient(formData)
 
     if (result.error) {
-      toast.error("Erro ao salvar NPS.", { description: result.error });
+      toast.error("Erro ao criar cliente", { description: result.error })
     } else {
-      toast.success(result.success);
-      setOpen(false);
-      formRef.current?.reset();
+      toast.success(result.success)
+      setOpen(false)
+      formRef.current?.reset()
     }
   }
-  
-  // Função para garantir que o valor esteja entre 0 e 10
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let value = parseInt(e.target.value, 10);
-    if (isNaN(value) || value < 0) {
-      e.target.value = '0';
-    } else if (value > 10) {
-      e.target.value = '10';
-    }
-  };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm"><PlusCircle className="mr-2 h-4 w-4" />Adicionar NPS</Button>
+        <Button>
+          <PlusCircle className="mr-2 h-4 w-4" />
+          Novo Cliente
+        </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Registrar Avaliação NPS</DialogTitle>
-          <DialogDescription>Preencha as notas de 0 a 10 para cada categoria.</DialogDescription>
+          <DialogTitle>Adicionar Novo Cliente</DialogTitle>
+          <DialogDescription>Preencha os dados do cliente e do contrato inicial (opcional).</DialogDescription>
         </DialogHeader>
         <form ref={formRef} action={handleFormSubmit} className="space-y-4">
-          <div className="max-h-[60vh] overflow-y-auto pr-4">
-            <div className="grid gap-4">
-              {npsCategories.map((category) => (
-                <div key={category} className="grid grid-cols-3 items-center gap-4">
-                  <Label htmlFor={category} className="col-span-2">{category}*</Label>
-                  <Input 
-                    id={category} 
-                    name={category} 
-                    type="number" 
-                    min="0" 
-                    max="10" 
-                    required 
-                    className="col-span-1"
-                    onChange={handleInputChange} // Adicionamos o validador aqui
-                  />
+          <div className="grid gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="name">Nome do Cliente*</Label>
+              <Input id="name" name="name" placeholder="Ex: Empresa ABC Ltda" required />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="contact_email">Email de Contato</Label>
+              <Input id="contact_email" name="contact_email" type="email" placeholder="contato@empresa.com" />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="contact_phone">Telefone</Label>
+              <Input id="contact_phone" name="contact_phone" placeholder="(11) 99999-9999" />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="status">Status*</Label>
+              <Select name="status" defaultValue="prospect" required>
+                <SelectTrigger id="status">
+                  <SelectValue placeholder="Selecione o status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="prospect">Prospect</SelectItem>
+                  <SelectItem value="active">Ativo</SelectItem>
+                  <SelectItem value="inactive">Inativo</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="border-t pt-4">
+              <h4 className="text-sm font-medium mb-3">Dados do Contrato (Opcional)</h4>
+
+              <div className="grid gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="monthly_value">Valor Mensal (R$)</Label>
+                  <Input id="monthly_value" name="monthly_value" type="number" step="0.01" min="0" placeholder="0.00" />
                 </div>
-              ))}
-              <div className="grid gap-2">
-                <Label htmlFor="observations">Observações</Label>
-                <Textarea id="observations" name="observations" placeholder="Comentários, elogios, críticas..." />
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="start_date">Data de Início</Label>
+                    <Input id="start_date" name="start_date" type="date" />
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label htmlFor="end_date">Data de Término</Label>
+                    <Input id="end_date" name="end_date" type="date" />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
+
           <DialogFooter>
-            <DialogClose asChild><Button type="button" variant="outline">Cancelar</Button></DialogClose>
+            <DialogClose asChild>
+              <Button type="button" variant="outline">
+                Cancelar
+              </Button>
+            </DialogClose>
             <SubmitButton />
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
-  );
+  )
 }
