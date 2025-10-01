@@ -1,11 +1,19 @@
-import { NextResponse, type NextRequest } from "next/server"
+import type { NextRequest } from "next/server"
 
-// O middleware agora é apenas um pass-through.
-// A lógica de autenticação está no layout do dashboard.
 export async function middleware(request: NextRequest) {
-  return NextResponse.next()
+  // Não fazemos nada aqui - a proteção de rota é feita no layout do dashboard
+  return
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  matcher: [
+    /*
+     * Match all request paths except:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - images - .svg, .png, .jpg, .jpeg, .gif, .webp
+     */
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+  ],
 }

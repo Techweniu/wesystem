@@ -3,12 +3,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { notFound } from "next/navigation"
-import { Mail, Phone, Calendar } from "lucide-react"
+import { Mail, Phone, Calendar, LinkIcon } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { formatDistanceToNow, isPast } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
+import { AddServiceForm } from "@/components/add-service-form"
+import { Input } from "@/components/ui/input"
 
 async function getClientDetails(id: string) {
   const supabase = await createClient()
-
   const { data: client } = await supabase
     .from("clients")
     .select(
@@ -22,12 +25,9 @@ async function getClientDetails(id: string) {
     .eq("id", id)
     .single()
 
-  if (!client) return null
-
   return client
 }
 
-// O tipo do 'params' precisa ser ajustado para como o Next.js realmente o envia
 export default async function ClientDetailPage({ params }: { params: { id: string } }) {
   const { id } = params
   const client = await getClientDetails(id)
@@ -46,6 +46,10 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
 
   const npsScores = client.nps_responses?.map((n: { score: number }) => n.score) || []
   const avgNps = npsScores.length > 0 ? npsScores.reduce((a: number, b: number) => a + b, 0) / npsScores.length : 0
+
+  // ATENÇÃO: A URL base pode precisar ser ajustada para o seu domínio de produção
+  const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000";
+  const npsLink = `${baseUrl}/nps/${client.id}`;
 
   return (
     <div className="space-y-6">
@@ -130,6 +134,17 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
         </CardContent>
       </Card>
 
+      {/* Card do Link do NPS */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><LinkIcon className="h-4 w-4" /> Link para Formulário NPS</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground mb-2">Envie este link para o cliente preencher a avaliação de satisfação a qualquer momento.</p>
+          <Input readOnly defaultValue={npsLink} />
+        </CardContent>
+      </Card>
+
       <Tabs defaultValue="contracts" className="space-y-4">
         <TabsList>
           <TabsTrigger value="contracts">Contratos</TabsTrigger>
@@ -146,46 +161,32 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Nome</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Data Início</TableHead>
                     <TableHead>Data Fim</TableHead>
+                    <TableHead>Tempo Restante</TableHead>
                     <TableHead className="text-right">Valor Mensal</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {client.contracts?.map((contract: any) => (
-                    <TableRow key={contract.id}>
-                      <TableCell className="font-medium">{contract.name}</TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            contract.status === "active"
-                              ? "default"
-                              : contract.status === "completed"
-                                ? "secondary"
-                                : "outline"
-                          }
-                        >
-                          {contract.status === "active"
-                            ? "Ativo"
-                            : contract.status === "completed"
-                              ? "Concluído"
-                              : "Cancelado"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{new Date(contract.start_date).toLocaleDateString("pt-BR")}</TableCell>
-                      <TableCell>
-                        {contract.end_date ? new Date(contract.end_date).toLocaleDateString("pt-BR") : "Indeterminado"}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {new Intl.NumberFormat("pt-BR", {
-                          style: "currency",
-                          currency: "BRL",
-                        }).format(contract.monthly_value)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {client.contracts?.map((contract: any) => {
+                    let remainingTime = "Indeterminado";
+                    let isExpired = false;
+                    if (contract.end_date) {
+                      const endDate = new Date(contract.end_date);
+                      isExpired = isPast(endDate);
+                      remainingTime = formatDistanceToNow(endDate, { addSuffix: true, locale: ptBR });
+                    }
+                    return (
+                      <TableRow key={contract.id}>
+                        <TableCell><Badge variant={contract.status === "active" ? "default" : "outline"}>{contract.status === "active" ? "Ativo" : "Encerrado"}</Badge></TableCell>
+                        <TableCell>{new Date(contract.start_date).toLocaleDateString("pt-BR")}</TableCell>
+                        <TableCell>{contract.end_date ? new Date(contract.end_date).toLocaleDateString("pt-BR") : "N/A"}</TableCell>
+                        <TableCell className={isExpired ? 'text-destructive' : 'text-muted-foreground'}>{remainingTime}</TableCell>
+                        <TableCell className="text-right">{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(contract.monthly_value)}</TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </CardContent>
@@ -194,8 +195,9 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
 
         <TabsContent value="services">
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Serviços Pontuais</CardTitle>
+              <AddServiceForm clientId={client.id} />
             </CardHeader>
             <CardContent>
               <Table>
@@ -211,30 +213,9 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
                   {client.one_time_services?.map((service: any) => (
                     <TableRow key={service.id}>
                       <TableCell className="font-medium">{service.name}</TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            service.status === "completed"
-                              ? "default"
-                              : service.status === "pending"
-                                ? "secondary"
-                                : "outline"
-                          }
-                        >
-                          {service.status === "completed"
-                            ? "Concluído"
-                            : service.status === "pending"
-                              ? "Pendente"
-                              : "Cancelado"}
-                        </Badge>
-                      </TableCell>
+                      <TableCell><Badge variant={service.status === "completed" ? "default" : service.status === "pending" ? "secondary" : "outline"}>{service.status === "completed" ? "Concluído" : service.status === "pending" ? "Pendente" : "Cancelado"}</Badge></TableCell>
                       <TableCell>{new Date(service.date).toLocaleDateString("pt-BR")}</TableCell>
-                      <TableCell className="text-right">
-                        {new Intl.NumberFormat("pt-BR", {
-                          style: "currency",
-                          currency: "BRL",
-                        }).format(service.value)}
-                      </TableCell>
+                      <TableCell className="text-right">{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(service.value)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -244,7 +225,7 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
         </TabsContent>
 
         <TabsContent value="nps">
-          <Card>
+           <Card>
             <CardHeader>
               <CardTitle>Histórico de NPS</CardTitle>
             </CardHeader>

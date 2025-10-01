@@ -17,17 +17,32 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
+    console.log("[v0] Login attempt started")
     setIsLoading(true)
 
     if (password === MASTER_PASSWORD) {
-      // Usamos o localStorage para "simular" uma sessão.
-      // É simples, mas para este caso de uso, é o suficiente.
+      console.log("[v0] Password correct, setting localStorage")
       localStorage.setItem("isAuthenticated", "true")
+
+      // Verificar se foi setado corretamente
+      const authCheck = localStorage.getItem("isAuthenticated")
+      console.log("[v0] localStorage check:", authCheck)
+
       toast.success("Login realizado com sucesso!")
-      router.push("/dashboard")
+
+      setTimeout(() => {
+        console.log("[v0] Redirecting to dashboard")
+        router.push("/dashboard")
+
+        setTimeout(() => {
+          console.log("[v0] Using window.location fallback")
+          window.location.href = "/dashboard"
+        }, 500)
+      }, 100)
     } else {
+      console.log("[v0] Password incorrect")
       toast.error("Senha incorreta. Tente novamente.")
       setIsLoading(false)
     }
