@@ -10,7 +10,7 @@ import { Toaster } from "@/components/ui/sonner"
 import { ClientFilters } from "@/components/client-filters"
 import { NpsQuadrantChart } from "@/components/nps-quadrant-chart"
 import { NpsScoreSummaryTable } from "@/components/nps-score-summary-table"
-import { differenceInDays, parseISO } from "date-fns"
+import { differenceInDays, parseISO, isPast } from "date-fns"
 
 async function getClients({ name, status }: { name?: string; status?: string }) {
   const supabase = await createClient()
@@ -19,7 +19,7 @@ async function getClients({ name, status }: { name?: string; status?: string }) 
     .select(
       `
       *,
-      contracts ( valor_mensal, start_date ), 
+      contracts ( valor_mensal, start_date, end_date ), 
       nps_responses(score, response_date)
     `
     )
@@ -35,7 +35,23 @@ async function getClients({ name, status }: { name?: string; status?: string }) 
     const latestNps = client.nps_responses?.sort((a, b) => new Date(b.response_date).getTime() - new Date(a.response_date).getTime())[0]?.score;
 
     let generatedValue = 0;
+    let daysRemaining: number | null = null;
     const today = new Date();
+
+    const activeContractsWithEndDate = client.contracts?.filter(c => c.end_date && !isPast(parseISO(c.end_date)));
+    
+    if (activeContractsWithEndDate && activeContractsWithEndDate.length > 0) {
+      const soonestContract = activeContractsWithEndDate.reduce((soonest, current) => {
+        return parseISO(current.end_date) < parseISO(soonest.end_date) ? current : soonest;
+      });
+      daysRemaining = differenceInDays(parseISO(soonestContract.end_date), today);
+    } else {
+      const expiredContract = client.contracts?.find(c => c.end_date && isPast(parseISO(c.end_date)));
+      if (expiredContract) {
+        daysRemaining = -1;
+      }
+    }
+
     client.contracts?.forEach(contract => {
         if (contract.start_date && contract.valor_mensal > 0) {
             const startDate = parseISO(contract.start_date);
@@ -46,7 +62,7 @@ async function getClients({ name, status }: { name?: string; status?: string }) 
         }
     });
 
-    return { ...client, monthlyRevenue, latestNps, generatedValue }
+    return { ...client, monthlyRevenue, latestNps, generatedValue, daysRemaining }
   })
 }
 
@@ -76,6 +92,7 @@ async function getAnalyticsData() {
     return { monthlyRevenue, oneTimeRevenue, npsChartData };
 }
 
+
 export default async function ClientsPage({ searchParams }: { searchParams?: { name?: string; status?: string; }; }) {
   const { name, status } = searchParams || {};
 
@@ -91,10 +108,18 @@ export default async function ClientsPage({ searchParams }: { searchParams?: { n
   const activeClients = allClients?.filter(c => c.status === 'active').length || 0;
   const npsClientData = analytics.npsChartData.map(c => ({ name: c.name, nps: c.nps }));
 
+
   const healthStatusColors = {
     green: 'bg-green-500',
     yellow: 'bg-yellow-500',
     red: 'bg-red-500',
+  }
+
+  const renderRemainingDays = (days: number | null) => {
+    if (days === null) return <span className="text-muted-foreground">Indet.</span>;
+    if (days < 0) return <Badge variant="destructive">Expirado</Badge>;
+    if (days <= 30) return <Badge variant="secondary">{days} dias</Badge>;
+    return <span className="text-muted-foreground">{days} dias</span>;
   }
 
   return (
@@ -153,6 +178,7 @@ export default async function ClientsPage({ searchParams }: { searchParams?: { n
                 <TableHead className="w-[40px]"></TableHead>
                 <TableHead>Nome</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Dias Restantes</TableHead>
                 <TableHead className="text-center">Último NPS</TableHead>
                 <TableHead className="text-right">Receita Mensal (MRR)</TableHead>
                 <TableHead className="text-right">Valor Gerado (Est.)</TableHead>
@@ -168,6 +194,7 @@ export default async function ClientsPage({ searchParams }: { searchParams?: { n
                     </TableCell>
                     <TableCell className="font-medium">{client.name}</TableCell>
                     <TableCell><Badge variant={client.status === "active" ? "default" : "outline"}>{client.status === "active" ? "Ativo" : "Inativo"}</Badge></TableCell>
+                    <TableCell>{renderRemainingDays(client.daysRemaining)}</TableCell>
                     <TableCell className="text-center">
                       {client.latestNps !== undefined ? (
                         <Badge variant={client.latestNps >= 9 ? 'default' : client.latestNps >= 7 ? 'secondary' : 'destructive'}>{client.latestNps}</Badge>
@@ -184,7 +211,7 @@ export default async function ClientsPage({ searchParams }: { searchParams?: { n
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-24 text-center"> Nenhum cliente encontrado. </TableCell>
+                  <TableCell colSpan={8} className="h-24 text-center"> Nenhum cliente encontrado. </TableCell>
                 </TableRow>
               )}
             </TableBody>

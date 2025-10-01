@@ -83,14 +83,18 @@ export function AddContractForm({ clientId }: AddContractFormProps) {
               <Label htmlFor="contract_name">Nome do Contrato*</Label>
               <Input id="contract_name" name="contract_name" placeholder="Ex: Aditivo de Contrato Q4" required />
             </div>
-             <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                    <Label htmlFor="valor_mensal">Valor Mensal (R$)</Label>
-                    <Input id="valor_mensal" name="valor_mensal" type="number" step="0.01" min="0" placeholder="5000.00" />
-                </div>
+             <div className="grid gap-2">
+                <Label htmlFor="valor_mensal">Valor Mensal (R$)</Label>
+                <Input id="valor_mensal" name="valor_mensal" type="number" step="0.01" min="0" placeholder="5000.00" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
                     <Label htmlFor="start_date">Data de Início*</Label>
                     <Input id="start_date" name="start_date" type="date" required />
+                </div>
+                <div className="grid gap-2">
+                    <Label htmlFor="end_date">Data Fim</Label>
+                    <Input id="end_date" name="end_date" type="date" />
                 </div>
             </div>
             <div className="grid gap-2">

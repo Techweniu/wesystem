@@ -131,6 +131,7 @@ const addContractSchema = z.object({
   contract_name: z.string().min(3, "O nome do contrato é obrigatório."),
   valor_mensal: z.coerce.number().min(0, "O valor mensal não pode ser negativo.").optional(),
   start_date: z.string().min(1, "A data de início é obrigatória."),
+  end_date: z.string().optional().or(z.literal('')), // Campo de data fim
   contract_file: z.instanceof(File).refine(file => file.size > 0, "O arquivo do contrato é obrigatório."),
 });
 
@@ -140,6 +141,7 @@ export async function addContract(formData: FormData) {
     contract_name: formData.get('contract_name'),
     valor_mensal: formData.get('valor_mensal'),
     start_date: formData.get('start_date'),
+    end_date: formData.get('end_date'),
     contract_file: formData.get('contract_file'),
   };
 
@@ -150,7 +152,7 @@ export async function addContract(formData: FormData) {
     return { error: firstError || "Dados inválidos." };
   }
 
-  const { clientId, contract_name, valor_mensal, start_date, contract_file } = validatedFields.data;
+  const { clientId, contract_name, valor_mensal, start_date, end_date, contract_file } = validatedFields.data;
 
   const supabase = await createClient();
   const fileExtension = contract_file.name.split('.').pop();
@@ -171,6 +173,7 @@ export async function addContract(formData: FormData) {
     valor_mensal: valor_mensal || 0, 
     storage_path: filePath,
     start_date: start_date,
+    end_date: end_date || null,
   });
 
   if (insertError) {
