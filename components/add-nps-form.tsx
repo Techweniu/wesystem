@@ -46,16 +46,6 @@ export function AddNpsForm({ clientId }: { clientId: string }) {
       formRef.current?.reset();
     }
   }
-  
-  // Função para garantir que o valor esteja entre 0 e 10
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let value = parseInt(e.target.value, 10);
-    if (isNaN(value) || value < 0) {
-      e.target.value = '0';
-    } else if (value > 10) {
-      e.target.value = '10';
-    }
-  };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -73,16 +63,7 @@ export function AddNpsForm({ clientId }: { clientId: string }) {
               {npsCategories.map((category) => (
                 <div key={category} className="grid grid-cols-3 items-center gap-4">
                   <Label htmlFor={category} className="col-span-2">{category}*</Label>
-                  <Input 
-                    id={category} 
-                    name={category} 
-                    type="number" 
-                    min="0" 
-                    max="10" 
-                    required 
-                    className="col-span-1"
-                    onChange={handleInputChange} // Adicionamos o validador aqui
-                  />
+                  <Input id={category} name={category} type="number" min="0" max="10" required className="col-span-1" />
                 </div>
               ))}
               <div className="grid gap-2">
