@@ -1,10 +1,10 @@
-import { createClient } from "@/lib/supabase/server"
+import { createPublicClient } from "@/lib/supabase/public"
 import { notFound } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { NpsForm } from "./nps-form"
 
 export default async function NpsPage({ params }: { params: { clientId: string } }) {
-  const supabase = await createClient()
+  const supabase = createPublicClient()
   const { data: client } = await supabase.from("clients").select("name").eq("id", params.clientId).single()
 
   if (!client) {
