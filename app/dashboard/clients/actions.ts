@@ -9,10 +9,11 @@ const clientWithContractSchema = z.object({
   name: z.string().min(3, "O nome do cliente é obrigatório."),
   contact_email: z.string().email("Por favor, insira um email válido.").optional().or(z.literal('')),
   contact_phone: z.string().optional().or(z.literal('')),
-  status: z.enum(["active", "inactive", "prospect"]),
+  status: z.enum(["active", "inactive"]),
   contract_name: z.string().optional(),
   contract_file: z.instanceof(File).optional(),
-  valor_mensal: z.coerce.number().optional(), // Novo campo
+  valor_mensal: z.coerce.number().optional(),
+  start_date: z.string().optional(),
 })
 
 export async function addClient(formData: FormData) {
@@ -23,59 +24,51 @@ export async function addClient(formData: FormData) {
     status: formData.get('status'),
     contract_name: formData.get('contract_name'),
     contract_file: formData.get('contract_file'),
-    valor_mensal: formData.get('valor_mensal'), // Novo campo
+    valor_mensal: formData.get('valor_mensal'),
+    start_date: formData.get('start_date'),
   };
 
   const validatedFields = clientWithContractSchema.safeParse(rawFormData)
 
   if (!validatedFields.success) {
-    console.error("Erro de validação:", validatedFields.error.flatten().fieldErrors)
     const firstError = Object.values(validatedFields.error.flatten().fieldErrors)[0]?.[0];
     return { error: firstError || "Dados inválidos." }
   }
 
-  const { name, contact_email, contact_phone, status, contract_name, contract_file, valor_mensal } = validatedFields.data;
+  const { name, contact_email, contact_phone, status, contract_name, contract_file, valor_mensal, start_date } = validatedFields.data;
+
+  const hasContractData = contract_name || (valor_mensal != null && valor_mensal > 0) || (start_date);
+
+  if (hasContractData && (!contract_name || !start_date)) {
+      return { error: "Nome do contrato e data de início são obrigatórios ao adicionar um contrato." };
+  }
 
   let contractPath = null;
   if (contract_file && contract_file.size > 0) {
-    if (!contract_name || contract_name.trim() === '') {
-      return { error: "O nome do contrato é obrigatório ao enviar um arquivo." };
-    }
-
     const supabase = await createClient();
     const fileExtension = contract_file.name.split('.').pop();
     const newFileName = `${Date.now()}.${fileExtension}`;
     const filePath = `public/${newFileName}`;
 
-    const { error: uploadError } = await supabase.storage
-      .from('contracts')
-      .upload(filePath, contract_file);
-
-    if (uploadError) {
-      console.error("Erro no upload do Supabase:", uploadError);
-      return { error: `Não foi possível enviar o contrato: ${uploadError.message}` };
-    }
-    
+    const { error: uploadError } = await supabase.storage.from('contracts').upload(filePath, contract_file);
+    if (uploadError) { return { error: `Não foi possível enviar o contrato: ${uploadError.message}` }; }
     contractPath = filePath;
   }
   
-  const supabaseAdmin = createAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_KEY!
-  );
+  const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!);
 
   const { data: newClientId, error: rpcError } = await supabaseAdmin.rpc('create_client_with_optional_contract', {
     client_name: name,
     client_email: contact_email || null,
     client_phone: contact_phone || null,
     client_status: status,
-    contract_name: contract_name || null,
+    contract_name: hasContractData ? contract_name : null,
     contract_path: contractPath,
-    contract_value: valor_mensal || 0, // Novo campo
+    contract_value: hasContractData ? (valor_mensal || 0) : null,
+    contract_start_date: hasContractData ? start_date : null,
   });
 
   if (rpcError) {
-    console.error("Erro do Supabase RPC:", rpcError);
     if (contractPath) {
       const supabase = await createClient();
       await supabase.storage.from('contracts').remove([contractPath]);
@@ -86,9 +79,7 @@ export async function addClient(formData: FormData) {
   if (contractPath && newClientId) {
      const supabase = await createClient();
      const newPath = `${newClientId}/${contractPath.split('/')[1]}`;
-     const { error: moveError } = await supabase.storage
-       .from('contracts')
-       .move(contractPath, newPath);
+     const { error: moveError } = await supabase.storage.from('contracts').move(contractPath, newPath);
 
      if (moveError) {
        console.error('Erro ao mover o arquivo:', moveError);

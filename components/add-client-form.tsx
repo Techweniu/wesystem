@@ -71,7 +71,6 @@ export function AddClientForm() {
         </DialogHeader>
         <form ref={formRef} action={handleFormSubmit} className="space-y-4">
           <div className="grid gap-4">
-            {/* Dados do Cliente */}
             <div className="grid gap-2">
               <Label htmlFor="name">Nome do Cliente*</Label>
               <Input id="name" name="name" placeholder="Ex: Empresa ABC Ltda" required />
@@ -86,19 +85,17 @@ export function AddClientForm() {
             </div>
             <div className="grid gap-2">
               <Label htmlFor="status">Status*</Label>
-              <Select name="status" defaultValue="prospect" required>
+              <Select name="status" defaultValue="active" required>
                 <SelectTrigger id="status">
                   <SelectValue placeholder="Selecione o status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="prospect">Prospect</SelectItem>
                   <SelectItem value="active">Ativo</SelectItem>
                   <SelectItem value="inactive">Inativo</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Dados do Contrato */}
             <div className="border-t pt-4">
               <h4 className="text-sm font-medium mb-3">Contrato Inicial (Opcional)</h4>
               <div className="grid gap-4">
@@ -106,9 +103,15 @@ export function AddClientForm() {
                   <Label htmlFor="contract_name">Nome do Contrato</Label>
                   <Input id="contract_name" name="contract_name" placeholder="Ex: Contrato de Marketing Digital 2025" />
                 </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="valor_mensal">Valor Mensal (R$)</Label>
-                  <Input id="valor_mensal" name="valor_mensal" type="number" step="0.01" min="0" placeholder="5000.00" />
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                        <Label htmlFor="valor_mensal">Valor Mensal (R$)</Label>
+                        <Input id="valor_mensal" name="valor_mensal" type="number" step="0.01" min="0" placeholder="5000.00" />
+                    </div>
+                    <div className="grid gap-2">
+                        <Label htmlFor="start_date">Data de Início</Label>
+                        <Input id="start_date" name="start_date" type="date" />
+                    </div>
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="contract_file">Arquivo do Contrato (PDF)</Label>

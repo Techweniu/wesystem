@@ -3,61 +3,36 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { notFound } from "next/navigation"
-import { Mail, Phone, Calendar, Download, FileText } from "lucide-react"
+import { Mail, Phone, Calendar, Download, FileText, TrendingUp } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AddServiceForm } from "@/components/add-service-form"
 import { AddNpsForm } from "@/components/add-nps-form"
 import { AddContractForm } from "@/components/add-contract-form"
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion"
-import { format, parseISO } from 'date-fns'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, } from "@/components/ui/accordion"
+import { format, parseISO, differenceInDays } from 'date-fns'
 import { EditClientForm } from "@/components/edit-client-form"
 import { Button } from "@/components/ui/button"
 import { ServiceStatusChanger } from "@/components/service-status-changer"
 
 async function getClientDetails(id: string) {
   const supabase = await createClient()
-  const { data: client, error } = await supabase
-    .from("clients")
-    .select(`
-      *, 
-      contracts(*), 
-      one_time_services(*), 
-      nps_responses(*)
-    `)
-    .eq("id", id)
-    .order('created_at', { foreignTable: 'contracts', ascending: false })
-    .order('response_date', { foreignTable: 'nps_responses', ascending: false })
-    .order('date', { foreignTable: 'one_time_services', ascending: false })
-    .single()
-
-  if (error) {
-    console.error('Error fetching client details:', error);
-    return null;
-  }
+  const { data: client, error } = await supabase.from("clients").select(`*, contracts(*), one_time_services(*), nps_responses(*)`).eq("id", id).order('created_at', { foreignTable: 'contracts', ascending: false }).order('response_date', { foreignTable: 'nps_responses', ascending: false }).order('date', { foreignTable: 'one_time_services', ascending: false }).single()
   
-  // Gerar URLs de download para os contratos
+  if (error) { return null; }
+  
   if (client && client.contracts) {
     for (const contract of client.contracts) {
-      const { data } = await supabase.storage.from('contracts').createSignedUrl(contract.storage_path, 60 * 60); // URL válida por 1 hora
+      const { data } = await supabase.storage.from('contracts').createSignedUrl(contract.storage_path, 60 * 60);
       (contract as any).downloadUrl = data?.signedUrl;
     }
   }
-
   return client
 }
 
 export default async function ClientDetailPage({ params }: { params: { id: string } }) {
   const { id } = params
   const client = await getClientDetails(id)
-
-  if (!client) {
-    notFound()
-  }
+  if (!client) { notFound() }
 
   const monthlyRevenue = client.contracts?.reduce((sum: number, c: any) => sum + Number(c.valor_mensal), 0) || 0
   const completedServices = client.one_time_services?.filter((s: any) => s.status === "completed") || []
@@ -66,6 +41,18 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
   const npsScores = client.nps_responses?.map((n: any) => n.score) || []
   const avgNps = npsScores.length > 0 ? npsScores.reduce((a: number, b: number) => a + b, 0) / npsScores.length : 0
 
+  let generatedValue = 0;
+  const today = new Date();
+  client.contracts?.forEach(contract => {
+      if (contract.start_date && contract.valor_mensal > 0) {
+          const startDate = parseISO(contract.start_date);
+          const daysPassed = differenceInDays(today, startDate);
+          if (daysPassed > 0) {
+              generatedValue += (contract.valor_mensal / 30.44) * daysPassed;
+          }
+      }
+  });
+
   return (
     <div className="space-y-6">
       <div>
@@ -73,10 +60,11 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
         <p className="text-muted-foreground">Detalhes do cliente e histórico</p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card><CardHeader className="pb-3"><CardTitle className="text-sm font-medium">Status</CardTitle></CardHeader><CardContent><Badge variant={client.status === "active" ? "default" : client.status === "prospect" ? "secondary" : "outline"}>{client.status === "active" ? "Ativo" : client.status === "prospect" ? "Prospect" : "Inativo"}</Badge></CardContent></Card>
+      <div className="grid gap-4 md:grid-cols-5">
+        <Card><CardHeader className="pb-3"><CardTitle className="text-sm font-medium">Status</CardTitle></CardHeader><CardContent><Badge variant={client.status === "active" ? "default" : "outline"}>{client.status === "active" ? "Ativo" : "Inativo"}</Badge></CardContent></Card>
         <Card><CardHeader className="pb-3"><CardTitle className="text-sm font-medium">Receita Mensal (MRR)</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold">{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(monthlyRevenue)}</div></CardContent></Card>
         <Card><CardHeader className="pb-3"><CardTitle className="text-sm font-medium">Serviços Pontuais</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold">{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalServicesRevenue)}</div></CardContent></Card>
+        <Card><CardHeader className="pb-3"><CardTitle className="text-sm font-medium">Valor Gerado (Est.)</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold">{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(generatedValue)}</div></CardContent></Card>
         <Card><CardHeader className="pb-3"><CardTitle className="text-sm font-medium">NPS Médio</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold">{avgNps.toFixed(1)}/10</div></CardContent></Card>
       </div>
 
@@ -115,7 +103,7 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
                       <FileText className="h-5 w-5 text-muted-foreground" />
                       <div className="flex flex-col">
                         <span className="font-medium">{contract.name}</span>
-                        <span className="text-xs text-muted-foreground">Adicionado em: {format(parseISO(contract.created_at), 'dd/MM/yyyy')}</span>
+                        <span className="text-xs text-muted-foreground">Início: {contract.start_date ? format(parseISO(contract.start_date), 'dd/MM/yyyy') : 'N/A'}</span>
                       </div>
                     </div>
                     {contract.downloadUrl && (

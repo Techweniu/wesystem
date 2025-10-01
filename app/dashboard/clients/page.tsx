@@ -4,12 +4,13 @@ import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Eye, DollarSign, UserCheck, UserX } from "lucide-react"
+import { Eye, DollarSign, UserCheck } from "lucide-react"
 import { AddClientForm } from "@/components/add-client-form"
 import { Toaster } from "@/components/ui/sonner"
 import { ClientFilters } from "@/components/client-filters"
 import { NpsQuadrantChart } from "@/components/nps-quadrant-chart"
 import { NpsScoreSummaryTable } from "@/components/nps-score-summary-table"
+import { differenceInDays, parseISO } from "date-fns"
 
 async function getClients({ name, status }: { name?: string; status?: string }) {
   const supabase = await createClient()
@@ -18,32 +19,48 @@ async function getClients({ name, status }: { name?: string; status?: string }) 
     .select(
       `
       *,
-      contracts ( valor_mensal ), 
-      one_time_services (value, status),
+      contracts ( valor_mensal, start_date ), 
       nps_responses(score, response_date)
     `
     )
     .order("name")
-
+  
   if (name) { query = query.ilike('name', `%${name}%`) }
   if (status && status !== 'all') { query = query.eq('status', status) }
   
   const { data: clients } = await query;
 
   return clients?.map((client) => {
-    const oneTimeValue = client.one_time_services?.filter((s) => s.status === 'completed').reduce((sum, s) => sum + Number(s.value), 0) || 0;
     const monthlyRevenue = client.contracts?.reduce((sum, c) => sum + Number(c.valor_mensal), 0) || 0;
-    
     const latestNps = client.nps_responses?.sort((a, b) => new Date(b.response_date).getTime() - new Date(a.response_date).getTime())[0]?.score;
 
-    return { ...client, oneTimeValue, monthlyRevenue, totalRevenue: monthlyRevenue + oneTimeValue, latestNps }
+    let generatedValue = 0;
+    const today = new Date();
+    client.contracts?.forEach(contract => {
+        if (contract.start_date && contract.valor_mensal > 0) {
+            const startDate = parseISO(contract.start_date);
+            const daysPassed = differenceInDays(today, startDate);
+            if (daysPassed >= 0) {
+                generatedValue += (contract.valor_mensal / 30.44) * (daysPassed + 1);
+            }
+        }
+    });
+
+    return { ...client, monthlyRevenue, latestNps, generatedValue }
   })
 }
 
 async function getAnalyticsData() {
     const supabase = await createClient();
-    const { data: allContracts } = await supabase.from('contracts').select('valor_mensal, clients(status)');
-    const monthlyRevenue = allContracts?.filter(c => c.clients?.status === 'active').reduce((sum, c) => sum + Number(c.valor_mensal), 0) || 0;
+    const { data: activeClientsWithContracts } = await supabase
+      .from('clients')
+      .select('contracts(valor_mensal)')
+      .eq('status', 'active');
+    
+    const monthlyRevenue = activeClientsWithContracts?.reduce((total, client) => {
+      const clientMrr = client.contracts.reduce((sum, contract) => sum + contract.valor_mensal, 0);
+      return total + clientMrr;
+    }, 0) || 0;
     
     const currentMonth = new Date().toISOString().slice(0, 7)
     const { data: services } = await supabase.from("one_time_services").select("value").eq("status", "completed").gte("date", `${currentMonth}-01`)
@@ -62,20 +79,17 @@ async function getAnalyticsData() {
 export default async function ClientsPage({ searchParams }: { searchParams?: { name?: string; status?: string; }; }) {
   const { name, status } = searchParams || {};
 
-  const [clients, analytics] = await Promise.all([
+  const [clients, analytics, allClientsData] = await Promise.all([
     getClients({ name, status }),
-    getAnalyticsData()
+    getAnalyticsData(),
+    createClient().then(supabase => supabase.from("clients").select('status'))
   ]);
-
-  // CORREÇÃO AQUI
-  const supabase = await createClient();
-  const { data: allClients } = await supabase.from("clients").select('status');
   
+  const { data: allClients } = allClientsData;
+
   const totalClients = allClients?.length || 0;
   const activeClients = allClients?.filter(c => c.status === 'active').length || 0;
-  const inactiveClients = allClients?.filter(c => c.status === 'inactive').length || 0;
   const npsClientData = analytics.npsChartData.map(c => ({ name: c.name, nps: c.nps }));
-
 
   const healthStatusColors = {
     green: 'bg-green-500',
@@ -141,7 +155,7 @@ export default async function ClientsPage({ searchParams }: { searchParams?: { n
                 <TableHead>Status</TableHead>
                 <TableHead className="text-center">Último NPS</TableHead>
                 <TableHead className="text-right">Receita Mensal (MRR)</TableHead>
-                <TableHead className="text-right">Receita Total</TableHead>
+                <TableHead className="text-right">Valor Gerado (Est.)</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
@@ -157,12 +171,10 @@ export default async function ClientsPage({ searchParams }: { searchParams?: { n
                     <TableCell className="text-center">
                       {client.latestNps !== undefined ? (
                         <Badge variant={client.latestNps >= 9 ? 'default' : client.latestNps >= 7 ? 'secondary' : 'destructive'}>{client.latestNps}</Badge>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
+                      ) : ( <span className="text-muted-foreground">-</span> )}
                     </TableCell>
                     <TableCell className="text-right">{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(client.monthlyRevenue)}</TableCell>
-                    <TableCell className="text-right font-semibold">{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(client.totalRevenue)}</TableCell>
+                    <TableCell className="text-right font-semibold">{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(client.generatedValue)}</TableCell>
                     <TableCell className="text-right">
                       <Link href={`/dashboard/clients/${client.id}`}>
                         <Button variant="ghost" size="sm"><Eye className="h-4 w-4" /></Button>
@@ -172,9 +184,7 @@ export default async function ClientsPage({ searchParams }: { searchParams?: { n
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-24 text-center">
-                    Nenhum cliente encontrado.
-                  </TableCell>
+                  <TableCell colSpan={7} className="h-24 text-center"> Nenhum cliente encontrado. </TableCell>
                 </TableRow>
               )}
             </TableBody>

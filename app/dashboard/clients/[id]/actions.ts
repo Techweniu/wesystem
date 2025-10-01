@@ -81,7 +81,7 @@ export async function addNpsResponse(formData: FormData) {
   return { success: "Avaliação NPS salva com sucesso!" };
 }
 
-// --- Action para Atualizar Cliente (Modificada) ---
+// --- Action para Atualizar Cliente ---
 const updateClientSchema = z.object({
   clientId: z.string().uuid("ID do cliente inválido."),
   name: z.string().min(3, "O nome do cliente é obrigatório."),
@@ -130,6 +130,7 @@ const addContractSchema = z.object({
   clientId: z.string().uuid(),
   contract_name: z.string().min(3, "O nome do contrato é obrigatório."),
   valor_mensal: z.coerce.number().min(0, "O valor mensal não pode ser negativo.").optional(),
+  start_date: z.string().min(1, "A data de início é obrigatória."),
   contract_file: z.instanceof(File).refine(file => file.size > 0, "O arquivo do contrato é obrigatório."),
 });
 
@@ -138,6 +139,7 @@ export async function addContract(formData: FormData) {
     clientId: formData.get('clientId'),
     contract_name: formData.get('contract_name'),
     valor_mensal: formData.get('valor_mensal'),
+    start_date: formData.get('start_date'),
     contract_file: formData.get('contract_file'),
   };
 
@@ -148,7 +150,7 @@ export async function addContract(formData: FormData) {
     return { error: firstError || "Dados inválidos." };
   }
 
-  const { clientId, contract_name, valor_mensal, contract_file } = validatedFields.data;
+  const { clientId, contract_name, valor_mensal, start_date, contract_file } = validatedFields.data;
 
   const supabase = await createClient();
   const fileExtension = contract_file.name.split('.').pop();
@@ -162,7 +164,14 @@ export async function addContract(formData: FormData) {
   }
 
   const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!);
-  const { error: insertError } = await supabaseAdmin.from("contracts").insert({ client_id: clientId, name: contract_name, valor_mensal: valor_mensal || 0, storage_path: filePath, });
+  
+  const { error: insertError } = await supabaseAdmin.from("contracts").insert({ 
+    client_id: clientId, 
+    name: contract_name, 
+    valor_mensal: valor_mensal || 0, 
+    storage_path: filePath,
+    start_date: start_date,
+  });
 
   if (insertError) {
     await supabase.storage.from('contracts').remove([filePath]);
@@ -174,6 +183,7 @@ export async function addContract(formData: FormData) {
   
   return { success: "Contrato adicionado com sucesso!" };
 }
+
 
 // --- Action para Atualizar Status do Serviço ---
 const updateServiceStatusSchema = z.object({
