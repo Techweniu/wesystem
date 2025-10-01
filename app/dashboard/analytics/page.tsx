@@ -9,25 +9,19 @@ import { TeamAllocationChart } from "@/components/team-allocation-chart"
 async function getAnalyticsData() {
   const supabase = await createClient()
 
-  // Get client profitability
+  // Get client profitability (based on one-time services)
   const { data: clients } = await supabase
     .from("clients")
     .select(
       `
       id,
       name,
-      contracts (monthly_value, status),
       one_time_services (value, status)
     `,
     )
     .eq("status", "active")
 
   const clientProfitability = clients?.map((client) => {
-    const contractRevenue =
-      client.contracts
-        ?.filter((c: { status: string }) => c.status === "active")
-        .reduce((sum: number, c: { monthly_value: number }) => sum + Number(c.monthly_value), 0) || 0
-
     const serviceRevenue =
       client.one_time_services
         ?.filter((s: { status: string }) => s.status === "completed")
@@ -36,18 +30,18 @@ async function getAnalyticsData() {
     return {
       id: client.id,
       name: client.name,
-      revenue: contractRevenue + serviceRevenue,
+      revenue: serviceRevenue,
     }
   })
 
-  // Get NPS data with revenue
+  // Get NPS data with revenue (now based on one-time services)
   const { data: npsData } = await supabase.from("nps_responses").select(
     `
       client_id,
       score,
       clients (
         name,
-        contracts (monthly_value, status)
+        one_time_services (value, status)
       )
     `,
   )
@@ -55,9 +49,9 @@ async function getAnalyticsData() {
   const npsWithRevenue = npsData?.reduce((acc: any[], response: any) => {
     const existing = acc.find((item) => item.client_id === response.client_id)
     const revenue =
-      response.clients?.contracts
-        ?.filter((c: { status: string }) => c.status === "active")
-        .reduce((sum: number, c: { monthly_value: number }) => sum + Number(c.monthly_value), 0) || 0
+      response.clients?.one_time_services
+        ?.filter((s: { status: string }) => s.status === "completed")
+        .reduce((sum: number, s: { value: number }) => sum + Number(s.value), 0) || 0
 
     if (existing) {
       existing.scores.push(response.score)
@@ -123,7 +117,7 @@ export default async function AnalyticsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Ranking de Lucratividade por Cliente</CardTitle>
+          <CardTitle>Ranking de Lucratividade por Cliente (Serviços Pontuais)</CardTitle>
         </CardHeader>
         <CardContent>
           <Table>

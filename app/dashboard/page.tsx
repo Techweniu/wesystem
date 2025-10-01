@@ -8,11 +8,6 @@ import { TopClientsTable } from "@/components/top-clients-table"
 async function getDashboardData() {
   const supabase = await createClient()
 
-  // Get total active contracts revenue
-  const { data: contracts } = await supabase.from("contracts").select("monthly_value").eq("status", "active")
-
-  const monthlyRevenue = contracts?.reduce((sum, c) => sum + Number(c.monthly_value), 0) || 0
-
   // Get one-time services revenue (current month)
   const currentMonth = new Date().toISOString().slice(0, 7)
   const { data: services } = await supabase
@@ -43,13 +38,11 @@ async function getDashboardData() {
     averageNps = Math.round(totalScore / npsData.length)
   }
 
-  const totalRevenue = monthlyRevenue + oneTimeRevenue
+  const totalRevenue = oneTimeRevenue
   const profit = totalRevenue - totalCosts
   const profitMargin = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0
 
   return {
-    monthlyRevenue,
-    oneTimeRevenue,
     totalRevenue,
     totalCosts,
     profit,
@@ -69,11 +62,10 @@ export default async function DashboardPage() {
         <p className="text-muted-foreground">Visão geral do desempenho da agência</p>
       </div>
 
-      {/* KPI Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Receita Total</CardTitle>
+            <CardTitle className="text-sm font-medium">Receita (Serviços Pontuais)</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -83,13 +75,13 @@ export default async function DashboardPage() {
                 currency: "BRL",
               }).format(data.totalRevenue)}
             </div>
-            <p className="text-xs text-muted-foreground">Contratos + Serviços pontuais</p>
+            <p className="text-xs text-muted-foreground">Receita do mês atual</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Lucro</CardTitle>
+            <CardTitle className="text-sm font-medium">Lucro (Mês)</CardTitle>
             <TrendingUp className="h-4 w-4 text-chart-2" />
           </CardHeader>
           <CardContent>
@@ -105,7 +97,7 @@ export default async function DashboardPage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Custos</CardTitle>
+            <CardTitle className="text-sm font-medium">Custos (Mês)</CardTitle>
             <TrendingDown className="h-4 w-4 text-destructive" />
           </CardHeader>
           <CardContent>
@@ -131,13 +123,11 @@ export default async function DashboardPage() {
         </Card>
       </div>
 
-      {/* Charts */}
       <div className="grid gap-4 md:grid-cols-2">
         <RevenueChart />
         <NpsChart />
       </div>
 
-      {/* Top Clients */}
       <TopClientsTable />
     </div>
   )

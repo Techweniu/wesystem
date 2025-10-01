@@ -44,7 +44,7 @@ export function DashboardSidebar() {
   return (
     <aside className="flex w-64 flex-col border-r border-border bg-card">
       <div className="flex h-16 items-center border-b border-border px-6">
-        <h1 className="text-xl font-bold">BI Dashboard</h1>
+        <h1 className="text-xl font-bold">Wesystem</h1>
       </div>
       <nav className="flex-1 space-y-1 p-4">
         {navigation.map((item) => {

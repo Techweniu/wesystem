@@ -19,6 +19,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { addNpsResponse } from "@/app/dashboard/clients/[id]/actions"
 import { toast } from "sonner"
 import { PlusCircle } from "lucide-react"
+import { useRouter } from "next/navigation" // IMPORTADO AQUI
 
 const npsCategories = [
   "Conteúdos e Roteiros", "Audiovisual", "Edição de Vídeos", "Design",
@@ -33,6 +34,7 @@ function SubmitButton() {
 export function AddNpsForm({ clientId }: { clientId: string }) {
   const [open, setOpen] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
+  const router = useRouter(); // ADICIONADO AQUI
 
   async function handleFormSubmit(formData: FormData) {
     formData.append('clientId', clientId);
@@ -44,6 +46,7 @@ export function AddNpsForm({ clientId }: { clientId: string }) {
       toast.success(result.success);
       setOpen(false);
       formRef.current?.reset();
+      router.refresh(); // ADICIONADO AQUI PARA FORÇAR A ATUALIZAÇÃO
     }
   }
 

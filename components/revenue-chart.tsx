@@ -8,7 +8,6 @@ async function getRevenueData() {
   const months = []
   for (let i = 5; i >= 0; i--) {
     const date = new Date()
-    // Garante que não teremos problemas com meses de durações diferentes
     date.setDate(1)
     date.setMonth(date.getMonth() - i)
     months.push(date)
@@ -20,18 +19,10 @@ async function getRevenueData() {
       const month = monthDate.getMonth()
 
       const startDate = new Date(year, month, 1).toISOString().slice(0, 10)
-      // Pega o último dia do mês corretamente
       const endDate = new Date(year, month + 1, 0).toISOString().slice(0, 10)
       const monthLabel = monthDate.toLocaleDateString("pt-BR", { month: "short" })
 
-      // Get contracts revenue
-      const { data: contracts } = await supabase
-        .from("contracts")
-        .select("monthly_value")
-        .eq("status", "active")
-        .lte("start_date", endDate)
-
-      const contractRevenue = contracts?.reduce((sum, c) => sum + Number(c.monthly_value), 0) || 0
+      // A receita de contrato foi removida daqui
 
       // Get one-time services
       const { data: services } = await supabase
@@ -48,7 +39,7 @@ async function getRevenueData() {
 
       const totalCosts = costs?.reduce((sum, c) => sum + Number(c.value), 0) || 0
 
-      const totalRevenue = contractRevenue + serviceRevenue
+      const totalRevenue = serviceRevenue // A receita total agora é só de serviços
 
       return {
         month: monthLabel,
@@ -68,7 +59,7 @@ export async function RevenueChart() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Receita vs Custos</CardTitle>
+        <CardTitle>Receita de Serviços vs Custos</CardTitle>
       </CardHeader>
       <CardContent>
         <RevenueChartClient data={data} />

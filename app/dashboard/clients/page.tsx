@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button"
 import { Eye } from "lucide-react"
 import { AddClientForm } from "@/components/add-client-form"
 import { Toaster } from "@/components/ui/sonner"
-import { differenceInDays, isPast, parseISO } from 'date-fns'
 
 async function getClients() {
   const supabase = await createClient()
@@ -17,65 +16,33 @@ async function getClients() {
     .select(
       `
       *,
-      contracts (id, monthly_value, status, start_date, end_date)
+      contracts ( valor_mensal ), 
+      one_time_services (value, status) 
     `
     )
     .order("name")
 
-  const today = new Date()
-
   return clients?.map((client) => {
-    // Assumindo um único contrato ativo por cliente
-    const activeContract = client.contracts?.find((c: { status: string }) => c.status === "active")
-
-    let daysRemaining = null;
-    let generatedValue = 0;
-
-    if (activeContract) {
-      const startDate = parseISO(activeContract.start_date);
-      
-      // Cálculo de Dias Restantes
-      if (activeContract.end_date) {
-        const endDate = parseISO(activeContract.end_date);
-        if (isPast(endDate)) {
-          daysRemaining = -1; // Sinaliza que expirou
-        } else {
-          daysRemaining = differenceInDays(endDate, today);
-        }
-      }
-
-      // Cálculo do Valor Gerado
-      const dailyValue = activeContract.monthly_value / 30.44; // Média de dias no mês
-      const daysPassed = differenceInDays(today, startDate);
-      if (daysPassed > 0) {
-        generatedValue = dailyValue * daysPassed;
-      }
-    }
+    // Soma dos serviços pontuais concluídos
+    const oneTimeValue = client.one_time_services
+      ?.filter((s: { status: string }) => s.status === 'completed')
+      .reduce((sum: number, s: { value: number }) => sum + Number(s.value), 0) || 0;
+    
+    // Soma da receita mensal de todos os contratos
+    const monthlyRevenue = client.contracts
+      ?.reduce((sum: number, c: { valor_mensal: number }) => sum + Number(c.valor_mensal), 0) || 0;
 
     return {
       ...client,
-      monthlyRevenue: activeContract?.monthly_value || 0,
-      daysRemaining,
-      generatedValue,
+      oneTimeValue,
+      monthlyRevenue,
+      totalRevenue: monthlyRevenue + oneTimeValue,
     }
   })
 }
 
 export default async function ClientsPage() {
   const clients = await getClients()
-
-  const renderRemainingDays = (days: number | null) => {
-    if (days === null) {
-      return <span className="text-muted-foreground">Indeterm.</span>;
-    }
-    if (days < 0) {
-      return <Badge variant="destructive">Expirado</Badge>;
-    }
-    if (days <= 30) {
-        return <Badge variant="secondary">{days} dias</Badge>;
-    }
-    return <span className="text-muted-foreground">{days} dias</span>;
-  }
 
   return (
     <div className="space-y-6">
@@ -102,9 +69,9 @@ export default async function ClientsPage() {
               <TableRow>
                 <TableHead>Nome</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Dias Restantes</TableHead>
-                <TableHead className="text-right">Receita Mensal</TableHead>
-                <TableHead className="text-right">Valor Gerado (Est.)</TableHead>
+                <TableHead className="text-right">Receita Mensal (MRR)</TableHead>
+                <TableHead className="text-right">Serviços Pontuais</TableHead>
+                <TableHead className="text-right">Receita Total</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
@@ -113,9 +80,9 @@ export default async function ClientsPage() {
                 <TableRow key={client.id}>
                   <TableCell className="font-medium">{client.name}</TableCell>
                   <TableCell><Badge variant={client.status === "active" ? "default" : client.status === "prospect" ? "secondary" : "outline"}>{client.status === "active" ? "Ativo" : client.status === "prospect" ? "Prospect" : "Inativo"}</Badge></TableCell>
-                  <TableCell>{renderRemainingDays(client.daysRemaining)}</TableCell>
                   <TableCell className="text-right">{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(client.monthlyRevenue)}</TableCell>
-                  <TableCell className="text-right">{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(client.generatedValue)}</TableCell>
+                  <TableCell className="text-right">{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(client.oneTimeValue)}</TableCell>
+                  <TableCell className="text-right font-semibold">{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(client.totalRevenue)}</TableCell>
                   <TableCell className="text-right">
                     <Link href={`/dashboard/clients/${client.id}`}>
                       <Button variant="ghost" size="sm"><Eye className="h-4 w-4" /></Button>

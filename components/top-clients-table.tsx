@@ -11,14 +11,16 @@ async function getTopClients() {
       `
       id,
       name,
-      contracts (monthly_value)
+      one_time_services (value, status)
     `,
     )
     .eq("status", "active")
 
   const clientsWithRevenue = clients?.map((client) => {
     const revenue =
-      client.contracts?.reduce((sum: number, c: { monthly_value: number }) => sum + Number(c.monthly_value), 0) || 0
+      client.one_time_services
+      ?.filter((s: { status: string }) => s.status === 'completed')
+      .reduce((sum: number, s: { value: number }) => sum + Number(s.value), 0) || 0
     return {
       name: client.name,
       revenue,
@@ -34,14 +36,14 @@ export async function TopClientsTable() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Top 5 Clientes por Receita</CardTitle>
+        <CardTitle>Top 5 Clientes por Receita (Serviços Pontuais)</CardTitle>
       </CardHeader>
       <CardContent>
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Cliente</TableHead>
-              <TableHead className="text-right">Receita Mensal</TableHead>
+              <TableHead className="text-right">Receita Total</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

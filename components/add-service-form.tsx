@@ -25,6 +25,7 @@ import {
 import { addOneTimeService } from "@/app/dashboard/clients/[id]/actions"
 import { toast } from "sonner"
 import { PlusCircle } from "lucide-react"
+import { useRouter } from "next/navigation" // IMPORTADO AQUI
 
 function SubmitButton() {
   const { pending } = useFormStatus()
@@ -42,9 +43,10 @@ interface AddServiceFormProps {
 export function AddServiceForm({ clientId }: AddServiceFormProps) {
   const [open, setOpen] = useState(false)
   const formRef = useRef<HTMLFormElement>(null)
+  const router = useRouter() // ADICIONADO AQUI
 
   async function handleFormSubmit(formData: FormData) {
-    formData.append('clientId', clientId); // Adiciona o ID do cliente ao formulário
+    formData.append('clientId', clientId);
     const result = await addOneTimeService(formData)
 
     if (result.error) {
@@ -55,6 +57,7 @@ export function AddServiceForm({ clientId }: AddServiceFormProps) {
       toast.success(result.success)
       setOpen(false)
       formRef.current?.reset()
+      router.refresh() // ADICIONADO AQUI PARA FORÇAR A ATUALIZAÇÃO
     }
   }
 

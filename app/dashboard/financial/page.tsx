@@ -8,11 +8,7 @@ import { TrendingUp, TrendingDown, DollarSign } from "lucide-react"
 async function getFinancialData() {
   const supabase = await createClient()
 
-  // Get all contracts
-  const { data: contracts } = await supabase
-    .from("contracts")
-    .select("*, clients(name)")
-    .order("created_at", { ascending: false })
+  // Não buscamos mais contratos aqui, pois eles não têm valor monetário direto
 
   // Get all one-time services
   const { data: services } = await supabase
@@ -23,25 +19,21 @@ async function getFinancialData() {
   // Get all costs
   const { data: costs } = await supabase.from("costs").select("*").order("date", { ascending: false })
 
-  // Calculate totals
-  const activeContracts = contracts?.filter((c) => c.status === "active") || []
-  const monthlyRevenue = activeContracts.reduce((sum, c) => sum + Number(c.monthly_value), 0)
-
+  // Calculate totals for the current month
   const currentMonth = new Date().toISOString().slice(0, 7)
+  
   const completedServices = services?.filter((s) => s.status === "completed" && s.date.startsWith(currentMonth)) || []
   const servicesRevenue = completedServices.reduce((sum, s) => sum + Number(s.value), 0)
 
   const monthlyCosts = costs?.filter((c) => c.date.startsWith(currentMonth)) || []
   const totalCosts = monthlyCosts.reduce((sum, c) => sum + Number(c.value), 0)
 
-  const totalRevenue = monthlyRevenue + servicesRevenue
+  const totalRevenue = servicesRevenue
   const profit = totalRevenue - totalCosts
 
   return {
-    contracts,
     services,
     costs,
-    monthlyRevenue,
     servicesRevenue,
     totalRevenue,
     totalCosts,
@@ -59,10 +51,10 @@ export default async function FinancialPage() {
         <p className="text-muted-foreground">Gestão de receitas e custos</p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Receita Total</CardTitle>
+            <CardTitle className="text-sm font-medium">Receita (Serviços)</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -73,22 +65,6 @@ export default async function FinancialPage() {
               }).format(data.totalRevenue)}
             </div>
             <p className="text-xs text-muted-foreground">Mês atual</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Contratos</CardTitle>
-            <TrendingUp className="h-4 w-4 text-chart-2" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {new Intl.NumberFormat("pt-BR", {
-                style: "currency",
-                currency: "BRL",
-              }).format(data.monthlyRevenue)}
-            </div>
-            <p className="text-xs text-muted-foreground">Receita recorrente</p>
           </CardContent>
         </Card>
 
@@ -127,65 +103,11 @@ export default async function FinancialPage() {
         </Card>
       </div>
 
-      <Tabs defaultValue="contracts" className="space-y-4">
+      <Tabs defaultValue="services" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="contracts">Contratos</TabsTrigger>
           <TabsTrigger value="services">Serviços Pontuais</TabsTrigger>
           <TabsTrigger value="costs">Custos</TabsTrigger>
         </TabsList>
-
-        <TabsContent value="contracts">
-          <Card>
-            <CardHeader>
-              <CardTitle>Contratos</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead>Contrato</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Data Início</TableHead>
-                    <TableHead className="text-right">Valor Mensal</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {data.contracts?.map((contract: any) => (
-                    <TableRow key={contract.id}>
-                      <TableCell className="font-medium">{contract.clients?.name}</TableCell>
-                      <TableCell>{contract.name}</TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            contract.status === "active"
-                              ? "default"
-                              : contract.status === "completed"
-                                ? "secondary"
-                                : "outline"
-                          }
-                        >
-                          {contract.status === "active"
-                            ? "Ativo"
-                            : contract.status === "completed"
-                              ? "Concluído"
-                              : "Cancelado"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{new Date(contract.start_date).toLocaleDateString("pt-BR")}</TableCell>
-                      <TableCell className="text-right">
-                        {new Intl.NumberFormat("pt-BR", {
-                          style: "currency",
-                          currency: "BRL",
-                        }).format(contract.monthly_value)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
 
         <TabsContent value="services">
           <Card>
