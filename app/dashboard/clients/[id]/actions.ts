@@ -1,57 +1,51 @@
 "use server"
 
+// A MUDANÇA CRUCIAL ESTÁ AQUI: Importamos de '@supabase/supabase-js'
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 
-const oneTimeServiceSchema = z.object({
-  name: z.string().min(3, "O nome do serviço é obrigatório."),
-  value: z.coerce.number().positive("O valor deve ser positivo."),
-  date: z.string().min(1, "A data é obrigatória."),
-  status: z.enum(["pending", "completed", "cancelled"]),
-  clientId: z.string().uuid("ID do cliente inválido."),
+// O esquema de validação permanece o mesmo
+const clientSchema = z.object({
+  name: z.string().min(3, "O nome do cliente é obrigatório."),
+  contact_email: z.string().email("Por favor, insira um email válido.").optional().or(z.literal('')),
+  contact_phone: z.string().optional(),
+  status: z.enum(["active", "inactive", "prospect"]),
 })
 
-export async function addOneTimeService(formData: FormData) {
-  const rawFormData = {
-    name: formData.get('name'),
-    value: formData.get('value'),
-    date: formData.get('date'),
-    status: formData.get('status'),
-    clientId: formData.get('clientId'),
-  };
+export async function addClient(formData: FormData) {
+  const rawFormData = Object.fromEntries(formData.entries())
 
-  const validatedFields = oneTimeServiceSchema.safeParse(rawFormData)
+  const validatedFields = clientSchema.safeParse(rawFormData)
 
   if (!validatedFields.success) {
-    console.error("Erro de validação:", validatedFields.error.flatten().fieldErrors);
-    return { error: "Dados inválidos. Verifique as informações e tente novamente." }
+    console.error("Erro de validação:", validatedFields.error.flatten().fieldErrors)
+    return { error: "Dados inválidos." }
   }
 
-  const { name, value, date, status, clientId } = validatedFields.data;
-
+  // Agora criamos o cliente admin dedicado, como planejado
   const supabaseAdmin = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_KEY!
   )
 
-  const { error } = await supabaseAdmin
-    .from("one_time_services")
-    .insert([{
-      client_id: clientId,
-      name,
-      value,
-      date,
-      status,
-    }])
-
+  const { data, error } = await supabaseAdmin
+    .from("clients")
+    .insert([
+      {
+        name: validatedFields.data.name,
+        contact_email: validatedFields.data.contact_email,
+        contact_phone: validatedFields.data.contact_phone,
+        status: validatedFields.data.status,
+      },
+    ])
+  
   if (error) {
-    console.error("Erro do Supabase ao adicionar serviço:", error)
-    return { error: `Erro no banco de dados: ${error.message}` }
+    console.error("Erro do Supabase ao adicionar cliente:", error)
+    return { error: `Ocorreu um erro no banco de dados: ${error.message}` }
   }
 
-  // Revalida a página específica do cliente para atualizar a lista
-  revalidatePath(`/dashboard/clients/${clientId}`)
-
-  return { success: "Serviço pontual adicionado com sucesso!" }
+  revalidatePath("/dashboard/clients")
+  
+  return { success: "Cliente adicionado com sucesso!" }
 }
