@@ -14,6 +14,7 @@ const clientWithContractSchema = z.object({
   contract_file: z.instanceof(File).optional(),
   valor_mensal: z.coerce.number().optional(),
   start_date: z.string().optional(),
+  end_date: z.string().optional(), // Campo que faltava
 })
 
 export async function addClient(formData: FormData) {
@@ -26,6 +27,7 @@ export async function addClient(formData: FormData) {
     contract_file: formData.get('contract_file'),
     valor_mensal: formData.get('valor_mensal'),
     start_date: formData.get('start_date'),
+    end_date: formData.get('end_date'), // Campo que faltava
   };
 
   const validatedFields = clientWithContractSchema.safeParse(rawFormData)
@@ -35,7 +37,7 @@ export async function addClient(formData: FormData) {
     return { error: firstError || "Dados inválidos." }
   }
 
-  const { name, contact_email, contact_phone, status, contract_name, contract_file, valor_mensal, start_date } = validatedFields.data;
+  const { name, contact_email, contact_phone, status, contract_name, contract_file, valor_mensal, start_date, end_date } = validatedFields.data;
 
   const hasContractData = contract_name || (valor_mensal != null && valor_mensal > 0) || (start_date);
 
@@ -66,6 +68,7 @@ export async function addClient(formData: FormData) {
     contract_path: contractPath,
     contract_value: hasContractData ? (valor_mensal || 0) : null,
     contract_start_date: hasContractData ? start_date : null,
+    contract_end_date: hasContractData ? (end_date || null) : null, // Campo que faltava
   });
 
   if (rpcError) {

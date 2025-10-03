@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
-import { CartesianGrid, Scatter, ScatterChart, XAxis, YAxis, Tooltip } from "recharts"
+import { CartesianGrid, Scatter, ScatterChart, XAxis, YAxis, Tooltip, ReferenceLine, Label } from "recharts"
 
 interface NpsQuadrantChartProps {
   data: Array<{
@@ -13,6 +13,9 @@ interface NpsQuadrantChartProps {
 }
 
 export function NpsQuadrantChart({ data }: NpsQuadrantChartProps) {
+  // Calcula as médias para posicionar as linhas dos quadrantes
+  const averageRevenue = data.length > 0 ? data.reduce((sum, item) => sum + item.revenue, 0) / data.length : 0;
+  const averageNps = data.length > 0 ? data.reduce((sum, item) => sum + item.nps, 0) / data.length : 0;
 
   return (
     <Card>
@@ -24,36 +27,33 @@ export function NpsQuadrantChart({ data }: NpsQuadrantChartProps) {
           config={{
             npsScatter: {
               label: "Clientes",
-              color: "hsl(0 0% 98%)", 
+              color: "hsl(0 0% 98%)",
             },
           }}
-          // MUDANÇA AQUI: Diminuímos a altura para esticar o gráfico horizontalmente
-          className="h-[350px]" 
+          className="h-[350px]"
         >
           <ScatterChart
             margin={{
               top: 20,
-              right: 20,
+              right: 30,
               bottom: 20,
-              left: 20,
+              left: 30,
             }}
           >
             <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
             
-            {/* EIXO X AGORA É A RECEITA */}
             <XAxis
               type="number"
-              dataKey="revenue" // MUDANÇA AQUI
+              dataKey="revenue"
               name="Receita (R$)"
               tickFormatter={(value) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", notation: 'compact' }).format(value)}
               className="text-xs"
               tick={{ fill: "hsl(var(--muted-foreground))" }}
             />
 
-            {/* EIXO Y AGORA É O NPS */}
             <YAxis
               type="number"
-              dataKey="nps" // MUDANÇA AQUI
+              dataKey="nps"
               name="NPS Score"
               domain={[0, 10]}
               tickCount={11}
@@ -66,6 +66,23 @@ export function NpsQuadrantChart({ data }: NpsQuadrantChartProps) {
                 if (name === 'nps') return [`NPS: ${value}`];
                 return value;
               }} hideLabel />} />
+
+            {/* LINHAS DOS QUADRANTES CORRIGIDAS */}
+            <ReferenceLine 
+              y={averageNps} 
+              stroke="hsl(0 0% 98%)" // Cor branca
+              strokeWidth={1} // Linha mais fina e sólida
+            >
+              <Label value="Média NPS" position="insideTopLeft" fill="hsl(0 0% 98%)" fontSize={10} />
+            </ReferenceLine>
+            <ReferenceLine 
+              x={averageRevenue} 
+              stroke="hsl(0 0% 98%)" // Cor branca
+              strokeWidth={1} // Linha mais fina e sólida
+            >
+               <Label value="Média Receita" position="insideTopLeft" fill="hsl(0 0% 98%)" fontSize={10} angle={-90} dy={-10} />
+            </ReferenceLine>
+
             <Scatter data={data} fill="hsl(0 0% 98%)" />
           </ScatterChart>
         </ChartContainer>

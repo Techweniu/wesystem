@@ -3,13 +3,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { notFound } from "next/navigation"
-import { Mail, Phone, Calendar, Download, FileText, TrendingUp } from "lucide-react"
+import { Mail, Phone, Calendar, Download, FileText } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AddServiceForm } from "@/components/add-service-form"
 import { AddNpsForm } from "@/components/add-nps-form"
 import { AddContractForm } from "@/components/add-contract-form"
+import { EditContractForm } from "@/components/edit-contract-form"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, } from "@/components/ui/accordion"
-import { format, parseISO, differenceInDays } from 'date-fns'
+import { format, parseISO, differenceInDays, isPast } from 'date-fns'
 import { EditClientForm } from "@/components/edit-client-form"
 import { Button } from "@/components/ui/button"
 import { ServiceStatusChanger } from "@/components/service-status-changer"
@@ -22,8 +23,10 @@ async function getClientDetails(id: string) {
   
   if (client && client.contracts) {
     for (const contract of client.contracts) {
-      const { data } = await supabase.storage.from('contracts').createSignedUrl(contract.storage_path, 60 * 60);
-      (contract as any).downloadUrl = data?.signedUrl;
+      if (contract.storage_path) {
+        const { data } = await supabase.storage.from('contracts').createSignedUrl(contract.storage_path, 60 * 60);
+        (contract as any).downloadUrl = data?.signedUrl;
+      }
     }
   }
   return client
@@ -34,7 +37,18 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
   const client = await getClientDetails(id)
   if (!client) { notFound() }
 
-  const monthlyRevenue = client.contracts?.reduce((sum: number, c: any) => sum + Number(c.valor_mensal), 0) || 0
+  const today = new Date();
+
+  // CORREÇÃO: MRR agora considera apenas contratos ativos E vigentes
+  const monthlyRevenue = client.contracts
+    ?.filter(c => {
+      const isActive = c.status === 'active';
+      const hasStarted = c.start_date ? isPast(parseISO(c.start_date)) || format(parseISO(c.start_date), 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd') : true;
+      const hasNotEnded = c.end_date ? !isPast(parseISO(c.end_date)) : true;
+      return isActive && hasStarted && hasNotEnded;
+    })
+    .reduce((sum, c) => sum + Number(c.valor_mensal), 0) || 0;
+  
   const completedServices = client.one_time_services?.filter((s: any) => s.status === "completed") || []
   const totalServicesRevenue = completedServices.reduce((sum: number, s: any) => sum + Number(s.value), 0) || 0
   
@@ -42,16 +56,28 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
   const avgNps = npsScores.length > 0 ? npsScores.reduce((a: number, b: number) => a + b, 0) / npsScores.length : 0
 
   let generatedValue = 0;
-  const today = new Date();
   client.contracts?.forEach(contract => {
       if (contract.start_date && contract.valor_mensal > 0) {
           const startDate = parseISO(contract.start_date);
           const daysPassed = differenceInDays(today, startDate);
-          if (daysPassed > 0) {
-              generatedValue += (contract.valor_mensal / 30.44) * daysPassed;
+          if (daysPassed >= 0) {
+              generatedValue += (contract.valor_mensal / 30.44) * (daysPassed + 1);
           }
       }
   });
+  generatedValue += totalServicesRevenue;
+
+  let firstContractDate = client.created_at;
+  if (client.contracts && client.contracts.length > 0) {
+      const contractsWithStartDate = client.contracts.filter(c => c.start_date);
+      if (contractsWithStartDate.length > 0) {
+          const earliestContract = contractsWithStartDate.reduce((earliest, current) => {
+              if (!earliest.start_date) return current;
+              return parseISO(current.start_date) < parseISO(earliest.start_date) ? current : earliest;
+          });
+          firstContractDate = earliestContract.start_date;
+      }
+  }
 
   return (
     <div className="space-y-6">
@@ -78,7 +104,7 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
         <CardContent className="space-y-4 pt-4">
           {client.contact_email && <div className="flex items-center gap-2"><Mail className="h-4 w-4 text-muted-foreground" /><span>{client.contact_email}</span></div>}
           {client.contact_phone && <div className="flex items-center gap-2"><Phone className="h-4 w-4 text-muted-foreground" /><span>{client.contact_phone}</span></div>}
-          <div className="flex items-center gap-2"><Calendar className="h-4 w-4 text-muted-foreground" /><span>Cliente desde {format(parseISO(client.created_at), 'dd/MM/yyyy')}</span></div>
+          <div className="flex items-center gap-2"><Calendar className="h-4 w-4 text-muted-foreground" /><span>Cliente desde {format(parseISO(firstContractDate), 'dd/MM/yyyy')}</span></div>
         </CardContent>
       </Card>
 
@@ -105,15 +131,19 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
                         <span className="font-medium">{contract.name}</span>
                         <span className="text-xs text-muted-foreground">Início: {contract.start_date ? format(parseISO(contract.start_date), 'dd/MM/yyyy') : 'N/A'}</span>
                       </div>
+                       <Badge variant={contract.status === 'active' ? 'default' : 'outline'}>{contract.status === 'active' ? 'Ativo' : 'Inativo'}</Badge>
                     </div>
-                    {contract.downloadUrl && (
-                      <a href={contract.downloadUrl} target="_blank" rel="noopener noreferrer">
-                        <Button variant="outline" size="sm">
-                          <Download className="mr-2 h-4 w-4" />
-                          Baixar
-                        </Button>
-                      </a>
-                    )}
+                    <div className="flex items-center gap-2">
+                        {contract.downloadUrl && (
+                        <a href={contract.downloadUrl} target="_blank" rel="noopener noreferrer">
+                            <Button variant="outline" size="sm">
+                            <Download className="mr-2 h-4 w-4" />
+                            Baixar
+                            </Button>
+                        </a>
+                        )}
+                        <EditContractForm contract={contract} />
+                    </div>
                   </li>
                 ))}
                 {client.contracts?.length === 0 && (

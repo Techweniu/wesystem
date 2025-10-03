@@ -54,7 +54,6 @@ export function ClientFilters() {
             <ToggleGroupItem value="all">Todos</ToggleGroupItem>
             <ToggleGroupItem value="active">Ativos</ToggleGroupItem>
             <ToggleGroupItem value="inactive">Inativos</ToggleGroupItem>
-            <ToggleGroupItem value="prospect">Prospects</ToggleGroupItem>
         </ToggleGroup>
        </div>
     </div>

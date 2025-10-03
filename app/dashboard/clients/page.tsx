@@ -10,57 +10,54 @@ import { Toaster } from "@/components/ui/sonner"
 import { ClientFilters } from "@/components/client-filters"
 import { NpsQuadrantChart } from "@/components/nps-quadrant-chart"
 import { NpsScoreSummaryTable } from "@/components/nps-score-summary-table"
-import { differenceInDays, parseISO, isPast } from "date-fns"
+import { differenceInDays, parseISO, isPast, startOfMonth, format } from "date-fns"
+
+const isContractVigent = (contract: { start_date: string | null, end_date: string | null }) => {
+    const today = new Date();
+    const hasStarted = contract.start_date ? isPast(parseISO(contract.start_date)) || format(parseISO(contract.start_date), 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd') : true;
+    const hasNotEnded = contract.end_date ? !isPast(parseISO(contract.end_date)) : true;
+    return hasStarted && hasNotEnded;
+}
 
 async function getClients({ name, status }: { name?: string; status?: string }) {
   const supabase = await createClient()
-  let query = supabase
-    .from("clients")
-    .select(
-      `
-      *,
-      contracts ( valor_mensal, start_date, end_date ), 
-      nps_responses(score, response_date)
-    `
-    )
-    .order("name")
+  let query = supabase.from("clients").select(`*, contracts ( status, valor_mensal, start_date, end_date ), one_time_services(value, status), nps_responses(score, response_date)`).order("name")
   
   if (name) { query = query.ilike('name', `%${name}%`) }
   if (status && status !== 'all') { query = query.eq('status', status) }
   
   const { data: clients } = await query;
+  const today = new Date();
 
   return clients?.map((client) => {
-    const monthlyRevenue = client.contracts?.reduce((sum, c) => sum + Number(c.valor_mensal), 0) || 0;
+    const monthlyRevenue = client.contracts?.filter(c => c.status === 'active' && isContractVigent(c)).reduce((sum, c) => sum + Number(c.valor_mensal), 0) || 0;
     const latestNps = client.nps_responses?.sort((a, b) => new Date(b.response_date).getTime() - new Date(a.response_date).getTime())[0]?.score;
-
     let generatedValue = 0;
     let daysRemaining: number | null = null;
-    const today = new Date();
-
-    const activeContractsWithEndDate = client.contracts?.filter(c => c.end_date && !isPast(parseISO(c.end_date)));
     
-    if (activeContractsWithEndDate && activeContractsWithEndDate.length > 0) {
-      const soonestContract = activeContractsWithEndDate.reduce((soonest, current) => {
-        return parseISO(current.end_date) < parseISO(soonest.end_date) ? current : soonest;
-      });
-      daysRemaining = differenceInDays(parseISO(soonestContract.end_date), today);
-    } else {
-      const expiredContract = client.contracts?.find(c => c.end_date && isPast(parseISO(c.end_date)));
-      if (expiredContract) {
-        daysRemaining = -1;
-      }
+    const activeContracts = client.contracts?.filter(c => c.status === 'active');
+    if (activeContracts && activeContracts.length > 0) {
+        const contractsWithEndDate = activeContracts.filter(c => c.end_date);
+        if (contractsWithEndDate.length > 0) {
+            const futureContracts = contractsWithEndDate.filter(c => !isPast(parseISO(c.end_date)));
+            if (futureContracts.length > 0) {
+                const furthestEndDate = futureContracts.reduce((furthest, current) => (parseISO(current.end_date) > parseISO(furthest.end_date) ? current : furthest)).end_date;
+                daysRemaining = differenceInDays(parseISO(furthestEndDate), today);
+            } else {
+                daysRemaining = -1;
+            }
+        }
     }
 
     client.contracts?.forEach(contract => {
         if (contract.start_date && contract.valor_mensal > 0) {
-            const startDate = parseISO(contract.start_date);
-            const daysPassed = differenceInDays(today, startDate);
-            if (daysPassed >= 0) {
-                generatedValue += (contract.valor_mensal / 30.44) * (daysPassed + 1);
-            }
+            const daysPassed = differenceInDays(today, parseISO(contract.start_date));
+            if (daysPassed >= 0) { generatedValue += (contract.valor_mensal / 30.44) * (daysPassed + 1); }
         }
     });
+
+    const completedOneTimeValue = client.one_time_services?.filter(s => s.status === 'completed').reduce((sum, s) => sum + Number(s.value), 0) || 0;
+    generatedValue += completedOneTimeValue;
 
     return { ...client, monthlyRevenue, latestNps, generatedValue, daysRemaining }
   })
@@ -68,46 +65,48 @@ async function getClients({ name, status }: { name?: string; status?: string }) 
 
 async function getAnalyticsData() {
     const supabase = await createClient();
-    const { data: activeClientsWithContracts } = await supabase
-      .from('clients')
-      .select('contracts(valor_mensal)')
-      .eq('status', 'active');
+    const today = new Date();
+
+    const { data: allContracts } = await supabase.from('contracts').select('valor_mensal, status, start_date, end_date, clients(status)');
+    const monthlyRevenue = allContracts?.filter(c => c.clients?.status === 'active' && c.status === 'active' && isContractVigent(c)).reduce((sum, c) => sum + Number(c.valor_mensal), 0) || 0;
     
-    const monthlyRevenue = activeClientsWithContracts?.reduce((total, client) => {
-      const clientMrr = client.contracts.reduce((sum, contract) => sum + contract.valor_mensal, 0);
-      return total + clientMrr;
-    }, 0) || 0;
-    
-    const currentMonth = new Date().toISOString().slice(0, 7)
-    const { data: services } = await supabase.from("one_time_services").select("value").eq("status", "completed").gte("date", `${currentMonth}-01`)
+    const startOfCurrentMonth = format(startOfMonth(today), 'yyyy-MM-dd');
+    const { data: services } = await supabase.from("one_time_services").select("value").eq("status", "completed").gte("date", startOfCurrentMonth)
     const oneTimeRevenue = services?.reduce((sum, s) => sum + Number(s.value), 0) || 0
 
-    const { data: clientsData } = await supabase.from('clients').select(`name, contracts(valor_mensal), nps_responses(score, response_date)`).eq('status', 'active').order('response_date', { foreignTable: 'nps_responses', ascending: false });
+    const { data: clientsData } = await supabase.from('clients').select(`name, contracts(valor_mensal, status), nps_responses(score, response_date)`).eq('status', 'active').order('response_date', { foreignTable: 'nps_responses', ascending: false });
     const npsChartData = clientsData?.map(client => {
         const latestNps = client.nps_responses[0]?.score;
-        const clientMrr = client.contracts.reduce((sum, c) => sum + c.valor_mensal, 0);
+        const clientMrr = client.contracts.filter(c => c.status === 'active' && isContractVigent(c)).reduce((sum, c) => sum + c.valor_mensal, 0);
         return { name: client.name, nps: latestNps, revenue: clientMrr };
     }).filter(c => c.nps !== undefined);
 
-    return { monthlyRevenue, oneTimeRevenue, npsChartData };
-}
+    // CORREÇÃO: Lógica simplificada para contar apenas o NPS atual
+    const { data: currentMonthNps } = await supabase.from('nps_responses').select('score').gte('response_date', startOfCurrentMonth);
+    const npsSummaryData = { detractors: 0, passives: 0, promoters: 0 };
+    currentMonthNps?.forEach(r => {
+        if(r.score <= 6) npsSummaryData.detractors++;
+        else if (r.score <= 8) npsSummaryData.passives++;
+        else npsSummaryData.promoters++;
+    });
 
+    return { monthlyRevenue, oneTimeRevenue, npsChartData, npsSummaryData };
+}
 
 export default async function ClientsPage({ searchParams }: { searchParams?: { name?: string; status?: string; }; }) {
   const { name, status } = searchParams || {};
 
-  const [clients, analytics, allClientsData] = await Promise.all([
+  const [clients, analytics, allClientsResult] = await Promise.all([
     getClients({ name, status }),
     getAnalyticsData(),
     createClient().then(supabase => supabase.from("clients").select('status'))
   ]);
   
-  const { data: allClients } = allClientsData;
+  const allClients = allClientsResult.data;
 
   const totalClients = allClients?.length || 0;
   const activeClients = allClients?.filter(c => c.status === 'active').length || 0;
   const npsClientData = analytics.npsChartData.map(c => ({ name: c.name, nps: c.nps }));
-
 
   const healthStatusColors = {
     green: 'bg-green-500',
@@ -133,8 +132,8 @@ export default async function ClientsPage({ searchParams }: { searchParams?: { n
         <AddClientForm />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Card className="lg:col-span-1">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Receita Recorrente (MRR)</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
@@ -148,7 +147,7 @@ export default async function ClientsPage({ searchParams }: { searchParams?: { n
             </p>
           </CardContent>
         </Card>
-        <Card className="lg:col-span-1">
+        <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Clientes Ativos</CardTitle>
                 <UserCheck className="h-4 w-4 text-muted-foreground" />
@@ -158,13 +157,11 @@ export default async function ClientsPage({ searchParams }: { searchParams?: { n
                  <p className="text-xs text-muted-foreground">de {totalClients} clientes no total</p>
             </CardContent>
         </Card>
-        <div className="lg:col-span-1">
-           <NpsScoreSummaryTable data={npsClientData || []} />
-        </div>
       </div>
       
-      <div>
-         <NpsQuadrantChart data={analytics.npsChartData || []} />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <NpsQuadrantChart data={analytics.npsChartData || []} />
+        <NpsScoreSummaryTable data={analytics.npsSummaryData} />
       </div>
 
       <Card>

@@ -131,7 +131,7 @@ const addContractSchema = z.object({
   contract_name: z.string().min(3, "O nome do contrato é obrigatório."),
   valor_mensal: z.coerce.number().min(0, "O valor mensal não pode ser negativo.").optional(),
   start_date: z.string().min(1, "A data de início é obrigatória."),
-  end_date: z.string().optional().or(z.literal('')), // Campo de data fim
+  end_date: z.string().optional().or(z.literal('')),
   contract_file: z.instanceof(File).refine(file => file.size > 0, "O arquivo do contrato é obrigatório."),
 });
 
@@ -222,4 +222,54 @@ export async function updateServiceStatus(data: { serviceId: string, clientId: s
   revalidatePath("/dashboard/clients");
   
   return { success: "Status do serviço atualizado com sucesso!" };
+}
+
+// --- Action para Atualizar Contrato ---
+const updateContractSchema = z.object({
+    contractId: z.string().uuid(),
+    name: z.string().min(3, "O nome do contrato é obrigatório."),
+    valor_mensal: z.coerce.number().min(0).optional(),
+    start_date: z.string().min(1, "A data de início é obrigatória."),
+    end_date: z.string().optional().or(z.literal('')),
+    status: z.enum(['active', 'inactive']),
+});
+
+export async function updateContract(formData: FormData) {
+    const rawData = Object.fromEntries(formData);
+    const validatedFields = updateContractSchema.safeParse(rawData);
+
+    if (!validatedFields.success) {
+        const firstError = Object.values(validatedFields.error.flatten().fieldErrors)[0]?.[0];
+        return { error: firstError || "Dados inválidos." };
+    }
+
+    const { contractId, name, valor_mensal, start_date, end_date, status } = validatedFields.data;
+
+    const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!);
+
+    const { data: contract, error: fetchError } = await supabaseAdmin.from('contracts').select('client_id').eq('id', contractId).single();
+
+    if (fetchError) {
+        return { error: "Contrato não encontrado." };
+    }
+
+    const { error: updateError } = await supabaseAdmin
+        .from('contracts')
+        .update({
+            name,
+            valor_mensal: valor_mensal || 0,
+            start_date,
+            end_date: end_date || null,
+            status,
+        })
+        .eq('id', contractId);
+
+    if (updateError) {
+        return { error: `Não foi possível atualizar o contrato: ${updateError.message}` };
+    }
+
+    revalidatePath(`/dashboard/clients/${contract.client_id}`);
+    revalidatePath('/dashboard/clients');
+
+    return { success: "Contrato atualizado com sucesso!" };
 }
