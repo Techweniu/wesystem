@@ -4,8 +4,8 @@ import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 
-// Schema simplificado apenas para o organograma
-const orgPositionSchema = z.object({
+// Schema para adicionar uma nova posição
+const addOrgPositionSchema = z.object({
   name: z.string().min(3, "O nome é obrigatório."),
   role: z.string().min(2, "O cargo é obrigatório."),
   manager_id: z.string().uuid().optional().or(z.literal('null')),
@@ -18,11 +18,10 @@ export async function addOrgPosition(formData: FormData) {
     manager_id: formData.get('manager_id'),
   };
   
-  // O schema Zod vai converter o campo vazio para undefined, então garantimos a presença dele
   if (!rawData.manager_id) {
     rawData.manager_id = 'null';
   }
-  const validatedFields = orgPositionSchema.safeParse(rawData);
+  const validatedFields = addOrgPositionSchema.safeParse(rawData);
 
   if (!validatedFields.success) {
     const firstError = Object.values(validatedFields.error.flatten().fieldErrors)[0]?.[0];
@@ -51,7 +50,7 @@ export async function addOrgPosition(formData: FormData) {
   return { success: "Posição adicionada com sucesso!" };
 }
 
-// --- NOVA ACTION PARA DELETAR POSIÇÃO ---
+// --- Action para Deletar Posição ---
 const deletePositionSchema = z.object({
   positionId: z.string().uuid("ID da posição inválido"),
 });
@@ -71,9 +70,6 @@ export async function deleteOrgPosition(formData: FormData) {
         process.env.SUPABASE_SERVICE_KEY!
     );
 
-    // Importante: Graças à regra "ON DELETE SET NULL" que definimos no banco de dados,
-    // ao deletar um gestor, todos os seus subordinados diretos terão seu campo 'manager_id'
-    // definido como nulo automaticamente, tornando-se novas lideranças no organograma.
     const { error } = await supabaseAdmin
         .from("org_positions")
         .delete()
@@ -86,4 +82,51 @@ export async function deleteOrgPosition(formData: FormData) {
 
     revalidatePath("/dashboard/org-chart");
     return { success: "Posição removida com sucesso!" };
+}
+
+// --- NOVA ACTION PARA ATUALIZAR POSIÇÃO ---
+const updateOrgPositionSchema = z.object({
+    positionId: z.string().uuid(),
+    name: z.string().min(3, "O nome é obrigatório."),
+    role: z.string().min(2, "O cargo é obrigatório."),
+    manager_id: z.string().uuid().optional().or(z.literal('null')),
+});
+
+export async function updateOrgPosition(formData: FormData) {
+    const rawData = Object.fromEntries(formData);
+    const validatedFields = updateOrgPositionSchema.safeParse(rawData);
+
+    if (!validatedFields.success) {
+        const firstError = Object.values(validatedFields.error.flatten().fieldErrors)[0]?.[0];
+        return { error: firstError || "Dados inválidos." };
+    }
+
+    const { positionId, name, role, manager_id } = validatedFields.data;
+    
+    // Evita que um gestor seja seu próprio gestor
+    if (positionId === manager_id) {
+        return { error: "Um colaborador não pode ser seu próprio gestor." };
+    }
+
+    const supabaseAdmin = createAdminClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_KEY!
+    );
+
+    const { error } = await supabaseAdmin
+        .from("org_positions")
+        .update({
+            name,
+            role,
+            manager_id: manager_id === 'null' ? null : manager_id,
+        })
+        .eq('id', positionId);
+
+    if (error) {
+        console.error("Erro ao atualizar posição:", error);
+        return { error: `Não foi possível atualizar a posição: ${error.message}` };
+    }
+
+    revalidatePath("/dashboard/org-chart");
+    return { success: "Posição atualizada com sucesso!" };
 }

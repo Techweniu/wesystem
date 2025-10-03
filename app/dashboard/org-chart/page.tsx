@@ -8,7 +8,6 @@ import { AddOrgPositionForm } from "@/components/add-org-position-form"
 async function getOrgChartData() {
   const supabase = await createClient()
 
-  // Busca dados da nova tabela 'org_positions'
   const { data: positions, error } = await supabase
     .from("org_positions")
     .select("id, name, role, manager_id")
@@ -63,7 +62,7 @@ export default async function OrgChartPage() {
           <div className="flex gap-8 justify-center min-w-max">
             {roots.length > 0 ? (
               roots.map((root) => (
-                <OrgChartTree key={root.id} employee={root} />
+                <OrgChartTree key={root.id} employee={root} allEmployees={allPositions} />
               ))
             ) : (
               <p className="text-muted-foreground text-center w-full">Nenhuma posição encontrada. Comece adicionando uma liderança.</p>
