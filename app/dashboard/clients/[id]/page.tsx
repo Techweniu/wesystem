@@ -18,6 +18,9 @@ import { ServiceStatusChanger } from "@/components/service-status-changer"
 import { Separator } from "@/components/ui/separator"
 import { ClientContactsManager } from "@/components/client-contacts-manager"
 
+// URL do seu painel do Looker Studio
+const LOOKER_STUDIO_URL = "https://lookerstudio.google.com/embed/reporting/dd2d13f5-60b6-4926-ba5d-afe9db7dbcd1/page/jCyaF";
+
 async function getClientDetails(id: string) {
   const supabase = await createClient()
   const { data: client, error } = await supabase.from("clients").select(`*, contracts(*), one_time_services(*), nps_responses(*), client_contacts(*)`).eq("id", id).order('created_at', { foreignTable: 'contracts', ascending: false }).order('response_date', { foreignTable: 'nps_responses', ascending: false }).order('date', { foreignTable: 'one_time_services', ascending: false }).single()
@@ -28,7 +31,7 @@ async function getClientDetails(id: string) {
     for (const contract of client.contracts) {
       if (contract.storage_path) {
         const { data } = await supabase.storage.from('contracts').createSignedUrl(contract.storage_path, 60 * 60);
-        (client as any).downloadUrl = data?.signedUrl;
+        (contract as any).downloadUrl = data?.signedUrl;
       }
     }
   }
@@ -51,7 +54,7 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
   const monthlyRevenue = client.contracts?.filter(c => c.status === 'active' && isContractVigent(c)).reduce((sum, c) => sum + Number(c.valor_mensal), 0) || 0;
   
   const completedServices = client.one_time_services?.filter((s: any) => s.status === "completed") || []
-  const totalServicesRevenue = completedServices.reduce((sum: number, s: any) => sum + Number(s.value), 0) || 0
+  const totalServicesRevenue = completedServices.reduce((sum, s: any) => sum + Number(s.value), 0) || 0
   
   const npsScores = client.nps_responses?.map((n: any) => n.score) || []
   const avgNps = npsScores.length > 0 ? npsScores.reduce((a: number, b: number) => a + b, 0) / npsScores.length : 0;
@@ -92,10 +95,8 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
             </div>
         </div>
 
-        {/* LAYOUT VERTICAL DE UMA COLUNA */}
         <div className="flex flex-col gap-6">
             
-            {/* LINHA 1: KPIs Principais */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Status</CardTitle></CardHeader><CardContent><Badge variant={client.status === "active" ? "default" : "outline"}>{client.status === "active" ? "Ativo" : "Inativo"}</Badge></CardContent></Card>
                 <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Receita Mensal (MRR)</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold">{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(monthlyRevenue)}</div></CardContent></Card>
@@ -103,7 +104,6 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
                 <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium">NPS Médio</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold">{avgNps.toFixed(1)}</div></CardContent></Card>
             </div>
             
-            {/* LINHA 2: Informações e Notas */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between">
@@ -135,8 +135,7 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
                 </Card>
             </div>
 
-            {/* LINHA 3: Contatos, Produtos, CX */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <ClientContactsManager clientId={client.id} contacts={client.client_contacts || []} />
                 <Card>
                     <CardHeader><CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5" /> Produtos Contratados</CardTitle></CardHeader>
@@ -167,6 +166,7 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
                     <CardContent className="space-y-3 text-sm">
                         <div className="flex justify-between items-center"><span>Receita Mensal (MRR):</span> <strong>{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(monthlyRevenue)}</strong></div>
                         <div className="flex justify-between items-center"><span>Serviços Pontuais:</span> <strong>{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalServicesRevenue)}</strong></div>
+                        <div className="flex justify-between items-center text-base"><strong>Valor Gerado (Total):</strong> <strong className="text-lg">{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(generatedValue)}</strong></div>
                         <Separator />
                         <div className="flex justify-between items-center"><strong>Aniversário da Parceria:</strong> <span>{format(parseISO(firstContractDate), 'dd/MM/yyyy')}</span></div>
                         <div className="flex justify-between items-center"><strong>Vencimento do Próximo Contrato:</strong> <span>{furthestEndDate ? format(parseISO(furthestEndDate), 'dd/MM/yyyy') : 'Indeterminado'}</span></div>
@@ -176,18 +176,25 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
                 </Card>
              </div>
 
-            {/* ÁREA F: Dashboard de Resultados (Placeholder) */}
-            <Card>
+<Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2"><BarChart2 className="h-5 w-5" /> Dashboard de Resultados</CardTitle>
-                    <CardDescription>Resultados de redes sociais e entregas.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <p className="text-sm text-muted-foreground text-center py-8">Área reservada para o dashboard de performance e relatórios de entrega (Fase 2 e 3).</p>
+                    <div className="aspect-video w-full">
+                        <iframe
+                            title="Looker Studio Dashboard"
+                            width="100%"
+                            height="100%"
+                            src={LOOKER_STUDIO_URL}
+                            frameBorder="0"
+                            style={{ border: 0, borderRadius: "var(--radius)" }}
+                            allowFullScreen
+                            sandbox="allow-storage-access-by-user-activation allow-scripts allow-same-origin allow-forms allow-popups"
+                        ></iframe>
+                    </div>
                 </CardContent>
             </Card>
-
-            {/* ABAS DE HISTÓRICO */}
             <Tabs defaultValue="services">
                 <TabsList>
                     <TabsTrigger value="services">Histórico de Serviços</TabsTrigger>
@@ -230,7 +237,7 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
                                 <AccordionTrigger>
                                 <div className="flex justify-between items-center w-full pr-4">
                                     <span>Avaliação de {format(parseISO(response.response_date), 'dd/MM/yyyy')}</span>
-                                    <Badge variant={response.score >= 9 ? 'default' : response.score >= 7 ? 'secondary' : 'destructive'}>
+                                    <Badge variant={response.score >= 9 ? "default" : response.score >= 7 ? 'secondary' : 'destructive'}>
                                     Nota Geral: {response.score}/10
                                     </Badge>
                                 </div>

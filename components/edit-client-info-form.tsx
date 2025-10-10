@@ -11,7 +11,6 @@ import { updateClient } from "@/app/dashboard/clients/[id]/actions"
 import { toast } from "sonner"
 import { Pencil } from "lucide-react"
 
-// A interface precisa conter todos os campos que podem ser editados neste formulário
 interface ClientInfo {
   id: string; name: string; contact_email: string | null; contact_phone: string | null;
   status: "active" | "inactive"; health_status: "green" | "yellow" | "red" | null;
@@ -40,11 +39,11 @@ export function EditClientInfoForm({ client }: EditClientInfoFormProps) {
           <DialogTitle>Editar Informações do Cliente</DialogTitle>
         </DialogHeader>
         <form action={async (formData) => {
+          formData.append('clientId', client.id);
           const result = await updateClient(formData);
           if (result.error) toast.error("Erro", { description: result.error });
           else { toast.success(result.success); setOpen(false); }
         }}>
-          <input type="hidden" name="clientId" value={client.id} />
            <div className="space-y-4 py-4">
               <div className="grid gap-2">
                 <Label htmlFor="name">Nome do Cliente*</Label>
