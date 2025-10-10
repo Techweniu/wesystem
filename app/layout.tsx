@@ -14,7 +14,7 @@ const poppins = Poppins({
 
 export const metadata: Metadata = {
   title: "BI Dashboard - Business Intelligence",
-  description: "Dashboard de Business Intelligence para agências",
+  description: "Dashboard de Business Intelligence para agênciass",
   generator: 'v0.app'
 }
 
