@@ -1,5 +1,3 @@
-// Em app/dashboard/layout.tsx
-
 "use client"
 
 import type React from "react"
@@ -13,6 +11,7 @@ import {
   SidebarProvider,
   SidebarRail,
 } from "@/components/ui/sidebar"
+// Voltamos a importar o 'Content' diretamente
 import { DashboardSidebarContent } from "@/components/dashboard-sidebar-content"
 
 const FAKE_USER = {
@@ -53,6 +52,7 @@ export default function DashboardLayout({
     <SidebarProvider>
       <Sidebar collapsible="icon">
         <SidebarContent>
+          {/* Voltamos a chamar o 'Content' diretamente */}
           <DashboardSidebarContent />
         </SidebarContent>
         <SidebarRail />

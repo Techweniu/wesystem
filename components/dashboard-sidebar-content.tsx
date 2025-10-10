@@ -1,59 +1,166 @@
-"use client"
+"use client";
 
-import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { LayoutDashboard, Users, DollarSign, UserCircle, BarChart3, Network, PanelLeft } from "lucide-react"
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { useEffect, useState } from "react";
 import {
-  useSidebar, // 1. Importar o hook 'useSidebar'
+  LayoutDashboard,
+  Users,
+  DollarSign,
+  UserCircle,
+  Network,
+  PanelLeft,
+  ChevronDown,
+} from "lucide-react";
+import {
+  useSidebar,
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-  SidebarSeparator
-} from "@/components/ui/sidebar"
+  SidebarSeparator,
+  SidebarMenuSub,
+  SidebarMenuSubItem,
+  SidebarMenuSubButton,
+  SidebarMenuSkeleton,
+} from "@/components/ui/sidebar";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { Button } from "@/components/ui/button";
 
-const navigation = [
-  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Clientes", href: "/dashboard/clients", icon: Users },
-  { name: "Financeiro", href: "/dashboard/financial", icon: DollarSign },
-  { name: "Equipe", href: "/dashboard/team", icon: UserCircle },
-  { name: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
-  { name: "Organograma", href: "/dashboard/org-chart", icon: Network },
-]
+type Client = {
+  id: string;
+  name: string;
+};
 
 export function DashboardSidebarContent() {
-  const pathname = usePathname()
-  const { toggleSidebar } = useSidebar() // 2. Obter a função para alternar o menu
+  const pathname = usePathname();
+  const [clients, setClients] = useState<Client[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { toggleSidebar } = useSidebar();
+
+  useEffect(() => {
+    const supabase = createClient();
+    const fetchClients = async () => {
+      setIsLoading(true);
+      // O erro da outra vez foi aqui: a permissão no banco de dados estava errada.
+      // Vamos corrigir isso no Passo 4.
+      const { data, error } = await supabase
+        .from("clients")
+        .select("id, name")
+        .order("name", { ascending: true });
+
+      if (error) {
+        console.error("Erro ao buscar clientes para o menu:", error);
+        setClients([]);
+      } else {
+        setClients(data || []);
+      }
+      setIsLoading(false);
+    };
+
+    fetchClients();
+  }, []);
 
   return (
     <>
       <SidebarMenu>
-        {/* Item de menu que funciona como o botão de recolher/expandir */}
         <SidebarMenuItem>
-          {/* 3. Usar um SidebarMenuButton normal com um onClick */}
           <SidebarMenuButton onClick={toggleSidebar}>
             <PanelLeft />
             <span>Menu lateral</span>
           </SidebarMenuButton>
         </SidebarMenuItem>
 
-        {/* Separador para organização visual */}
         <SidebarSeparator className="my-1" />
 
-        {/* Itens de navegação normais */}
-        {navigation.map((item) => {
-          const isActive = pathname === item.href
-          return (
-            <SidebarMenuItem key={item.name}>
-              <Link href={item.href}>
-                <SidebarMenuButton isActive={isActive} tooltip={item.name}>
-                  <item.icon />
-                  <span>{item.name}</span>
+        <SidebarMenuItem>
+          <Link href="/dashboard">
+            <SidebarMenuButton isActive={pathname === "/dashboard"} tooltip="Dashboard">
+              <LayoutDashboard />
+              <span>Dashboard</span>
+            </SidebarMenuButton>
+          </Link>
+        </SidebarMenuItem>
+
+        <Collapsible asChild>
+          <SidebarMenuItem>
+            <div className="flex w-full items-center justify-between">
+              <Link href="/dashboard/clients" className="flex-1">
+                <SidebarMenuButton
+                  isActive={pathname.startsWith("/dashboard/clients")}
+                  tooltip="Clientes"
+                >
+                  <Users />
+                  <span>Clientes</span>
                 </SidebarMenuButton>
               </Link>
-            </SidebarMenuItem>
-          )
-        })}
+              <CollapsibleTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="group size-8 shrink-0"
+                  disabled={isLoading}
+                >
+                  <ChevronDown className="transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                </Button>
+              </CollapsibleTrigger>
+            </div>
+            <CollapsibleContent>
+              <SidebarMenuSub>
+                {isLoading ? (
+                  <>
+                    <SidebarMenuSkeleton />
+                    <SidebarMenuSkeleton />
+                  </>
+                ) : (
+                  clients.map((client) => (
+                    <SidebarMenuSubItem key={client.id}>
+                      <Link href={`/dashboard/clients/${client.id}`}>
+                        <SidebarMenuSubButton
+                          isActive={pathname === `/dashboard/clients/${client.id}`}
+                        >
+                          {client.name}
+                        </SidebarMenuSubButton>
+                      </Link>
+                    </SidebarMenuSubItem>
+                  ))
+                )}
+              </SidebarMenuSub>
+            </CollapsibleContent>
+          </SidebarMenuItem>
+        </Collapsible>
+
+        <SidebarMenuItem>
+          <Link href="/dashboard/financial">
+            <SidebarMenuButton isActive={pathname === "/dashboard/financial"} tooltip="Financeiro">
+              <DollarSign />
+              <span>Financeiro</span>
+            </SidebarMenuButton>
+          </Link>
+        </SidebarMenuItem>
+
+        <SidebarMenuItem>
+          <Link href="/dashboard/team">
+            <SidebarMenuButton isActive={pathname === "/dashboard/team"} tooltip="Equipe">
+              <UserCircle />
+              <span>Equipe</span>
+            </SidebarMenuButton>
+          </Link>
+        </SidebarMenuItem>
+
+        <SidebarMenuItem>
+          <Link href="/dashboard/org-chart">
+            <SidebarMenuButton isActive={pathname === "/dashboard/org-chart"} tooltip="Organograma">
+              <Network />
+              <span>Organograma</span>
+            </SidebarMenuButton>
+          </Link>
+        </SidebarMenuItem>
       </SidebarMenu>
     </>
-  )
+  );
 }
