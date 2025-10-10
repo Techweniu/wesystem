@@ -3,25 +3,17 @@
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
+import { randomUUID } from "crypto"
 
-// Schema para adicionar uma nova posição
-const addOrgPositionSchema = z.object({
+const addEmployeeSchema = z.object({
   name: z.string().min(3, "O nome é obrigatório."),
   role: z.string().min(2, "O cargo é obrigatório."),
   manager_id: z.string().uuid().optional().or(z.literal('null')),
 });
 
 export async function addOrgPosition(formData: FormData) {
-  const rawData = {
-    name: formData.get('name'),
-    role: formData.get('role'),
-    manager_id: formData.get('manager_id'),
-  };
-  
-  if (!rawData.manager_id) {
-    rawData.manager_id = 'null';
-  }
-  const validatedFields = addOrgPositionSchema.safeParse(rawData);
+  const rawData = Object.fromEntries(formData.entries());
+  const validatedFields = addEmployeeSchema.safeParse(rawData);
 
   if (!validatedFields.success) {
     const firstError = Object.values(validatedFields.error.flatten().fieldErrors)[0]?.[0];
@@ -35,34 +27,37 @@ export async function addOrgPosition(formData: FormData) {
     process.env.SUPABASE_SERVICE_KEY!
   );
 
-  const { error } = await supabaseAdmin.from("org_positions").insert({
+  const tempEmail = `${name.toLowerCase().replace(/\s/g, '.')}.${randomUUID().substring(0, 5)}@wesystem.io`;
+
+  const { error } = await supabaseAdmin.from("employees").insert({
     name,
     role,
     manager_id: manager_id === 'null' ? null : manager_id,
+    email: tempEmail,
+    hire_date: new Date().toISOString(),
+    status: 'active',
   });
 
   if (error) {
-    console.error("Erro do Supabase:", error);
+    console.error("Erro do Supabase ao criar colaborador:", error);
     return { error: `Ocorreu um erro no banco de dados: ${error.message}` };
   }
 
   revalidatePath("/dashboard/org-chart");
-  return { success: "Posição adicionada com sucesso!" };
+  revalidatePath("/dashboard/team");
+  return { success: "Colaborador adicionado com sucesso!" };
 }
 
-// --- Action para Deletar Posição ---
-const deletePositionSchema = z.object({
-  positionId: z.string().uuid("ID da posição inválido"),
+const deleteEmployeeSchema = z.object({
+  positionId: z.string().uuid("ID inválido"),
 });
 
+// --- FUNÇÃO ALTERADA AQUI ---
 export async function deleteOrgPosition(formData: FormData) {
     const rawData = { positionId: formData.get('positionId') };
-    const validatedFields = deletePositionSchema.safeParse(rawData);
+    const validatedFields = deleteEmployeeSchema.safeParse(rawData);
 
-    if (!validatedFields.success) {
-        return { error: "ID da posição inválido." };
-    }
-
+    if (!validatedFields.success) { return { error: "ID inválido." }; }
     const { positionId } = validatedFields.data;
 
     const supabaseAdmin = createAdminClient(
@@ -70,22 +65,24 @@ export async function deleteOrgPosition(formData: FormData) {
         process.env.SUPABASE_SERVICE_KEY!
     );
 
+    // Em vez de '.delete()', usamos '.update()' para mudar o status para 'inactive'
     const { error } = await supabaseAdmin
-        .from("org_positions")
-        .delete()
+        .from("employees")
+        .update({ status: 'inactive' })
         .eq('id', positionId);
 
     if (error) {
-        console.error("Erro ao deletar posição:", error);
-        return { error: `Não foi possível remover a posição: ${error.message}` };
+        return { error: `Não foi possível inativar o colaborador: ${error.message}` };
     }
 
     revalidatePath("/dashboard/org-chart");
-    return { success: "Posição removida com sucesso!" };
+    revalidatePath("/dashboard/team");
+    // Mensagem de sucesso atualizada
+    return { success: "Colaborador inativado com sucesso!" };
 }
+// --- FIM DA ALTERAÇÃO ---
 
-// --- NOVA ACTION PARA ATUALIZAR POSIÇÃO ---
-const updateOrgPositionSchema = z.object({
+const updateEmployeeSchema = z.object({
     positionId: z.string().uuid(),
     name: z.string().min(3, "O nome é obrigatório."),
     role: z.string().min(2, "O cargo é obrigatório."),
@@ -94,16 +91,12 @@ const updateOrgPositionSchema = z.object({
 
 export async function updateOrgPosition(formData: FormData) {
     const rawData = Object.fromEntries(formData);
-    const validatedFields = updateOrgPositionSchema.safeParse(rawData);
+    const validatedFields = updateEmployeeSchema.safeParse(rawData);
 
     if (!validatedFields.success) {
-        const firstError = Object.values(validatedFields.error.flatten().fieldErrors)[0]?.[0];
-        return { error: firstError || "Dados inválidos." };
+        return { error: "Dados inválidos." };
     }
-
     const { positionId, name, role, manager_id } = validatedFields.data;
-    
-    // Evita que um gestor seja seu próprio gestor
     if (positionId === manager_id) {
         return { error: "Um colaborador não pode ser seu próprio gestor." };
     }
@@ -114,19 +107,15 @@ export async function updateOrgPosition(formData: FormData) {
     );
 
     const { error } = await supabaseAdmin
-        .from("org_positions")
-        .update({
-            name,
-            role,
-            manager_id: manager_id === 'null' ? null : manager_id,
-        })
+        .from("employees")
+        .update({ name, role, manager_id: manager_id === 'null' ? null : manager_id })
         .eq('id', positionId);
 
     if (error) {
-        console.error("Erro ao atualizar posição:", error);
-        return { error: `Não foi possível atualizar a posição: ${error.message}` };
+        return { error: `Não foi possível atualizar o colaborador: ${error.message}` };
     }
 
     revalidatePath("/dashboard/org-chart");
-    return { success: "Posição atualizada com sucesso!" };
+    revalidatePath("/dashboard/team");
+    return { success: "Colaborador atualizado com sucesso!" };
 }

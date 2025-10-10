@@ -8,9 +8,11 @@ import { AddOrgPositionForm } from "@/components/add-org-position-form"
 async function getOrgChartData() {
   const supabase = await createClient()
 
+  // Buscando da tabela 'employees'
   const { data: positions, error } = await supabase
-    .from("org_positions")
+    .from("employees")
     .select("id, name, role, manager_id")
+    .eq('status', 'active') // <-- CORREÇÃO ADICIONADA AQUI
     .order("name")
 
   if (error) {
@@ -18,6 +20,7 @@ async function getOrgChartData() {
     return { roots: [], allPositions: [] };
   }
 
+  // O restante da função para montar o gráfico continua igual
   const positionMap = new Map()
   positions.forEach((pos) => {
     positionMap.set(pos.id, { ...pos, children: [] })
@@ -33,6 +36,8 @@ async function getOrgChartData() {
     }
   })
 
+  // Precisamos passar todos os funcionários ativos para o formulário de edição/criação,
+  // para que o campo "Gestor" seja preenchido corretamente.
   return { roots, allPositions: positions };
 }
 
@@ -44,12 +49,12 @@ export default async function OrgChartPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Organograma</h1>
-          <p className="text-muted-foreground">Gerencie a estrutura organizacional da empresa</p>
+          <p className="text-muted-foreground">Gerencie a estrutura da equipe</p>
         </div>
         <AddOrgPositionForm positions={allPositions}>
             <Button>
                 <PlusCircle className="mr-2 h-4 w-4" />
-                Adicionar Posição
+                Adicionar Colaborador
             </Button>
         </AddOrgPositionForm>
       </div>
@@ -65,7 +70,7 @@ export default async function OrgChartPage() {
                 <OrgChartTree key={root.id} employee={root} allEmployees={allPositions} />
               ))
             ) : (
-              <p className="text-muted-foreground text-center w-full">Nenhuma posição encontrada. Comece adicionando uma liderança.</p>
+              <p className="text-muted-foreground text-center w-full">Nenhum colaborador ativo encontrado.</p>
             )}
           </div>
         </CardContent>
