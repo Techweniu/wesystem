@@ -17,8 +17,16 @@ import { Button } from "@/components/ui/button"
 import { ServiceStatusChanger } from "@/components/service-status-changer"
 import { Separator } from "@/components/ui/separator"
 import { ClientContactsManager } from "@/components/client-contacts-manager"
+import Link from "next/link"
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbList,
+  BreadcrumbLink,
+  BreadcrumbSeparator,
+  BreadcrumbPage,
+} from "@/components/ui/breadcrumb"
 
-// URL do seu painel do Looker Studio
 const LOOKER_STUDIO_URL = "https://lookerstudio.google.com/embed/reporting/dd2d13f5-60b6-4926-ba5d-afe9db7dbcd1/page/jCyaF";
 
 async function getClientDetails(id: string) {
@@ -88,6 +96,20 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
 
   return (
     <div className="space-y-6">
+        <Breadcrumb>
+            <BreadcrumbList>
+                <BreadcrumbItem>
+                <BreadcrumbLink asChild>
+                    <Link href="/dashboard/clients">Clientes</Link>
+                </BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                <BreadcrumbPage>{client.name}</BreadcrumbPage>
+                </BreadcrumbItem>
+            </BreadcrumbList>
+        </Breadcrumb>
+
         <div className="flex items-start justify-between">
             <div>
                 <h1 className="text-3xl font-bold tracking-tight">{client.name}</h1>
@@ -171,12 +193,12 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
                         <div className="flex justify-between items-center"><strong>Aniversário da Parceria:</strong> <span>{format(parseISO(firstContractDate), 'dd/MM/yyyy')}</span></div>
                         <div className="flex justify-between items-center"><strong>Vencimento do Próximo Contrato:</strong> <span>{furthestEndDate ? format(parseISO(furthestEndDate), 'dd/MM/yyyy') : 'Indeterminado'}</span></div>
                         <div className="flex justify-between items-center"><strong>NPS Médio:</strong> <Badge variant={avgNps >= 9 ? 'default' : avgNps >= 7 ? 'secondary' : 'destructive'}>{avgNps.toFixed(1)}</Badge></div>
-                        <p className="text-xs text-muted-foreground pt-2 border-t"><strong>Aniversários (Sócios):</strong> Ver card de Contatos</p>
+                        {/* A LINHA ABAIXO FOI REMOVIDA */}
                     </CardContent>
                 </Card>
              </div>
 
-<Card>
+            <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2"><BarChart2 className="h-5 w-5" /> Dashboard de Resultados</CardTitle>
                 </CardHeader>
@@ -195,6 +217,7 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
                     </div>
                 </CardContent>
             </Card>
+
             <Tabs defaultValue="services">
                 <TabsList>
                     <TabsTrigger value="services">Histórico de Serviços</TabsTrigger>

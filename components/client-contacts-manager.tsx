@@ -32,7 +32,7 @@ const SubmitButton = ({ label }: { label: string }) => {
   return <Button type="submit" disabled={pending}>{pending ? "Salvando..." : label}</Button>
 }
 
-// Formulário para Adicionar ou Editar um Contato
+// Formulário para Adicionar ou Editar um Contato (sem alterações aqui)
 const ContactForm = ({ clientId, contact, onFormSubmit }: { clientId: string, contact?: Contact, onFormSubmit: () => void }) => {
   const action = contact ? updateClientContact : addClientContact;
 
@@ -75,7 +75,6 @@ const ContactForm = ({ clientId, contact, onFormSubmit }: { clientId: string, co
   )
 }
 
-
 export function ClientContactsManager({ clientId, contacts }: ClientContactsManagerProps) {
     const [openDialog, setOpenDialog] = useState<string | null>(null);
 
@@ -97,20 +96,38 @@ export function ClientContactsManager({ clientId, contacts }: ClientContactsMana
                 </Dialog>
             </CardHeader>
             <CardContent>
-                <ul className="space-y-3">
+                <ul className="space-y-4"> {/* Aumentado o espaçamento */}
                     {contacts.map(contact => (
-                        <li key={contact.id} className="flex items-center justify-between rounded-md border p-3">
-                            <div className="flex flex-col text-sm">
-                                <span className="font-semibold">{contact.name}</span>
-                                <span className="text-muted-foreground">{contact.role || 'Cargo não informado'}</span>
-                                {contact.birth_date && (
-                                    <span className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                                        <Cake className="h-3 w-3" /> {format(parseISO(contact.birth_date), 'dd/MM')}
-                                    </span>
-                                )}
+                        <li key={contact.id} className="flex items-start justify-between rounded-md border p-3">
+                            {/* --- CONTEÚDO ALTERADO AQUI --- */}
+                            <div className="flex flex-col text-sm space-y-1.5">
+                                <div>
+                                    <span className="font-semibold">{contact.name}</span>
+                                    <p className="text-xs text-muted-foreground">{contact.role || 'Cargo não informado'}</p>
+                                </div>
+                                <div className="space-y-1 text-xs text-muted-foreground">
+                                    {contact.email && (
+                                        <div className="flex items-center gap-2">
+                                            <Mail className="h-3 w-3" />
+                                            <a href={`mailto:${contact.email}`} className="hover:underline">{contact.email}</a>
+                                        </div>
+                                    )}
+                                    {contact.phone && (
+                                        <div className="flex items-center gap-2">
+                                            <Phone className="h-3 w-3" />
+                                            <span>{contact.phone}</span>
+                                        </div>
+                                    )}
+                                    {contact.birth_date && (
+                                        <div className="flex items-center gap-2">
+                                            <Cake className="h-3 w-3" /> 
+                                            <span>{format(parseISO(contact.birth_date), 'dd/MM/yyyy')}</span>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
+                            {/* --- FIM DA ALTERAÇÃO --- */}
                             <div className="flex items-center gap-1">
-                                {/* Botão Editar */}
                                 <Dialog open={openDialog === contact.id} onOpenChange={(isOpen) => setOpenDialog(isOpen ? contact.id : null)}>
                                     <DialogTrigger asChild>
                                         <Button variant="ghost" size="icon" className="h-8 w-8"><Edit className="h-4 w-4" /></Button>
@@ -123,8 +140,6 @@ export function ClientContactsManager({ clientId, contacts }: ClientContactsMana
                                         <ContactForm clientId={clientId} contact={contact} onFormSubmit={() => setOpenDialog(null)} />
                                     </DialogContent>
                                 </Dialog>
-
-                                {/* Botão Deletar */}
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>
                                         <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive"><Trash2 className="h-4 w-4" /></Button>
