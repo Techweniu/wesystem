@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
-import { CartesianGrid, Scatter, ScatterChart, XAxis, YAxis, Tooltip, ReferenceLine, Label } from "recharts"
+import { CartesianGrid, Scatter, ScatterChart, XAxis, YAxis, Tooltip, ReferenceLine, Label, LabelList } from "recharts"
 
 interface NpsQuadrantChartProps {
   data: Array<{
@@ -25,16 +25,21 @@ export function NpsQuadrantChart({ data }: NpsQuadrantChartProps) {
       <CardContent>
         <ChartContainer
           config={{
-            npsScatter: {
+            // CORES REVERTIDAS CONFORME SOLICITADO
+            revenueNpsScatter: {
               label: "Clientes",
-              color: "hsl(0 0% 98%)",
+              color: "#002492", // Cor das bolinhas (azul)
             },
+            referenceLines: {
+                label: "Médias",
+                color: "#03d967", // Cor das linhas (verde)
+            }
           }}
-          className="h-[350px]"
+          className="h-[450px]"
         >
           <ScatterChart
             margin={{
-              top: 20,
+              top: 40,
               right: 30,
               bottom: 20,
               left: 30,
@@ -67,23 +72,30 @@ export function NpsQuadrantChart({ data }: NpsQuadrantChartProps) {
                 return value;
               }} hideLabel />} />
 
-            {/* LINHAS DOS QUADRANTES CORRIGIDAS */}
             <ReferenceLine 
               y={averageNps} 
-              stroke="hsl(0 0% 98%)" // Cor branca
-              strokeWidth={1} // Linha mais fina e sólida
+              stroke="var(--color-referenceLines)"
+              strokeWidth={1}
             >
-              <Label value="Média NPS" position="insideTopLeft" fill="hsl(0 0% 98%)" fontSize={10} />
+              <Label value="Média NPS" position="insideTopLeft" fill="var(--color-referenceLines)" fontSize={10} />
             </ReferenceLine>
             <ReferenceLine 
               x={averageRevenue} 
-              stroke="hsl(0 0% 98%)" // Cor branca
-              strokeWidth={1} // Linha mais fina e sólida
+              stroke="var(--color-referenceLines)"
+              strokeWidth={1}
             >
-               <Label value="Média Receita" position="insideTopLeft" fill="hsl(0 0% 98%)" fontSize={10} angle={-90} dy={-10} />
+               <Label value="Média Receita" position="insideTopLeft" fill="var(--color-referenceLines)" fontSize={10} angle={-90} dy={-10} />
             </ReferenceLine>
 
-            <Scatter data={data} fill="hsl(0 0% 98%)" />
+            <Scatter data={data} fill="var(--color-revenueNpsScatter)">
+              <LabelList 
+                dataKey="name" 
+                position="top" 
+                offset={8} 
+                fontSize={10} 
+                fill="hsl(var(--foreground))" 
+              />
+            </Scatter>
           </ScatterChart>
         </ChartContainer>
       </CardContent>
