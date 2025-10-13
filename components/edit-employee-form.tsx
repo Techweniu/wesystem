@@ -1,10 +1,10 @@
 "use client"
 
-import { useRef } from "react"
+import { useState, useRef } from "react"
 import { useFormStatus } from "react-dom"
 import { Button } from "@/components/ui/button"
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogClose,
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -29,8 +29,9 @@ interface Employee {
 interface EditEmployeeFormProps {
   employee?: Employee;
   allEmployees: Omit<Employee, 'manager' | 'monthlyHours'>[];
-  open: boolean; // Prop para controlar a visibilidade
-  onOpenChange: (open: boolean) => void; // Prop para alterar a visibilidade
+  children?: React.ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 function SubmitButton({ isEditing }: { isEditing: boolean }) {
@@ -42,9 +43,13 @@ function SubmitButton({ isEditing }: { isEditing: boolean }) {
   )
 }
 
-export function EditEmployeeForm({ employee, allEmployees, open, onOpenChange }: EditEmployeeFormProps) {
-  const formRef = useRef<HTMLFormElement>(null)
+export function EditEmployeeForm({ employee, allEmployees, children, open: controlledOpen, onOpenChange: setControlledOpen }: EditEmployeeFormProps) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+
   const isEditing = !!employee;
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = setControlledOpen ?? setInternalOpen;
 
   async function handleFormSubmit(formData: FormData) {
     const result = await saveEmployee(formData);
@@ -52,13 +57,14 @@ export function EditEmployeeForm({ employee, allEmployees, open, onOpenChange }:
       toast.error(`Erro ao ${isEditing ? 'atualizar' : 'criar'} colaborador`, { description: result.error });
     } else {
       toast.success(result.success);
-      onOpenChange(false); // Fecha o dialog em caso de sucesso
+      setOpen(false);
       if (!isEditing) formRef.current?.reset();
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={setOpen}>
+      {children && <DialogTrigger asChild>{children}</DialogTrigger>}
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>{isEditing ? 'Editar Colaborador' : 'Adicionar Novo Colaborador'}</DialogTitle>

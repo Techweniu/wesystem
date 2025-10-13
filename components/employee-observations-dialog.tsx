@@ -46,7 +46,6 @@ export function EmployeeObservationsDialog({ employeeId, observations }: Employe
     } else {
       toast.success(result.success);
       formRef.current?.reset();
-      // Não fechamos o Dialog para o usuário ver a observação adicionada na lista
     }
   }
 
@@ -64,7 +63,6 @@ export function EmployeeObservationsDialog({ employeeId, observations }: Employe
           <DialogDescription>Adicione um novo feedback e veja o histórico.</DialogDescription>
         </DialogHeader>
 
-        {/* Formulário para nova observação */}
         <form ref={formRef} action={handleFormSubmit} className="space-y-4">
           <div className="grid gap-2">
             <Label htmlFor="observation">Nova Observação</Label>
@@ -85,24 +83,30 @@ export function EmployeeObservationsDialog({ employeeId, observations }: Employe
           </DialogFooter>
         </form>
 
-        {/* Histórico de observações */}
         <div className="mt-6">
           <h4 className="font-semibold mb-2">Histórico</h4>
-          <div className="space-y-3 max-h-60 overflow-y-auto pr-2">
+          <div className="space-y-3 max-h-60 overflow-y-auto rounded-lg border bg-muted/20 p-2">
             {observations.length > 0 ? (
               observations.map(obs => (
-                <div key={obs.id} className="text-sm border-b pb-2">
-                  <div className="flex justify-between items-center mb-1">
+                <div key={obs.id} className="text-sm bg-background p-3 rounded-md shadow-sm">
+                  <div className="flex justify-between items-center mb-2">
                     <span className="text-xs text-muted-foreground">
                       {format(new Date(obs.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                     </span>
                     {obs.tag === 'positive' ? (
-                      <ThumbsUp className="h-4 w-4 text-green-500" />
+                      <div className="flex items-center gap-1.5 text-xs font-medium text-green-500">
+                        <ThumbsUp className="h-4 w-4" />
+                        <span>Positiva</span>
+                      </div>
                     ) : (
-                      <ThumbsDown className="h-4 w-4 text-red-500" />
+                      <div className="flex items-center gap-1.5 text-xs font-medium text-red-500">
+                        <ThumbsDown className="h-4 w-4" />
+                        <span>Negativa</span>
+                      </div>
                     )}
                   </div>
-                  <p className="text-muted-foreground truncate">
+                  {/* --- CORREÇÃO FINAL APLICADA AQUI --- */}
+                  <p className="text-muted-foreground break-all">
                     {obs.observation}
                   </p>
                 </div>
