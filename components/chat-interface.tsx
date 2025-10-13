@@ -9,10 +9,12 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Send, Bot, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { generateChatResponse } from "@/app/dashboard/chat/actions";
+import { DynamicChart } from "./dynamic-chart";
 
+// Define a estrutura de uma mensagem (agora pode ser string ou um objeto de gráfico)
 type Message = {
   role: "user" | "assistant";
-  content: string;
+  content: string | object;
 };
 
 export function ChatInterface() {
@@ -68,30 +70,43 @@ export function ChatInterface() {
                 <p>Como posso ajudar hoje?</p>
               </div>
             )}
-            {messages.map((message, index) => (
-              <div
-                key={index}
-                className={cn("flex items-start gap-3", message.role === "user" ? "justify-end" : "")}
-              >
-                {message.role === "assistant" && (
-                  <Avatar className="h-8 w-8"><AvatarFallback><Bot className="h-5 w-5" /></AvatarFallback></Avatar>
-                )}
-                <div className={cn("max-w-sm rounded-lg p-3", message.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted")}>
-                  <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+            {messages.map((message, index) => {
+              const isChart = typeof message.content === 'object' && (message.content as any).type === 'chart';
+              
+              return (
+                <div
+                  key={index}
+                  className={cn("flex items-start gap-3", message.role === "user" ? "justify-end" : "")}
+                >
+                  {message.role === "assistant" && (
+                    <Avatar className="h-8 w-8"><AvatarFallback><Bot className="h-5 w-5" /></AvatarFallback></Avatar>
+                  )}
+
+                  <div className={cn("max-w-md rounded-lg", message.role === "user" ? "bg-primary text-primary-foreground p-3" : (isChart ? "w-full max-w-2xl" : "bg-muted p-3"))}>
+                    {isChart ? (
+                      <DynamicChart chartData={message.content as any} />
+                    ) : (
+                      <p className="text-sm whitespace-pre-wrap">{message.content as string}</p>
+                    )}
+                  </div>
+                  
+                  {message.role === "user" && (
+                    <Avatar className="h-8 w-8"><AvatarFallback><User className="h-5 w-5" /></AvatarFallback></Avatar>
+                  )}
                 </div>
-                {message.role === "user" && (
-                  <Avatar className="h-8 w-8"><AvatarFallback><User className="h-5 w-5" /></AvatarFallback></Avatar>
-                )}
-              </div>
-            ))}
+              )
+            })}
+            {/* --- CORREÇÃO APLICADA AQUI --- */}
             {isLoading && (
                <div className="flex items-start gap-3">
-                  <Avatar className="h-8 w-8"><AvatarFallback><Bot className="h-5 w-5" /></AvatarFallback></Avatar>
-                  <div className="max-w-md rounded-lg p-3 bg-muted flex items-center space-x-2">
-                    <span className="h-2 w-2 bg-foreground rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-                    <span className="h-2 w-2 bg-foreground rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-                    <span className="h-2 w-2 bg-foreground rounded-full animate-bounce"></span>
-                  </div>
+                  <Avatar className="h-8 w-8">
+                    <AvatarFallback><Bot className="h-5 w-5" /></AvatarFallback>
+                  </Avatar>
+                   <div className="max-w-md rounded-lg p-3 bg-muted flex items-center space-x-2">
+                      <span className="h-2 w-2 bg-foreground rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                      <span className="h-2 w-2 bg-foreground rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                      <span className="h-2 w-2 bg-foreground rounded-full animate-bounce"></span>
+                   </div>
                </div>
             )}
           </div>
