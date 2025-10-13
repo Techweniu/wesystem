@@ -9,7 +9,7 @@ import { differenceInDays, parseISO, format } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { MarkPaymentButton } from "@/components/mark-payment-button"
 import { EmployeeObservationsDialog } from "@/components/employee-observations-dialog"
-import { TeamTableRow } from "./team-table-row" // Importaremos um novo componente
+import { TeamTableRow } from "./team-table-row"
 
 async function getTeamData() {
   const supabase = await createClient()
@@ -72,14 +72,27 @@ export default async function TeamPage() {
           <h1 className="text-3xl font-bold tracking-tight">Equipe</h1>
           <p className="text-muted-foreground">Gestão de colaboradores e pagamentos</p>
         </div>
-        {/* O formulário de adicionar novo continua funcionando da mesma forma */}
-        <EditEmployeeForm allEmployees={allEmployees} open={false} onOpenChange={() => {}}>
+        {/* --- CORREÇÃO AQUI --- */}
+        {/* As props 'open' e 'onOpenChange' foram removidas */}
+        <EditEmployeeForm allEmployees={allEmployees}>
            <Button><PlusCircle className="mr-2 h-4 w-4" />Adicionar Colaborador</Button>
         </EditEmployeeForm>
+        {/* --- FIM DA CORREÇÃO --- */}
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
-        {/* Cards de resumo... */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Colaboradores Ativos</CardTitle><Users className="h-4 w-4 text-muted-foreground" /></CardHeader>
+          <CardContent><div className="text-2xl font-bold">{data.activeEmployees}</div></CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Folha de Pagamento Mensal</CardTitle><DollarSign className="h-4 w-4 text-muted-foreground" /></CardHeader>
+          <CardContent><div className="text-2xl font-bold">{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", }).format(data.totalSalary)}</div><p className="text-xs text-muted-foreground">(ativos)</p></CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Total Pago (Histórico)</CardTitle><TrendingDown className="h-4 w-4 text-muted-foreground" /></CardHeader>
+          <CardContent><div className="text-2xl font-bold">{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(data.totalPaid)}</div><p className="text-xs text-muted-foreground">Soma de todos os pagamentos</p></CardContent>
+        </Card>
       </div>
 
       <Card>
