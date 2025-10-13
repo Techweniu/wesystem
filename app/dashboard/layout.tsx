@@ -11,8 +11,8 @@ import {
   SidebarProvider,
   SidebarRail,
 } from "@/components/ui/sidebar"
-// Voltamos a importar o 'Content' diretamente
 import { DashboardSidebarContent } from "@/components/dashboard-sidebar-content"
+import { ChatSidePanel } from "@/components/chat-side-panel" // 1. Importe o novo componente
 
 const FAKE_USER = {
   id: "master-user",
@@ -52,7 +52,6 @@ export default function DashboardLayout({
     <SidebarProvider>
       <Sidebar collapsible="icon">
         <SidebarContent>
-          {/* Voltamos a chamar o 'Content' diretamente */}
           <DashboardSidebarContent />
         </SidebarContent>
         <SidebarRail />
@@ -60,6 +59,8 @@ export default function DashboardLayout({
       <SidebarInset>
         <DashboardHeader user={FAKE_USER} />
         <main className="flex-1 overflow-y-auto p-6">{children}</main>
+        {/* 2. Adicione o componente do painel de chat aqui */}
+        <ChatSidePanel />
       </SidebarInset>
     </SidebarProvider>
   )
