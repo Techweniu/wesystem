@@ -11,7 +11,7 @@ interface ChartData {
   type: 'chart';
   chartType: 'bar' | 'pie';
   data: any[];
-  config?: { // A configuração agora é opcional
+  config?: {
     dataKey?: string;
     categoryKey?: string;
   };
@@ -21,28 +21,60 @@ interface ChartData {
 const COLORS = ["#03d967", "#00b4d8", "#fca311", "#e5e5e5", "#212529"];
 
 export function DynamicChart({ chartData }: { chartData: ChartData }) {
-  // --- VALIDAÇÕES ADICIONADAS AQUI ---
-  if (!chartData || chartData.type !== 'chart' || !chartData.data) {
-    return (
-        <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Erro no Gráfico</AlertTitle>
-            <AlertDescription>A IA retornou dados de gráfico inválidos.</AlertDescription>
-        </Alert>
-    );
+  // --- VALIDAÇÕES REFORÇADAS ---
+  if (!chartData || chartData.type !== 'chart') {
+    return null; // Não renderiza nada se não for um objeto de gráfico válido
   }
 
   const { chartType, data, config, title } = chartData;
 
-  // Validação específica para cada tipo de gráfico
-  if (chartType === 'bar' && (!config || !config.dataKey || !config.categoryKey)) {
-     return (
+  // 1. Valida se 'data' é um array e não está vazio
+  if (!Array.isArray(data) || data.length === 0) {
+    return (
         <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Erro no Gráfico de Barras</AlertTitle>
-            <AlertDescription>Dados de configuração (`dataKey` ou `categoryKey`) ausentes na resposta da IA.</AlertDescription>
+            <AlertTitle>Erro nos Dados do Gráfico</AlertTitle>
+            <AlertDescription>A IA retornou um conjunto de dados vazio ou em formato incorreto.</AlertDescription>
         </Alert>
     );
+  }
+
+  // 2. Validações específicas para Gráfico de Barras
+  if (chartType === 'bar') {
+    if (!config || !config.dataKey || !config.categoryKey) {
+       return (
+          <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Erro de Configuração</AlertTitle>
+              <AlertDescription>A resposta da IA para o gráfico de barras não incluiu as chaves de configuração necessárias (`dataKey`, `categoryKey`).</AlertDescription>
+          </Alert>
+      );
+    }
+    // Valida se as chaves existem no primeiro item dos dados
+    const firstItem = data[0];
+    if (typeof firstItem[config.dataKey] === 'undefined' || typeof firstItem[config.categoryKey] === 'undefined') {
+        return (
+          <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Incompatibilidade de Dados</AlertTitle>
+              <AlertDescription>As chaves de dados (`{config.dataKey}`, `{config.categoryKey}`) fornecidas pela IA não foram encontradas nos dados recebidos.</AlertDescription>
+          </Alert>
+        );
+    }
+  }
+
+  // 3. Validações específicas para Gráfico de Pizza
+  if (chartType === 'pie') {
+      const firstItem = data[0];
+      if (typeof firstItem.name === 'undefined' || typeof firstItem.value === 'undefined') {
+          return (
+            <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Erro de Dados</AlertTitle>
+                <AlertDescription>Os dados para o gráfico de pizza devem conter as propriedades "name" e "value" em cada item.</AlertDescription>
+            </Alert>
+          );
+      }
   }
   // --- FIM DAS VALIDAÇÕES ---
 
