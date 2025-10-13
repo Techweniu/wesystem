@@ -49,6 +49,14 @@ export function EmployeeObservationsDialog({ employeeId, observations }: Employe
     }
   }
 
+  // Função para truncar o texto
+  const truncateText = (text: string, maxLength: number) => {
+    if (text.length <= maxLength) {
+      return text;
+    }
+    return text.substring(0, maxLength) + "...";
+  };
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -88,28 +96,45 @@ export function EmployeeObservationsDialog({ employeeId, observations }: Employe
           <div className="space-y-3 max-h-60 overflow-y-auto rounded-lg border bg-muted/20 p-2">
             {observations.length > 0 ? (
               observations.map(obs => (
-                <div key={obs.id} className="text-sm bg-background p-3 rounded-md shadow-sm">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-xs text-muted-foreground">
-                      {format(new Date(obs.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                    </span>
-                    {obs.tag === 'positive' ? (
-                      <div className="flex items-center gap-1.5 text-xs font-medium text-green-500">
-                        <ThumbsUp className="h-4 w-4" />
-                        <span>Positiva</span>
+                <Dialog key={obs.id}>
+                  <DialogTrigger asChild>
+                    <div className="flex w-full cursor-pointer flex-col rounded-md border bg-background p-3 text-sm shadow-sm hover:bg-accent">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">
+                          {format(new Date(obs.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                        </span>
+                        {obs.tag === 'positive' ? (
+                          <div className="flex items-center gap-1.5 text-xs font-medium text-green-500">
+                            <ThumbsUp className="h-4 w-4" />
+                            <span>Positiva</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 text-xs font-medium text-red-500">
+                            <ThumbsDown className="h-4 w-4" />
+                            <span>Negativa</span>
+                          </div>
+                        )}
                       </div>
-                    ) : (
-                      <div className="flex items-center gap-1.5 text-xs font-medium text-red-500">
-                        <ThumbsDown className="h-4 w-4" />
-                        <span>Negativa</span>
+                      <div className="mt-2 min-w-0">
+                        <p className="text-muted-foreground">
+                          {truncateText(obs.observation, 30)}
+                        </p>
                       </div>
-                    )}
-                  </div>
-                  {/* --- CORREÇÃO FINAL APLICADA AQUI --- */}
-                  <p className="text-muted-foreground break-all">
-                    {obs.observation}
-                  </p>
-                </div>
+                    </div>
+                  </DialogTrigger>
+                  {/* --- CORREÇÃO APLICADA AQUI --- */}
+                  <DialogContent className="sm:max-w-3xl">
+                    <DialogHeader>
+                      <DialogTitle>Observação Completa</DialogTitle>
+                      <DialogDescription>
+                        Registrada em {format(new Date(obs.created_at), "dd 'de' MMMM 'de' yyyy, 'às' HH:mm", { locale: ptBR })}
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="mt-4 max-h-[80vh] overflow-y-auto pr-2">
+                      <p className="text-sm text-foreground whitespace-pre-wrap">{obs.observation}</p>
+                    </div>
+                  </DialogContent>
+                </Dialog>
               ))
             ) : (
               <p className="text-sm text-muted-foreground text-center py-4">Nenhuma observação registrada.</p>
