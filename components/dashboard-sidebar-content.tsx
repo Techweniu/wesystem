@@ -12,6 +12,7 @@ import {
   Network,
   PanelLeft,
   ChevronDown,
+  Sparkles, // 1. Importe o novo ícone
 } from "lucide-react";
 import {
   useSidebar,
@@ -117,7 +118,6 @@ export function DashboardSidebarContent() {
                 ) : (
                   clients.map((client) => (
                     <SidebarMenuSubItem key={client.id}>
-                      {/* A CORREÇÃO FINAL ESTÁ AQUI: */}
                       <Link href={`/dashboard/clients/${client.id}`} asChild>
                         <SidebarMenuSubButton
                           isActive={pathname === `/dashboard/clients/${client.id}`}
@@ -159,6 +159,17 @@ export function DashboardSidebarContent() {
             </SidebarMenuButton>
           </Link>
         </SidebarMenuItem>
+
+        {/* 2. Adicione o novo item de menu aqui */}
+        <SidebarMenuItem>
+          <Link href="/dashboard/chat">
+            <SidebarMenuButton isActive={pathname === "/dashboard/chat"} tooltip="Assistente IA">
+              <Sparkles />
+              <span>Assistente IA</span>
+            </SidebarMenuButton>
+          </Link>
+        </SidebarMenuItem>
+
       </SidebarMenu>
     </>
   );
