@@ -81,9 +81,9 @@ export async function generateChatResponse(chatHistory: unknown) {
 
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-4o",
+      // --- ALTERAÇÃO APLICADA AQUI ---
+      model: "gpt-4o-mini",
       messages: messagesWithSystemPrompt,
-      // Não forçamos mais a resposta em JSON
     });
 
     const assistantResponse = response.choices[0]?.message?.content;
