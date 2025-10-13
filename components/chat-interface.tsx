@@ -11,10 +11,9 @@ import { cn } from "@/lib/utils";
 import { generateChatResponse } from "@/app/dashboard/chat/actions";
 import { DynamicChart } from "./dynamic-chart";
 
-// Define a estrutura de uma mensagem (agora pode ser string ou um objeto de gráfico)
 type Message = {
   role: "user" | "assistant";
-  content: string | object;
+  content: string | object; // Mantém a flexibilidade
 };
 
 export function ChatInterface() {
@@ -46,7 +45,7 @@ export function ChatInterface() {
     const result = await generateChatResponse(newMessages);
 
     if (result.error) {
-      const errorMessage: Message = { role: "assistant", content: `Erro: ${result.error}` };
+      const errorMessage: Message = { role: "assistant", content: { type: 'text', content: `Erro: ${result.error}` } };
       setMessages((prev) => [...prev, errorMessage]);
     } else if (result.success) {
       const assistantMessage: Message = { role: "assistant", content: result.success };
@@ -71,37 +70,47 @@ export function ChatInterface() {
               </div>
             )}
             {messages.map((message, index) => {
-              const isChart = typeof message.content === 'object' && (message.content as any).type === 'chart';
-              
+              // --- LÓGICA DE RENDERIZAÇÃO CORRIGIDA AQUI ---
+              const isUser = message.role === 'user';
+              const content = message.content;
+
+              let messageContent;
+              let isChart = false;
+
+              if (typeof content === 'string') {
+                messageContent = content;
+              } else if (content && typeof content === 'object') {
+                if ((content as any).type === 'chart') {
+                  isChart = true;
+                  messageContent = <DynamicChart chartData={content as any} />;
+                } else if ((content as any).type === 'text') {
+                  messageContent = (content as any).content;
+                } else {
+                  // Fallback para exibir o JSON caso o formato seja inesperado
+                  messageContent = JSON.stringify(content);
+                }
+              }
+
               return (
                 <div
                   key={index}
-                  className={cn("flex items-start gap-3", message.role === "user" ? "justify-end" : "")}
+                  className={cn("flex items-start gap-3", isUser ? "justify-end" : "")}
                 >
-                  {message.role === "assistant" && (
+                  {!isUser && (
                     <Avatar className="h-8 w-8"><AvatarFallback><Bot className="h-5 w-5" /></AvatarFallback></Avatar>
                   )}
-
-                  <div className={cn("max-w-md rounded-lg", message.role === "user" ? "bg-primary text-primary-foreground p-3" : (isChart ? "w-full max-w-2xl" : "bg-muted p-3"))}>
-                    {isChart ? (
-                      <DynamicChart chartData={message.content as any} />
-                    ) : (
-                      <p className="text-sm whitespace-pre-wrap">{message.content as string}</p>
-                    )}
+                  <div className={cn("rounded-lg", isUser ? "bg-primary text-primary-foreground p-3 max-w-md" : (isChart ? "w-full max-w-2xl" : "bg-muted p-3 max-w-md"))}>
+                    {isChart ? messageContent : <p className="text-sm whitespace-pre-wrap">{messageContent}</p>}
                   </div>
-                  
-                  {message.role === "user" && (
+                  {isUser && (
                     <Avatar className="h-8 w-8"><AvatarFallback><User className="h-5 w-5" /></AvatarFallback></Avatar>
                   )}
                 </div>
-              )
+              );
             })}
-            {/* --- CORREÇÃO APLICADA AQUI --- */}
             {isLoading && (
                <div className="flex items-start gap-3">
-                  <Avatar className="h-8 w-8">
-                    <AvatarFallback><Bot className="h-5 w-5" /></AvatarFallback>
-                  </Avatar>
+                  <Avatar className="h-8 w-8"><AvatarFallback><Bot className="h-5 w-5" /></AvatarFallback></Avatar>
                    <div className="max-w-md rounded-lg p-3 bg-muted flex items-center space-x-2">
                       <span className="h-2 w-2 bg-foreground rounded-full animate-bounce [animation-delay:-0.3s]"></span>
                       <span className="h-2 w-2 bg-foreground rounded-full animate-bounce [animation-delay:-0.15s]"></span>

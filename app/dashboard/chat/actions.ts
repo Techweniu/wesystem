@@ -50,7 +50,7 @@ async function getBusinessContext() {
 
 const messageSchema = z.object({
   role: z.enum(["user", "assistant"]),
-  content: z.any(), // Alterado para 'any' para aceitar strings ou objetos de gráfico
+  content: z.any(),
 });
 const chatSchema = z.array(messageSchema);
 
@@ -61,8 +61,6 @@ export async function generateChatResponse(chatHistory: unknown) {
   }
 
   const businessContext = await getBusinessContext();
-  
-  // Remove respostas anteriores que eram gráficos para não poluir o histórico
   const cleanHistory = validatedHistory.data.map(msg => ({
     role: msg.role,
     content: typeof msg.content === 'string' ? msg.content : "Gráfico exibido anteriormente."
@@ -71,10 +69,10 @@ export async function generateChatResponse(chatHistory: unknown) {
   const messagesWithSystemPrompt = [
     {
       role: "system" as const,
-      content: `Você é um assistente de BI. Se o usuário pedir por um gráfico, sua única resposta DEVE ser um JSON formatado com a seguinte estrutura: {"type": "chart", "chartType": "bar" | "pie", "data": [...], "config": {"dataKey": "...", "categoryKey": "..."}}. 
-      - 'bar': para gráficos de barra. 'data' deve ser um array de objetos.
-      - 'pie': para gráficos de pizza. 'data' deve ser um array de objetos com 'name' e 'value'.
-      Se o pedido não for um gráfico, responda normalmente em texto. Baseie-se estritamente no contexto:
+      content: `Você é um assistente de BI. Sua resposta DEVE ser um JSON. 
+      Se o usuário pedir um gráfico, o JSON deve ter a estrutura: {"type": "chart", "chartType": "bar" | "pie", "data": [...], "config": {...}}.
+      Se for uma resposta em texto, o JSON DEVE ter a estrutura: {"type": "text", "content": "Sua resposta em texto aqui."}.
+      Baseie-se estritamente no contexto de dados:
       ${businessContext}`,
     },
     ...cleanHistory,
@@ -84,7 +82,6 @@ export async function generateChatResponse(chatHistory: unknown) {
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: messagesWithSystemPrompt,
-      // Habilita o modo JSON para forçar a IA a responder com um JSON válido quando instruída
       response_format: { type: "json_object" },
     });
 
@@ -93,18 +90,13 @@ export async function generateChatResponse(chatHistory: unknown) {
       return { error: "A IA não conseguiu gerar uma resposta." };
     }
 
-    // Tenta interpretar a resposta como JSON. Se falhar, trata como texto normal.
     try {
       const jsonResponse = JSON.parse(assistantResponse);
-      // Valida se o JSON é um gráfico
-      if (jsonResponse.type === 'chart') {
-        return { success: jsonResponse };
-      }
-      // Se for um JSON mas não um gráfico, retorna o texto
-      return { success: assistantResponse };
+      // Retorna o objeto JSON inteiro para o frontend
+      return { success: jsonResponse };
     } catch (e) {
-      // Se não for JSON, é uma resposta de texto normal
-      return { success: assistantResponse };
+      // Fallback caso a resposta não seja um JSON válido
+      return { success: { type: 'text', content: assistantResponse } };
     }
 
   } catch (error) {
