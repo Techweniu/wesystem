@@ -15,6 +15,7 @@ async function getBusinessContext() {
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_KEY!
     );
+
     const { data: clients, error } = await supabaseAdmin
       .from("clients")
       .select(`
@@ -32,12 +33,17 @@ async function getBusinessContext() {
       const mrr = client.contracts
         .filter(c => c.status === 'active')
         .reduce((sum, c) => sum + (c.valor_mensal || 0), 0);
+      
       const oneTimeRevenue = client.one_time_services
         .filter(s => s.status === 'completed')
         .reduce((sum, s) => sum + (s.value || 0), 0);
+
       return {
-        nome: client.name, status: client.status, mrr: mrr,
-        receitaPontualTotal: oneTimeRevenue, objetivos: client.objectives,
+        nome: client.name,
+        status: client.status,
+        mrr: mrr,
+        receitaPontualTotal: oneTimeRevenue,
+        objetivos: client.objectives,
       };
     });
 
@@ -50,7 +56,7 @@ async function getBusinessContext() {
 
 const messageSchema = z.object({
   role: z.enum(["user", "assistant"]),
-  content: z.any(),
+  content: z.string(),
 });
 const chatSchema = z.array(messageSchema);
 
@@ -61,43 +67,32 @@ export async function generateChatResponse(chatHistory: unknown) {
   }
 
   const businessContext = await getBusinessContext();
-  const cleanHistory = validatedHistory.data.map(msg => ({
-    role: msg.role,
-    content: typeof msg.content === 'string' ? msg.content : "Gráfico exibido anteriormente."
-  }));
 
   const messagesWithSystemPrompt = [
     {
       role: "system" as const,
-      content: `Você é um assistente de BI. Sua resposta DEVE ser um JSON. 
-      Se o usuário pedir um gráfico, o JSON deve ter a estrutura: {"type": "chart", "chartType": "bar" | "pie", "data": [...], "config": {...}}.
-      Se for uma resposta em texto, o JSON DEVE ter a estrutura: {"type": "text", "content": "Sua resposta em texto aqui."}.
-      Baseie-se estritamente no contexto de dados:
+      content: `Você é um assistente de Business Intelligence. Sua principal função é analisar os dados fornecidos e responder a perguntas em texto. 
+      Baseie suas respostas estritamente nos dados de contexto abaixo. Seja claro e objetivo.
+      ### Contexto de Dados (em formato JSON):
       ${businessContext}`,
     },
-    ...cleanHistory,
+    ...validatedHistory.data,
   ];
 
   try {
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: messagesWithSystemPrompt,
-      response_format: { type: "json_object" },
+      // Não forçamos mais a resposta em JSON
     });
 
     const assistantResponse = response.choices[0]?.message?.content;
+
     if (!assistantResponse) {
       return { error: "A IA não conseguiu gerar uma resposta." };
     }
 
-    try {
-      const jsonResponse = JSON.parse(assistantResponse);
-      // Retorna o objeto JSON inteiro para o frontend
-      return { success: jsonResponse };
-    } catch (e) {
-      // Fallback caso a resposta não seja um JSON válido
-      return { success: { type: 'text', content: assistantResponse } };
-    }
+    return { success: assistantResponse };
 
   } catch (error) {
     console.error("Erro na API da OpenAI:", error);

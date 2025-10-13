@@ -9,11 +9,11 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Send, Bot, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { generateChatResponse } from "@/app/dashboard/chat/actions";
-import { DynamicChart } from "./dynamic-chart";
 
+// O tipo de mensagem volta a ser apenas string
 type Message = {
   role: "user" | "assistant";
-  content: string | object; // Mantém a flexibilidade
+  content: string;
 };
 
 export function ChatInterface() {
@@ -44,8 +44,9 @@ export function ChatInterface() {
 
     const result = await generateChatResponse(newMessages);
 
+    // Lógica simplificada para lidar apenas com texto
     if (result.error) {
-      const errorMessage: Message = { role: "assistant", content: { type: 'text', content: `Erro: ${result.error}` } };
+      const errorMessage: Message = { role: "assistant", content: `Erro: ${result.error}` };
       setMessages((prev) => [...prev, errorMessage]);
     } else if (result.success) {
       const assistantMessage: Message = { role: "assistant", content: result.success };
@@ -69,45 +70,29 @@ export function ChatInterface() {
                 <p>Como posso ajudar hoje?</p>
               </div>
             )}
-            {messages.map((message, index) => {
-              // --- LÓGICA DE RENDERIZAÇÃO CORRIGIDA AQUI ---
-              const isUser = message.role === 'user';
-              const content = message.content;
-
-              let messageContent;
-              let isChart = false;
-
-              if (typeof content === 'string') {
-                messageContent = content;
-              } else if (content && typeof content === 'object') {
-                if ((content as any).type === 'chart') {
-                  isChart = true;
-                  messageContent = <DynamicChart chartData={content as any} />;
-                } else if ((content as any).type === 'text') {
-                  messageContent = (content as any).content;
-                } else {
-                  // Fallback para exibir o JSON caso o formato seja inesperado
-                  messageContent = JSON.stringify(content);
-                }
-              }
-
-              return (
+            {messages.map((message, index) => (
+              <div
+                key={index}
+                className={cn("flex items-start gap-3", message.role === "user" ? "justify-end" : "")}
+              >
+                {message.role === "assistant" && (
+                  <Avatar className="h-8 w-8"><AvatarFallback><Bot className="h-5 w-5" /></AvatarFallback></Avatar>
+                )}
                 <div
-                  key={index}
-                  className={cn("flex items-start gap-3", isUser ? "justify-end" : "")}
+                  className={cn(
+                    "max-w-md rounded-lg p-3",
+                    message.role === "user"
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted"
+                  )}
                 >
-                  {!isUser && (
-                    <Avatar className="h-8 w-8"><AvatarFallback><Bot className="h-5 w-5" /></AvatarFallback></Avatar>
-                  )}
-                  <div className={cn("rounded-lg", isUser ? "bg-primary text-primary-foreground p-3 max-w-md" : (isChart ? "w-full max-w-2xl" : "bg-muted p-3 max-w-md"))}>
-                    {isChart ? messageContent : <p className="text-sm whitespace-pre-wrap">{messageContent}</p>}
-                  </div>
-                  {isUser && (
-                    <Avatar className="h-8 w-8"><AvatarFallback><User className="h-5 w-5" /></AvatarFallback></Avatar>
-                  )}
+                  <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                 </div>
-              );
-            })}
+                 {message.role === "user" && (
+                  <Avatar className="h-8 w-8"><AvatarFallback><User className="h-5 w-5" /></AvatarFallback></Avatar>
+                )}
+              </div>
+            ))}
             {isLoading && (
                <div className="flex items-start gap-3">
                   <Avatar className="h-8 w-8"><AvatarFallback><Bot className="h-5 w-5" /></AvatarFallback></Avatar>
