@@ -27,36 +27,31 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-  const [userRole, setUserRole] = useState<string | null>(null); // Novo estado para o papel
-  const router = useRouter();
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
+  const router = useRouter()
 
   useEffect(() => {
-    const authStatus = localStorage.getItem("isAuthenticated");
-    const role = localStorage.getItem("userRole"); // Lê o papel do usuário
-
-    if (authStatus === "true" && role) {
-      setIsAuthenticated(true);
-      setUserRole(role);
+    const authStatus = localStorage.getItem("isAuthenticated")
+    if (authStatus === "true") {
+      setIsAuthenticated(true)
     } else {
-      router.push("/auth/login");
+      router.push("/auth/login")
     }
-  }, [router]);
+  }, [router])
 
   if (isAuthenticated === null) {
-    return <div className="flex h-screen w-full items-center justify-center">Carregando sistema...</div>;
+    return <div className="flex h-screen w-full items-center justify-center">Carregando sistema...</div>
   }
 
   if (!isAuthenticated) {
-    return null;
+    return null
   }
 
   return (
     <SidebarProvider>
       <Sidebar collapsible="icon">
         <SidebarContent>
-          {/* Passa o papel do usuário para o menu lateral */}
-          <DashboardSidebarContent userRole={userRole} />
+          <DashboardSidebarContent />
         </SidebarContent>
         <SidebarRail />
       </Sidebar>
@@ -65,5 +60,5 @@ export default function DashboardLayout({
         <main className="flex-1 overflow-y-auto p-6">{children}</main>
       </SidebarInset>
     </SidebarProvider>
-  );
+  )
 }

@@ -37,14 +37,11 @@ type Client = {
   name: string;
 };
 
-// O componente agora recebe o papel do usuário
-export function DashboardSidebarContent({ userRole }: { userRole: string | null }) {
+export function DashboardSidebarContent() {
   const pathname = usePathname();
   const [clients, setClients] = useState<Client[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toggleSidebar } = useSidebar();
-
-  const isAdmin = userRole === 'admin'; // Variável para facilitar a verificação
 
   useEffect(() => {
     const supabase = createClient();
@@ -79,18 +76,15 @@ export function DashboardSidebarContent({ userRole }: { userRole: string | null 
 
         <SidebarSeparator className="my-1" />
         
-        {isAdmin && (
-          <SidebarMenuItem>
-            <Link href="/dashboard">
-              <SidebarMenuButton isActive={pathname === "/dashboard"} tooltip="Dashboard">
-                <LayoutDashboard />
-                <span>Dashboard</span>
-              </SidebarMenuButton>
-            </Link>
-          </SidebarMenuItem>
-        )}
+        <SidebarMenuItem>
+          <Link href="/dashboard">
+            <SidebarMenuButton isActive={pathname === "/dashboard"} tooltip="Dashboard">
+              <LayoutDashboard />
+              <span>Dashboard</span>
+            </SidebarMenuButton>
+          </Link>
+        </SidebarMenuItem>
 
-        {/* --- CÓDIGO DO MENU CLIENTES RESTAURADO AQUI --- */}
         <Collapsible asChild>
           <SidebarMenuItem>
             <div className="flex w-full items-center justify-between">
@@ -138,28 +132,24 @@ export function DashboardSidebarContent({ userRole }: { userRole: string | null 
             </CollapsibleContent>
           </SidebarMenuItem>
         </Collapsible>
-        
-        {isAdmin && (
-          <>
-            <SidebarMenuItem>
-              <Link href="/dashboard/financial">
-                <SidebarMenuButton isActive={pathname === "/dashboard/financial"} tooltip="Financeiro">
-                  <DollarSign />
-                  <span>Financeiro</span>
-                </SidebarMenuButton>
-              </Link>
-            </SidebarMenuItem>
 
-            <SidebarMenuItem>
-              <Link href="/dashboard/team">
-                <SidebarMenuButton isActive={pathname === "/dashboard/team"} tooltip="Equipe">
-                  <UserCircle />
-                  <span>Equipe</span>
-                </SidebarMenuButton>
-              </Link>
-            </SidebarMenuItem>
-          </>
-        )}
+        <SidebarMenuItem>
+          <Link href="/dashboard/financial">
+            <SidebarMenuButton isActive={pathname === "/dashboard/financial"} tooltip="Financeiro">
+              <DollarSign />
+              <span>Financeiro</span>
+            </SidebarMenuButton>
+          </Link>
+        </SidebarMenuItem>
+
+        <SidebarMenuItem>
+          <Link href="/dashboard/team">
+            <SidebarMenuButton isActive={pathname === "/dashboard/team"} tooltip="Equipe">
+              <UserCircle />
+              <span>Equipe</span>
+            </SidebarMenuButton>
+          </Link>
+        </SidebarMenuItem>
         
         <SidebarMenuItem>
           <Link href="/dashboard/org-chart">
@@ -170,16 +160,14 @@ export function DashboardSidebarContent({ userRole }: { userRole: string | null 
           </Link>
         </SidebarMenuItem>
 
-        {isAdmin && (
-          <SidebarMenuItem>
-            <Link href="/dashboard/chat">
-              <SidebarMenuButton isActive={pathname === "/dashboard/chat"} tooltip="Assistente IA">
-                <Sparkles />
-                <span>Assistente IA</span>
-              </SidebarMenuButton>
-            </Link>
-          </SidebarMenuItem>
-        )}
+        <SidebarMenuItem>
+          <Link href="/dashboard/chat">
+            <SidebarMenuButton isActive={pathname === "/dashboard/chat"} tooltip="Assistente IA">
+              <Sparkles />
+              <span>Assistente IA</span>
+            </SidebarMenuButton>
+          </Link>
+        </SidebarMenuItem>
 
       </SidebarMenu>
     </>
