@@ -47,15 +47,38 @@ export function DashboardSidebarContent({ userRole }: { userRole: string | null 
   const isAdmin = userRole === 'admin'; // Variável para facilitar a verificação
 
   useEffect(() => {
-    // ... (código para buscar clientes não muda)
+    const supabase = createClient();
+    const fetchClients = async () => {
+      setIsLoading(true);
+      const { data, error } = await supabase
+        .from("clients")
+        .select("id, name")
+        .order("name", { ascending: true });
+      
+      if (error) {
+        console.error("Erro ao buscar clientes para o menu:", error);
+        setClients([]);
+      } else {
+        setClients(data || []);
+      }
+      setIsLoading(false);
+    };
+
+    fetchClients();
   }, []);
 
   return (
     <>
       <SidebarMenu>
-        {/* ... (código do cabeçalho do menu não muda) ... */}
+        <SidebarMenuItem>
+          <SidebarMenuButton onClick={toggleSidebar}>
+            <PanelLeft />
+            <span>Menu lateral</span>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+
+        <SidebarSeparator className="my-1" />
         
-        {/* Renderiza o Dashboard apenas para admin */}
         {isAdmin && (
           <SidebarMenuItem>
             <Link href="/dashboard">
@@ -67,12 +90,55 @@ export function DashboardSidebarContent({ userRole }: { userRole: string | null 
           </SidebarMenuItem>
         )}
 
-        {/* Clientes é visível para todos */}
+        {/* --- CÓDIGO DO MENU CLIENTES RESTAURADO AQUI --- */}
         <Collapsible asChild>
-          {/* ... (código do menu de clientes não muda) ... */}
+          <SidebarMenuItem>
+            <div className="flex w-full items-center justify-between">
+              <Link href="/dashboard/clients" className="flex-1">
+                <SidebarMenuButton
+                  isActive={pathname.startsWith("/dashboard/clients")}
+                  tooltip="Clientes"
+                >
+                  <Users />
+                  <span>Clientes</span>
+                </SidebarMenuButton>
+              </Link>
+              <CollapsibleTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="group size-8 shrink-0"
+                  disabled={isLoading}
+                >
+                  <ChevronDown className="transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                </Button>
+              </CollapsibleTrigger>
+            </div>
+            <CollapsibleContent>
+              <SidebarMenuSub>
+                {isLoading ? (
+                  <>
+                    <SidebarMenuSkeleton />
+                    <SidebarMenuSkeleton />
+                  </>
+                ) : (
+                  clients.map((client) => (
+                    <SidebarMenuSubItem key={client.id}>
+                      <Link href={`/dashboard/clients/${client.id}`} asChild>
+                        <SidebarMenuSubButton
+                          isActive={pathname === `/dashboard/clients/${client.id}`}
+                        >
+                          {client.name}
+                        </SidebarMenuSubButton>
+                      </Link>
+                    </SidebarMenuSubItem>
+                  ))
+                )}
+              </SidebarMenuSub>
+            </CollapsibleContent>
+          </SidebarMenuItem>
         </Collapsible>
         
-        {/* Renderiza as seções protegidas apenas para admin */}
         {isAdmin && (
           <>
             <SidebarMenuItem>
@@ -95,7 +161,6 @@ export function DashboardSidebarContent({ userRole }: { userRole: string | null 
           </>
         )}
         
-        {/* Organograma é visível para todos */}
         <SidebarMenuItem>
           <Link href="/dashboard/org-chart">
             <SidebarMenuButton isActive={pathname === "/dashboard/org-chart"} tooltip="Organograma">
@@ -105,7 +170,6 @@ export function DashboardSidebarContent({ userRole }: { userRole: string | null 
           </Link>
         </SidebarMenuItem>
 
-        {/* Assistente IA é visível apenas para admin */}
         {isAdmin && (
           <SidebarMenuItem>
             <Link href="/dashboard/chat">
