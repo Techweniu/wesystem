@@ -6,14 +6,13 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Send, Bot, User } from "lucide-react";
+import { Send, Bot, User, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { generateChatResponse } from "@/app/dashboard/chat/actions";
 
-// O tipo de mensagem volta a ser apenas string
 type Message = {
   role: "user" | "assistant";
-  content: string;
+  content: string | object;
 };
 
 export function ChatInterface() {
@@ -24,10 +23,7 @@ export function ChatInterface() {
 
   useEffect(() => {
     if (scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTo({
-        top: scrollAreaRef.current.scrollHeight,
-        behavior: "smooth",
-      });
+      scrollAreaRef.current.scrollTo({ top: scrollAreaRef.current.scrollHeight, behavior: "smooth" });
     }
   }, [messages]);
 
@@ -44,9 +40,8 @@ export function ChatInterface() {
 
     const result = await generateChatResponse(newMessages);
 
-    // Lógica simplificada para lidar apenas com texto
     if (result.error) {
-      const errorMessage: Message = { role: "assistant", content: `Erro: ${result.error}` };
+      const errorMessage: Message = { role: "assistant", content: { type: 'text', content: `Erro: ${result.error}` } };
       setMessages((prev) => [...prev, errorMessage]);
     } else if (result.success) {
       const assistantMessage: Message = { role: "assistant", content: result.success };
@@ -70,29 +65,49 @@ export function ChatInterface() {
                 <p>Como posso ajudar hoje?</p>
               </div>
             )}
-            {messages.map((message, index) => (
-              <div
-                key={index}
-                className={cn("flex items-start gap-3", message.role === "user" ? "justify-end" : "")}
-              >
-                {message.role === "assistant" && (
-                  <Avatar className="h-8 w-8"><AvatarFallback><Bot className="h-5 w-5" /></AvatarFallback></Avatar>
-                )}
-                <div
-                  className={cn(
-                    "max-w-md rounded-lg p-3",
-                    message.role === "user"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted"
-                  )}
-                >
-                  <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                </div>
-                 {message.role === "user" && (
-                  <Avatar className="h-8 w-8"><AvatarFallback><User className="h-5 w-5" /></AvatarFallback></Avatar>
-                )}
-              </div>
-            ))}
+            {messages.map((message, index) => {
+              // --- LÓGICA DE RENDERIZAÇÃO COMPLETAMENTE REFEITA E SEGURA ---
+              const isUser = message.role === 'user';
+              
+              if (isUser) {
+                return (
+                  <div key={index} className="flex items-start gap-3 justify-end">
+                    <div className="rounded-lg p-3 max-w-md bg-primary text-primary-foreground">
+                      <p className="text-sm whitespace-pre-wrap">{message.content as string}</p>
+                    </div>
+                    <Avatar className="h-8 w-8"><AvatarFallback><User className="h-5 w-5" /></AvatarFallback></Avatar>
+                  </div>
+                );
+              }
+
+              // Se a mensagem for do assistente, tratamos os diferentes tipos de conteúdo
+              const content = message.content;
+              if (typeof content === 'object' && content && (content as any).type === 'password_prompt') {
+                return (
+                  <div key={index} className="flex items-start gap-3">
+                    <Avatar className="h-8 w-8"><AvatarFallback><ShieldCheck className="h-5 w-5 text-primary" /></AvatarFallback></Avatar>
+                    <div className="max-w-md rounded-lg p-3 bg-muted">
+                      <p className="text-sm font-medium">Acesso a Dados Sensíveis</p>
+                      <p className="text-sm text-muted-foreground mt-1">Para acessar esta informação, por favor, digite sua pergunta novamente incluindo a palavra-passe de segurança.</p>
+                    </div>
+                  </div>
+                );
+              }
+
+              // Lógica para mensagens de texto normais do assistente
+              const textContent = (typeof content === 'object' && content && (content as any).type === 'text')
+                ? (content as any).content
+                : (typeof content === 'string' ? content : JSON.stringify(content)); // Fallback seguro
+
+              return (
+                 <div key={index} className="flex items-start gap-3">
+                    <Avatar className="h-8 w-8"><AvatarFallback><Bot className="h-5 w-5" /></AvatarFallback></Avatar>
+                    <div className="rounded-lg p-3 max-w-md bg-muted">
+                       <p className="text-sm whitespace-pre-wrap">{textContent}</p>
+                    </div>
+                 </div>
+              );
+            })}
             {isLoading && (
                <div className="flex items-start gap-3">
                   <Avatar className="h-8 w-8"><AvatarFallback><Bot className="h-5 w-5" /></AvatarFallback></Avatar>
