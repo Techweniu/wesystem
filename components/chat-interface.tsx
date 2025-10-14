@@ -15,6 +15,33 @@ type Message = {
   content: string | object;
 };
 
+// FUNÇÃO SEGURA PARA RENDERIZAR A MENSAGEM DO ASSISTENTE
+const renderAssistantMessage = (content: string | object) => {
+  // Se for o pedido de senha, renderiza o componente específico
+  if (typeof content === 'object' && content && (content as any).type === 'password_prompt') {
+    return (
+      <div className="flex flex-col">
+        <p className="text-sm font-medium">Acesso a Dados Sensíveis</p>
+        <p className="text-sm text-muted-foreground mt-1">Para acessar esta informação, por favor, digite sua pergunta novamente incluindo a palavra-passe de segurança.</p>
+      </div>
+    );
+  }
+
+  // Se for um objeto de texto, extrai o conteúdo
+  if (typeof content === 'object' && content && (content as any).type === 'text') {
+    return <p className="text-sm whitespace-pre-wrap">{(content as any).content}</p>;
+  }
+  
+  // Se for uma string simples, renderiza diretamente
+  if (typeof content === 'string') {
+    return <p className="text-sm whitespace-pre-wrap">{content}</p>;
+  }
+
+  // Fallback "à prova de falhas": se for um objeto inesperado, converte para string
+  return <p className="text-sm whitespace-pre-wrap text-red-500">Formato de resposta inesperado: {JSON.stringify(content)}</p>;
+};
+
+
 export function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -66,23 +93,18 @@ export function ChatInterface() {
               </div>
             )}
             {messages.map((message, index) => {
-              // --- LÓGICA DE RENDERIZAÇÃO COMPLETAMENTE REFEITA E SEGURA ---
               const isUser = message.role === 'user';
-
               return (
                 <div key={index} className={cn("flex items-start gap-3", isUser ? "justify-end" : "")}>
                   {!isUser && (
                     <Avatar className="h-8 w-8"><AvatarFallback><Bot className="h-5 w-5" /></AvatarFallback></Avatar>
                   )}
-                  
                   <div className={cn("rounded-lg p-3 max-w-md", isUser ? "bg-primary text-primary-foreground" : "bg-muted")}>
-                    {isUser ? (
-                      <p className="text-sm whitespace-pre-wrap">{message.content as string}</p>
-                    ) : (
-                      <AssistantMessage content={message.content} />
-                    )}
+                    {isUser 
+                      ? <p className="text-sm whitespace-pre-wrap">{message.content as string}</p> 
+                      : renderAssistantMessage(message.content)
+                    }
                   </div>
-
                   {isUser && (
                     <Avatar className="h-8 w-8"><AvatarFallback><User className="h-5 w-5" /></AvatarFallback></Avatar>
                   )}
@@ -111,27 +133,3 @@ export function ChatInterface() {
     </Card>
   );
 }
-
-// Novo sub-componente para tratar a lógica da mensagem do assistente de forma isolada e segura
-const AssistantMessage = ({ content }: { content: string | object }) => {
-  if (typeof content === 'object' && content && (content as any).type === 'password_prompt') {
-    return (
-      <div className="flex flex-col">
-          <p className="text-sm font-medium">Acesso a Dados Sensíveis</p>
-          <p className="text-sm text-muted-foreground mt-1">Para acessar esta informação, por favor, digite sua pergunta novamente incluindo a palavra-passe de segurança.</p>
-      </div>
-    );
-  }
-
-  let textContent = "";
-  if (typeof content === 'string') {
-    textContent = content;
-  } else if (typeof content === 'object' && content && (content as any).type === 'text') {
-    textContent = (content as any).content;
-  } else {
-    // Fallback seguro caso o formato seja inesperado
-    textContent = "Recebi uma resposta em formato inesperado.";
-  }
-
-  return <p className="text-sm whitespace-pre-wrap">{textContent}</p>;
-};
