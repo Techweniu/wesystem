@@ -15,9 +15,9 @@ type Message = {
   content: string | object;
 };
 
-// FUNÇÃO SEGURA PARA RENDERIZAR A MENSAGEM DO ASSISTENTE
-const renderAssistantMessage = (content: string | object) => {
-  // Se for o pedido de senha, renderiza o componente específico
+// Componente "à prova de falhas" para renderizar a mensagem do assistente
+const AssistantMessageRenderer = ({ content }: { content: string | object }) => {
+  // Caso 1: A resposta é o pedido de senha
   if (typeof content === 'object' && content && (content as any).type === 'password_prompt') {
     return (
       <div className="flex flex-col">
@@ -27,20 +27,24 @@ const renderAssistantMessage = (content: string | object) => {
     );
   }
 
-  // Se for um objeto de texto, extrai o conteúdo
+  // Caso 2: A resposta é um objeto de texto, como esperado
   if (typeof content === 'object' && content && (content as any).type === 'text') {
     return <p className="text-sm whitespace-pre-wrap">{(content as any).content}</p>;
   }
-  
-  // Se for uma string simples, renderiza diretamente
+
+  // Caso 3: A resposta é uma string simples (ex: um erro retornado como string)
   if (typeof content === 'string') {
     return <p className="text-sm whitespace-pre-wrap">{content}</p>;
   }
 
-  // Fallback "à prova de falhas": se for um objeto inesperado, converte para string
-  return <p className="text-sm whitespace-pre-wrap text-red-500">Formato de resposta inesperado: {JSON.stringify(content)}</p>;
+  // Fallback de Segurança: Se for um objeto inesperado, não quebra a aplicação.
+  // Em vez disso, exibe uma mensagem segura para depuração.
+  return (
+    <p className="text-sm whitespace-pre-wrap font-mono text-destructive">
+      [DEBUG] Resposta em formato inesperado: {JSON.stringify(content)}
+    </p>
+  );
 };
-
 
 export function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -92,25 +96,22 @@ export function ChatInterface() {
                 <p>Como posso ajudar hoje?</p>
               </div>
             )}
-            {messages.map((message, index) => {
-              const isUser = message.role === 'user';
-              return (
-                <div key={index} className={cn("flex items-start gap-3", isUser ? "justify-end" : "")}>
-                  {!isUser && (
-                    <Avatar className="h-8 w-8"><AvatarFallback><Bot className="h-5 w-5" /></AvatarFallback></Avatar>
-                  )}
-                  <div className={cn("rounded-lg p-3 max-w-md", isUser ? "bg-primary text-primary-foreground" : "bg-muted")}>
-                    {isUser 
-                      ? <p className="text-sm whitespace-pre-wrap">{message.content as string}</p> 
-                      : renderAssistantMessage(message.content)
-                    }
-                  </div>
-                  {isUser && (
-                    <Avatar className="h-8 w-8"><AvatarFallback><User className="h-5 w-5" /></AvatarFallback></Avatar>
-                  )}
+            {messages.map((message, index) => (
+              <div key={index} className={cn("flex items-start gap-3", message.role === 'user' ? "justify-end" : "")}>
+                {message.role === 'assistant' && (
+                  <Avatar className="h-8 w-8"><AvatarFallback><Bot className="h-5 w-5" /></AvatarFallback></Avatar>
+                )}
+                <div className={cn("rounded-lg p-3 max-w-md", message.role === 'user' ? "bg-primary text-primary-foreground" : "bg-muted")}>
+                  {message.role === 'user' 
+                    ? <p className="text-sm whitespace-pre-wrap">{message.content as string}</p> 
+                    : <AssistantMessageRenderer content={message.content} />
+                  }
                 </div>
-              );
-            })}
+                {message.role === 'user' && (
+                  <Avatar className="h-8 w-8"><AvatarFallback><User className="h-5 w-5" /></AvatarFallback></Avatar>
+                )}
+              </div>
+            ))}
             {isLoading && (
                <div className="flex items-start gap-3">
                   <Avatar className="h-8 w-8"><AvatarFallback><Bot className="h-5 w-5" /></AvatarFallback></Avatar>
