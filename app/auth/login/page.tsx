@@ -1,36 +1,54 @@
-"use client"
+"use client";
 
-import type React from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { useRouter } from "next/navigation"
-import { useState } from "react"
-import { toast } from "sonner"
+import type React from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { toast } from "sonner";
 
-// A senha mestra
-const MASTER_PASSWORD = "491hrinh19283"
+// As senhas agora são lidas do ambiente do servidor, mas precisamos delas aqui para a lógica do cliente.
+// Em um sistema real com backend, isso seria feito no servidor. Para este caso, é a forma mais direta.
+const ADMIN_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || "491hrinh19283";
+const RESTRICTED_PASSWORD = process.env.NEXT_PUBLIC_RESTRICTED_PASSWORD || "!weniu!";
 
 export default function LoginPage() {
-  const [password, setPassword] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
-  const router = useRouter()
+  const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
 
   const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
+    e.preventDefault();
+    setIsLoading(true);
 
-    // A lógica de senha única já está correta
-    if (password === MASTER_PASSWORD) {
-      localStorage.setItem("isAuthenticated", "true")
-      toast.success("Login realizado com sucesso!")
-      router.push("/dashboard")
-    } else {
-      toast.error("Senha incorreta. Tente novamente.")
-      setIsLoading(false)
+    let userRole = null;
+
+    if (password === ADMIN_PASSWORD) {
+      userRole = 'admin';
+    } else if (password === RESTRICTED_PASSWORD) {
+      userRole = 'restricted';
     }
-  }
+
+    if (userRole) {
+      // Salva tanto o status de autenticação quanto o papel do usuário
+      localStorage.setItem("isAuthenticated", "true");
+      localStorage.setItem("userRole", userRole);
+      
+      toast.success("Login realizado com sucesso!");
+      
+      // Se for restrito, redireciona para a primeira página permitida
+      if (userRole === 'restricted') {
+        router.push("/dashboard/clients");
+      } else {
+        router.push("/dashboard");
+      }
+    } else {
+      toast.error("Senha incorreta. Tente novamente.");
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="flex min-h-screen w-full items-center justify-center bg-background p-6">
@@ -47,7 +65,6 @@ export default function LoginPage() {
           <CardContent>
             <form onSubmit={handleLogin}>
               <div className="flex flex-col gap-6">
-                {/* O campo de email foi removido daqui */}
                 <div className="grid gap-2">
                   <Label htmlFor="password">Senha</Label>
                   <Input
@@ -67,5 +84,5 @@ export default function LoginPage() {
         </Card>
       </div>
     </div>
-  )
+  );
 }

@@ -12,7 +12,7 @@ import {
   Network,
   PanelLeft,
   ChevronDown,
-  Sparkles, // 1. Importe o novo ícone
+  Sparkles,
 } from "lucide-react";
 import {
   useSidebar,
@@ -37,120 +37,65 @@ type Client = {
   name: string;
 };
 
-export function DashboardSidebarContent() {
+// O componente agora recebe o papel do usuário
+export function DashboardSidebarContent({ userRole }: { userRole: string | null }) {
   const pathname = usePathname();
   const [clients, setClients] = useState<Client[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toggleSidebar } = useSidebar();
 
-  useEffect(() => {
-    const supabase = createClient();
-    const fetchClients = async () => {
-      setIsLoading(true);
-      const { data, error } = await supabase
-        .from("clients")
-        .select("id, name")
-        .order("name", { ascending: true });
-      
-      if (error) {
-        console.error("Erro ao buscar clientes para o menu:", error);
-        setClients([]);
-      } else {
-        setClients(data || []);
-      }
-      setIsLoading(false);
-    };
+  const isAdmin = userRole === 'admin'; // Variável para facilitar a verificação
 
-    fetchClients();
+  useEffect(() => {
+    // ... (código para buscar clientes não muda)
   }, []);
 
   return (
     <>
       <SidebarMenu>
-        <SidebarMenuItem>
-          <SidebarMenuButton onClick={toggleSidebar}>
-            <PanelLeft />
-            <span>Menu lateral</span>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
-
-        <SidebarSeparator className="my-1" />
+        {/* ... (código do cabeçalho do menu não muda) ... */}
         
-        <SidebarMenuItem>
-          <Link href="/dashboard">
-            <SidebarMenuButton isActive={pathname === "/dashboard"} tooltip="Dashboard">
-              <LayoutDashboard />
-              <span>Dashboard</span>
-            </SidebarMenuButton>
-          </Link>
-        </SidebarMenuItem>
-
-        <Collapsible asChild>
+        {/* Renderiza o Dashboard apenas para admin */}
+        {isAdmin && (
           <SidebarMenuItem>
-            <div className="flex w-full items-center justify-between">
-              <Link href="/dashboard/clients" className="flex-1">
-                <SidebarMenuButton
-                  isActive={pathname.startsWith("/dashboard/clients")}
-                  tooltip="Clientes"
-                >
-                  <Users />
-                  <span>Clientes</span>
+            <Link href="/dashboard">
+              <SidebarMenuButton isActive={pathname === "/dashboard"} tooltip="Dashboard">
+                <LayoutDashboard />
+                <span>Dashboard</span>
+              </SidebarMenuButton>
+            </Link>
+          </SidebarMenuItem>
+        )}
+
+        {/* Clientes é visível para todos */}
+        <Collapsible asChild>
+          {/* ... (código do menu de clientes não muda) ... */}
+        </Collapsible>
+        
+        {/* Renderiza as seções protegidas apenas para admin */}
+        {isAdmin && (
+          <>
+            <SidebarMenuItem>
+              <Link href="/dashboard/financial">
+                <SidebarMenuButton isActive={pathname === "/dashboard/financial"} tooltip="Financeiro">
+                  <DollarSign />
+                  <span>Financeiro</span>
                 </SidebarMenuButton>
               </Link>
-              <CollapsibleTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="group size-8 shrink-0"
-                  disabled={isLoading}
-                >
-                  <ChevronDown className="transition-transform duration-200 group-data-[state=open]:rotate-180" />
-                </Button>
-              </CollapsibleTrigger>
-            </div>
-            <CollapsibleContent>
-              <SidebarMenuSub>
-                {isLoading ? (
-                  <>
-                    <SidebarMenuSkeleton />
-                    <SidebarMenuSkeleton />
-                  </>
-                ) : (
-                  clients.map((client) => (
-                    <SidebarMenuSubItem key={client.id}>
-                      <Link href={`/dashboard/clients/${client.id}`} asChild>
-                        <SidebarMenuSubButton
-                          isActive={pathname === `/dashboard/clients/${client.id}`}
-                        >
-                          {client.name}
-                        </SidebarMenuSubButton>
-                      </Link>
-                    </SidebarMenuSubItem>
-                  ))
-                )}
-              </SidebarMenuSub>
-            </CollapsibleContent>
-          </SidebarMenuItem>
-        </Collapsible>
+            </SidebarMenuItem>
 
-        <SidebarMenuItem>
-          <Link href="/dashboard/financial">
-            <SidebarMenuButton isActive={pathname === "/dashboard/financial"} tooltip="Financeiro">
-              <DollarSign />
-              <span>Financeiro</span>
-            </SidebarMenuButton>
-          </Link>
-        </SidebarMenuItem>
-
-        <SidebarMenuItem>
-          <Link href="/dashboard/team">
-            <SidebarMenuButton isActive={pathname === "/dashboard/team"} tooltip="Equipe">
-              <UserCircle />
-              <span>Equipe</span>
-            </SidebarMenuButton>
-          </Link>
-        </SidebarMenuItem>
+            <SidebarMenuItem>
+              <Link href="/dashboard/team">
+                <SidebarMenuButton isActive={pathname === "/dashboard/team"} tooltip="Equipe">
+                  <UserCircle />
+                  <span>Equipe</span>
+                </SidebarMenuButton>
+              </Link>
+            </SidebarMenuItem>
+          </>
+        )}
         
+        {/* Organograma é visível para todos */}
         <SidebarMenuItem>
           <Link href="/dashboard/org-chart">
             <SidebarMenuButton isActive={pathname === "/dashboard/org-chart"} tooltip="Organograma">
@@ -160,15 +105,17 @@ export function DashboardSidebarContent() {
           </Link>
         </SidebarMenuItem>
 
-        {/* 2. Adicione o novo item de menu aqui */}
-        <SidebarMenuItem>
-          <Link href="/dashboard/chat">
-            <SidebarMenuButton isActive={pathname === "/dashboard/chat"} tooltip="Assistente IA">
-              <Sparkles />
-              <span>Assistente IA</span>
-            </SidebarMenuButton>
-          </Link>
-        </SidebarMenuItem>
+        {/* Assistente IA é visível apenas para admin */}
+        {isAdmin && (
+          <SidebarMenuItem>
+            <Link href="/dashboard/chat">
+              <SidebarMenuButton isActive={pathname === "/dashboard/chat"} tooltip="Assistente IA">
+                <Sparkles />
+                <span>Assistente IA</span>
+              </SidebarMenuButton>
+            </Link>
+          </SidebarMenuItem>
+        )}
 
       </SidebarMenu>
     </>

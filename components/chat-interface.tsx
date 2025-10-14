@@ -39,7 +39,6 @@ export function ChatInterface() {
     setInput("");
     setIsLoading(true);
 
-    // A lógica aqui fica mais simples, pois esperamos sempre uma string
     const result = await generateChatResponse(newMessages);
 
     let assistantResponse = "";

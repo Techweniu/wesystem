@@ -10,17 +10,18 @@ const openai = new OpenAI({
   dangerouslyAllowBrowser: true,
 });
 
-async function getBusinessSnapshot(includeSensitiveData: boolean = false) {
+/**
+ * Coleta um snapshot completo dos dados de negócio, incluindo dados sensíveis.
+ */
+async function getBusinessSnapshot() {
   const supabaseAdmin = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_KEY!
   );
 
-  let employeeSelect = 'name, status, hire_date';
-  if (includeSensitiveData) {
-    employeeSelect += ', salary, payment_day, employee_payments(payment_date, amount)';
-  }
-
+  // A busca de funcionários agora sempre inclui todos os campos, incluindo os sensíveis.
+  const employeeSelect = 'name, status, hire_date, role, department, salary, payment_day, employee_payments(payment_date, amount)';
+  
   const { data: clients } = await supabaseAdmin.from("clients").select('name, status, contracts(end_date, status), nps_responses(score)');
   const { data: employees } = await supabaseAdmin.from("employees").select(employeeSelect);
 
@@ -43,35 +44,13 @@ export async function generateChatResponse(chatHistory: unknown) {
     return { error: "Formato do histórico de chat inválido." };
   }
   
-  const userMessage = validatedHistory.data[validatedHistory.data.length - 1].content;
-  const sensitiveKeywords = ['salário', 'salarios', 'pagamento', 'pagamentos', 'custo', 'custos', 'remuneração'];
-  const requiresPassword = sensitiveKeywords.some(keyword => userMessage.toLowerCase().includes(keyword));
-  const password = process.env.SENSITIVE_DATA_PASSWORD;
+  // A lógica de senha, palavras-chave e verificação foi removida.
+  const businessSnapshot = await getBusinessSnapshot();
+  const recentHistory = validatedHistory.data.slice(-10);
 
-  if (requiresPassword && !password) {
-      return { error: "Funcionalidade de acesso a dados sensíveis não configurada." };
-  }
-
-  let businessSnapshot;
-  let finalUserMessage = userMessage;
-
-  if (requiresPassword) {
-    if (userMessage.toLowerCase().includes(password!)) {
-      finalUserMessage = userMessage.replace(new RegExp(password!, 'ig'), '').trim();
-      businessSnapshot = await getBusinessSnapshot(true);
-    } else {
-      // A RESPOSTA AGORA É UM TEXTO SIMPLES, NÃO UM OBJETO
-      return { success: "Para acessar esta informação, por favor, digite sua pergunta novamente incluindo a palavra-passe de segurança." };
-    }
-  } else {
-    businessSnapshot = await getBusinessSnapshot(false);
-  }
-
-  const fullHistory = validatedHistory.data.slice(0, -1);
-  fullHistory.push({ role: 'user', content: finalUserMessage });
-  const recentHistory = fullHistory.slice(-10);
-
-  const systemPrompt = `Você é um analista de negócios. Analise os dados da empresa e responda em texto. Se você não tiver acesso a dados sensíveis (como salários), informe ao usuário que a informação é protegida. Dados: ${businessSnapshot}`;
+  // O prompt do sistema foi simplificado.
+  const systemPrompt = `Você é um analista de negócios. Analise os dados da empresa fornecidos abaixo em formato JSON e responda em texto às perguntas do usuário.
+  Dados: ${businessSnapshot}`;
 
   try {
     const response = await openai.chat.completions.create({
@@ -87,7 +66,7 @@ export async function generateChatResponse(chatHistory: unknown) {
       return { error: "A IA não conseguiu gerar insights." };
     }
 
-    // A RESPOSTA É SEMPRE UM TEXTO SIMPLES
+    // A resposta é sempre uma string de texto simples.
     return { success: insights };
 
   } catch (error) {

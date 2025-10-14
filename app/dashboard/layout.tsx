@@ -12,7 +12,6 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar"
 import { DashboardSidebarContent } from "@/components/dashboard-sidebar-content"
-import { ChatSidePanel } from "@/components/chat-side-panel" // 1. Importe o novo componente
 
 const FAKE_USER = {
   id: "master-user",
@@ -28,40 +27,43 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
-  const router = useRouter()
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null); // Novo estado para o papel
+  const router = useRouter();
 
   useEffect(() => {
-    const authStatus = localStorage.getItem("isAuthenticated")
-    if (authStatus === "true") {
-      setIsAuthenticated(true)
+    const authStatus = localStorage.getItem("isAuthenticated");
+    const role = localStorage.getItem("userRole"); // Lê o papel do usuário
+
+    if (authStatus === "true" && role) {
+      setIsAuthenticated(true);
+      setUserRole(role);
     } else {
-      router.push("/auth/login")
+      router.push("/auth/login");
     }
-  }, [router])
+  }, [router]);
 
   if (isAuthenticated === null) {
-    return <div className="flex h-screen w-full items-center justify-center">Carregando sistema...</div>
+    return <div className="flex h-screen w-full items-center justify-center">Carregando sistema...</div>;
   }
 
   if (!isAuthenticated) {
-    return null
+    return null;
   }
 
   return (
     <SidebarProvider>
       <Sidebar collapsible="icon">
         <SidebarContent>
-          <DashboardSidebarContent />
+          {/* Passa o papel do usuário para o menu lateral */}
+          <DashboardSidebarContent userRole={userRole} />
         </SidebarContent>
         <SidebarRail />
       </Sidebar>
       <SidebarInset>
         <DashboardHeader user={FAKE_USER} />
         <main className="flex-1 overflow-y-auto p-6">{children}</main>
-        {/* 2. Adicione o componente do painel de chat aqui */}
-        <ChatSidePanel />
       </SidebarInset>
     </SidebarProvider>
-  )
+  );
 }
