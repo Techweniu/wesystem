@@ -78,7 +78,6 @@ export default async function TeamPage({ searchParams }: { searchParams?: { name
           <h1 className="text-3xl font-bold tracking-tight">Equipe</h1>
           <p className="text-muted-foreground">Gestão de colaboradores e pagamentos</p>
         </div>
-        {/* --- BOTÃO DE ADICIONAR CORRIGIDO AQUI --- */}
         <EditEmployeeForm allEmployees={allEmployees}>
           <Button><PlusCircle className="mr-2 h-4 w-4" />Adicionar Colaborador</Button>
         </EditEmployeeForm>
@@ -114,7 +113,7 @@ export default async function TeamPage({ searchParams }: { searchParams?: { name
                 <TableHead>Dias Restantes</TableHead>
                 <TableHead>Próximo Pagamento</TableHead>
                 <TableHead>Pagamento (Mês)</TableHead>
-                <TableHead>Observações</TableHead>
+                {/* A coluna "Observações" foi removida daqui */}
                 <TableHead className="w-[50px] text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
@@ -125,7 +124,8 @@ export default async function TeamPage({ searchParams }: { searchParams?: { name
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={9} className="h-24 text-center">
+                  {/* O colSpan foi ajustado para 8 */}
+                  <TableCell colSpan={8} className="h-24 text-center">
                     Nenhum colaborador encontrado.
                   </TableCell>
                 </TableRow>

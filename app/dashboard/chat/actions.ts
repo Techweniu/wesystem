@@ -3,55 +3,37 @@
 import OpenAI from "openai";
 import { z } from "zod";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
+import { format } from "date-fns";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
   dangerouslyAllowBrowser: true,
 });
 
-async function getBusinessContext() {
-  try {
-    const supabaseAdmin = createAdminClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!
-    );
+/**
+ * Coleta um snapshot dos dados, opcionalmente incluindo dados sensíveis.
+ */
+async function getBusinessSnapshot(includeSensitiveData: boolean = false) {
+  const supabaseAdmin = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_KEY!
+  );
 
-    const { data: clients, error } = await supabaseAdmin
-      .from("clients")
-      .select(`
-        name, status, objectives,
-        contracts ( valor_mensal, status ),
-        one_time_services ( value, status )
-      `);
-
-    if (error) {
-      console.error("Erro ao buscar dados do Supabase:", error);
-      return "Não foi possível buscar os dados dos clientes.";
-    }
-
-    const summary = clients.map(client => {
-      const mrr = client.contracts
-        .filter(c => c.status === 'active')
-        .reduce((sum, c) => sum + (c.valor_mensal || 0), 0);
-      
-      const oneTimeRevenue = client.one_time_services
-        .filter(s => s.status === 'completed')
-        .reduce((sum, s) => sum + (s.value || 0), 0);
-
-      return {
-        nome: client.name,
-        status: client.status,
-        mrr: mrr,
-        receitaPontualTotal: oneTimeRevenue,
-        objetivos: client.objectives,
-      };
-    });
-
-    return JSON.stringify(summary, null, 2);
-  } catch (e) {
-    console.error("Erro ao processar contexto de negócio:", e);
-    return "Erro ao processar os dados internos.";
+  // Seleciona os campos base
+  let employeeSelect = 'name, status, hire_date';
+  // Se a permissão for concedida, adiciona os campos sensíveis
+  if (includeSensitiveData) {
+    employeeSelect += ', salary, payment_day, employee_payments(payment_date, amount)';
   }
+
+  const { data: clients } = await supabaseAdmin.from("clients").select('name, status, contracts(end_date, status), nps_responses(score)');
+  const { data: employees } = await supabaseAdmin.from("employees").select(employeeSelect);
+
+  return JSON.stringify({
+    current_date: format(new Date(), "yyyy-MM-dd"),
+    clients,
+    employees,
+  }, null, 2);
 }
 
 const messageSchema = z.object({
@@ -65,34 +47,59 @@ export async function generateChatResponse(chatHistory: unknown) {
   if (!validatedHistory.success) {
     return { error: "Formato do histórico de chat inválido." };
   }
+  
+  const userMessage = validatedHistory.data[validatedHistory.data.length - 1].content;
+  const sensitiveKeywords = ['salário', 'salarios', 'pagamento', 'pagamentos', 'custo', 'custos', 'remuneração'];
+  const requiresPassword = sensitiveKeywords.some(keyword => userMessage.toLowerCase().includes(keyword));
+  
+  // --- ALTERAÇÃO DE SEGURANÇA APLICADA AQUI ---
+  // A senha agora é lida da variável de ambiente e nunca fica exposta no código.
+  const password = process.env.SENSITIVE_DATA_PASSWORD;
 
-  const businessContext = await getBusinessContext();
+  // Validação para garantir que a senha foi configurada no servidor
+  if (requiresPassword && !password) {
+      console.error("ERRO DE SEGURANÇA: A variável de ambiente SENSITIVE_DATA_PASSWORD não está configurada.");
+      return { error: "A funcionalidade de acesso a dados sensíveis não está configurada corretamente pelo administrador." };
+  }
 
-  const messagesWithSystemPrompt = [
-    {
-      role: "system" as const,
-      content: `Você é um assistente de Business Intelligence. Sua principal função é analisar os dados fornecidos e responder a perguntas em texto. 
-      Baseie suas respostas estritamente nos dados de contexto abaixo. Seja claro e objetivo.
-      ### Contexto de Dados (em formato JSON):
-      ${businessContext}`,
-    },
-    ...validatedHistory.data,
-  ];
+  let businessSnapshot;
+  let finalUserMessage = userMessage;
+
+  // LÓGICA DE SEGURANÇA
+  if (requiresPassword) {
+    if (userMessage.toLowerCase().includes(password!)) { // O '!' garante ao TypeScript que a variável existe
+      // Senha correta: remove a senha da pergunta e inclui dados sensíveis
+      finalUserMessage = userMessage.replace(new RegExp(password!, 'ig'), '').trim();
+      businessSnapshot = await getBusinessSnapshot(true);
+    } else {
+      // Senha necessária, mas não fornecida: retorna o prompt de senha
+      return { success: { type: 'password_prompt' } };
+    }
+  } else {
+    // Não requer senha: busca dados normais
+    businessSnapshot = await getBusinessSnapshot(false);
+  }
+
+  const cleanHistory = validatedHistory.data.slice(0, -1);
+  cleanHistory.push({ role: 'user', content: finalUserMessage });
+
+  const systemPrompt = `Você é um analista de negócios. Analise os dados da empresa e responda em texto. Se você não tiver acesso a dados sensíveis (como salários), informe ao usuário que a informação é protegida e que ele precisa fornecer a senha junto com a pergunta para acessá-la. Dados: ${businessSnapshot}`;
 
   try {
     const response = await openai.chat.completions.create({
-      // --- ALTERAÇÃO APLICADA AQUI ---
       model: "gpt-4o-mini",
-      messages: messagesWithSystemPrompt,
+      messages: [
+        { role: "system", content: systemPrompt },
+        ...cleanHistory
+      ],
     });
 
-    const assistantResponse = response.choices[0]?.message?.content;
-
-    if (!assistantResponse) {
-      return { error: "A IA não conseguiu gerar uma resposta." };
+    const insights = response.choices[0]?.message?.content;
+    if (!insights) {
+      return { error: "A IA não conseguiu gerar insights." };
     }
 
-    return { success: assistantResponse };
+    return { success: { type: 'text', content: insights } };
 
   } catch (error) {
     console.error("Erro na API da OpenAI:", error);

@@ -1,22 +1,15 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { TableRow, TableCell } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { MoreHorizontal } from "lucide-react"
+import { Eye } from "lucide-react"
 import { EditEmployeeForm } from "@/components/edit-employee-form"
 import { MarkPaymentButton } from "@/components/mark-payment-button"
-import { EmployeeObservationsDialog } from "@/components/employee-observations-dialog"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 
-// Tipos...
-type Employee = any; // Simplificado para o exemplo
+type Employee = any;
 
 const renderPaymentStatus = (days: number | null) => {
   if (days === null) return <Badge variant="outline">A definir</Badge>;
@@ -31,7 +24,12 @@ export function TeamTableRow({ employee, allEmployees }: { employee: Employee, a
   return (
     <>
       <TableRow>
-        <TableCell className="font-medium">{employee.name}<p className="text-xs text-muted-foreground">{employee.role}</p></TableCell>
+        <TableCell className="font-medium">
+          <Link href={`/dashboard/team/${employee.id}`} className="hover:underline">
+            {employee.name}
+          </Link>
+          <p className="text-xs text-muted-foreground">{employee.role}</p>
+        </TableCell>
         <TableCell><Badge variant={employee.status === "active" ? "default" : "outline"}>{employee.status === "active" ? "Ativo" : "Inativo"}</Badge></TableCell>
         <TableCell className="text-right">{employee.salary ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", }).format(employee.salary) : "-"}</TableCell>
         <TableCell className="text-right font-semibold">{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(employee.totalCostGenerated)}</TableCell>
@@ -44,27 +42,16 @@ export function TeamTableRow({ employee, allEmployees }: { employee: Employee, a
             isPaidThisMonth={employee.isPaidThisMonth}
           />
         </TableCell>
-        <TableCell>
-          <EmployeeObservationsDialog
-            employeeId={employee.id}
-            observations={employee.employee_observations}
-          />
-        </TableCell>
+        {/* A célula de "Observações" foi removida daqui */}
         <TableCell className="text-right">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onSelect={() => setIsEditDialogOpen(true)}>
-                Editar Colaborador
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {/* O botão de ações agora é um link direto para a página de detalhes */}
+          <Link href={`/dashboard/team/${employee.id}`}>
+            <Button variant="ghost" size="sm"><Eye className="h-4 w-4" /></Button>
+          </Link>
         </TableCell>
       </TableRow>
 
-      {/* O Dialog agora vive fora da tabela, mas é controlado pela linha */}
+      {/* O Dialog de edição ainda pode ser chamado de dentro da página de detalhes */}
       <EditEmployeeForm
         employee={employee}
         allEmployees={allEmployees}
