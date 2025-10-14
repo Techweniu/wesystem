@@ -10,9 +10,6 @@ const openai = new OpenAI({
   dangerouslyAllowBrowser: true,
 });
 
-/**
- * Coleta um snapshot dos dados, opcionalmente incluindo dados sensíveis.
- */
 async function getBusinessSnapshot(includeSensitiveData: boolean = false) {
   const supabaseAdmin = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -52,8 +49,7 @@ export async function generateChatResponse(chatHistory: unknown) {
   const password = process.env.SENSITIVE_DATA_PASSWORD;
 
   if (requiresPassword && !password) {
-      console.error("ERRO DE SEGURANÇA: A variável de ambiente SENSITIVE_DATA_PASSWORD não está configurada.");
-      return { error: "A funcionalidade de acesso a dados sensíveis não está configurada corretamente pelo administrador." };
+      return { error: "Funcionalidade de acesso a dados sensíveis não configurada." };
   }
 
   let businessSnapshot;
@@ -64,7 +60,8 @@ export async function generateChatResponse(chatHistory: unknown) {
       finalUserMessage = userMessage.replace(new RegExp(password!, 'ig'), '').trim();
       businessSnapshot = await getBusinessSnapshot(true);
     } else {
-      return { success: { type: 'password_prompt' } };
+      // A RESPOSTA AGORA É UM TEXTO SIMPLES, NÃO UM OBJETO
+      return { success: "Para acessar esta informação, por favor, digite sua pergunta novamente incluindo a palavra-passe de segurança." };
     }
   } else {
     businessSnapshot = await getBusinessSnapshot(false);
@@ -72,19 +69,15 @@ export async function generateChatResponse(chatHistory: unknown) {
 
   const fullHistory = validatedHistory.data.slice(0, -1);
   fullHistory.push({ role: 'user', content: finalUserMessage });
-
-  // --- OTIMIZAÇÃO APLICADA AQUI ---
-  // Mantemos apenas as últimas 10 mensagens para evitar sobrecarga e timeout.
   const recentHistory = fullHistory.slice(-10);
 
-  const systemPrompt = `Você é um analista de negócios. Analise os dados da empresa e responda em texto. Se você não tiver acesso a dados sensíveis (como salários), informe ao usuário que a informação é protegida e que ele precisa fornecer a senha junto com a pergunta para acessá-la. Dados: ${businessSnapshot}`;
+  const systemPrompt = `Você é um analista de negócios. Analise os dados da empresa e responda em texto. Se você não tiver acesso a dados sensíveis (como salários), informe ao usuário que a informação é protegida. Dados: ${businessSnapshot}`;
 
   try {
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         { role: "system", content: systemPrompt },
-        // Enviamos apenas o histórico recente para a IA
         ...recentHistory
       ],
     });
@@ -94,7 +87,8 @@ export async function generateChatResponse(chatHistory: unknown) {
       return { error: "A IA não conseguiu gerar insights." };
     }
 
-    return { success: { type: 'text', content: insights } };
+    // A RESPOSTA É SEMPRE UM TEXTO SIMPLES
+    return { success: insights };
 
   } catch (error) {
     console.error("Erro na API da OpenAI:", error);

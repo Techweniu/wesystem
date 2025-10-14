@@ -6,44 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Send, Bot, User, ShieldCheck } from "lucide-react";
+import { Send, Bot, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { generateChatResponse } from "@/app/dashboard/chat/actions";
 
+// O tipo de mensagem volta a ser apenas string
 type Message = {
   role: "user" | "assistant";
-  content: string | object;
-};
-
-// Componente "à prova de falhas" para renderizar a mensagem do assistente
-const AssistantMessageRenderer = ({ content }: { content: string | object }) => {
-  // Caso 1: A resposta é o pedido de senha
-  if (typeof content === 'object' && content && (content as any).type === 'password_prompt') {
-    return (
-      <div className="flex flex-col">
-        <p className="text-sm font-medium">Acesso a Dados Sensíveis</p>
-        <p className="text-sm text-muted-foreground mt-1">Para acessar esta informação, por favor, digite sua pergunta novamente incluindo a palavra-passe de segurança.</p>
-      </div>
-    );
-  }
-
-  // Caso 2: A resposta é um objeto de texto, como esperado
-  if (typeof content === 'object' && content && (content as any).type === 'text') {
-    return <p className="text-sm whitespace-pre-wrap">{(content as any).content}</p>;
-  }
-
-  // Caso 3: A resposta é uma string simples (ex: um erro retornado como string)
-  if (typeof content === 'string') {
-    return <p className="text-sm whitespace-pre-wrap">{content}</p>;
-  }
-
-  // Fallback de Segurança: Se for um objeto inesperado, não quebra a aplicação.
-  // Em vez disso, exibe uma mensagem segura para depuração.
-  return (
-    <p className="text-sm whitespace-pre-wrap font-mono text-destructive">
-      [DEBUG] Resposta em formato inesperado: {JSON.stringify(content)}
-    </p>
-  );
+  content: string;
 };
 
 export function ChatInterface() {
@@ -69,16 +39,17 @@ export function ChatInterface() {
     setInput("");
     setIsLoading(true);
 
+    // A lógica aqui fica mais simples, pois esperamos sempre uma string
     const result = await generateChatResponse(newMessages);
 
+    let assistantResponse = "";
     if (result.error) {
-      const errorMessage: Message = { role: "assistant", content: { type: 'text', content: `Erro: ${result.error}` } };
-      setMessages((prev) => [...prev, errorMessage]);
+      assistantResponse = `Erro: ${result.error}`;
     } else if (result.success) {
-      const assistantMessage: Message = { role: "assistant", content: result.success };
-      setMessages((prev) => [...prev, assistantMessage]);
+      assistantResponse = result.success;
     }
 
+    setMessages((prev) => [...prev, { role: "assistant", content: assistantResponse }]);
     setIsLoading(false);
   };
 
@@ -97,15 +68,12 @@ export function ChatInterface() {
               </div>
             )}
             {messages.map((message, index) => (
-              <div key={index} className={cn("flex items-start gap-3", message.role === 'user' ? "justify-end" : "")}>
+              <div key={index} className={cn("flex items-start gap-3", message.role === "user" ? "justify-end" : "")}>
                 {message.role === 'assistant' && (
                   <Avatar className="h-8 w-8"><AvatarFallback><Bot className="h-5 w-5" /></AvatarFallback></Avatar>
                 )}
                 <div className={cn("rounded-lg p-3 max-w-md", message.role === 'user' ? "bg-primary text-primary-foreground" : "bg-muted")}>
-                  {message.role === 'user' 
-                    ? <p className="text-sm whitespace-pre-wrap">{message.content as string}</p> 
-                    : <AssistantMessageRenderer content={message.content} />
-                  }
+                  <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                 </div>
                 {message.role === 'user' && (
                   <Avatar className="h-8 w-8"><AvatarFallback><User className="h-5 w-5" /></AvatarFallback></Avatar>
