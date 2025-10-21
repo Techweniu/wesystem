@@ -1,3 +1,4 @@
+// Em wesystem6/components/dashboard-sidebar-content.tsx
 "use client";
 
 import Link from "next/link";
@@ -51,7 +52,7 @@ export function DashboardSidebarContent() {
         .from("clients")
         .select("id, name")
         .order("name", { ascending: true });
-      
+
       if (error) {
         console.error("Erro ao buscar clientes para o menu:", error);
         setClients([]);
@@ -75,7 +76,7 @@ export function DashboardSidebarContent() {
         </SidebarMenuItem>
 
         <SidebarSeparator className="my-1" />
-        
+
         <SidebarMenuItem>
           <Link href="/dashboard">
             <SidebarMenuButton isActive={pathname === "/dashboard"} tooltip="Dashboard">
@@ -118,7 +119,9 @@ export function DashboardSidebarContent() {
                 ) : (
                   clients.map((client) => (
                     <SidebarMenuSubItem key={client.id}>
-                      <Link href={`/dashboard/clients/${client.id}`} asChild>
+                      {/* ======> LINHA ABAIXO FOI ALTERADA (removido asChild): <===== */}
+                      <Link href={`/dashboard/clients/${client.id}`}>
+                      {/* ============================================================= */}
                         <SidebarMenuSubButton
                           isActive={pathname === `/dashboard/clients/${client.id}`}
                         >
@@ -150,7 +153,7 @@ export function DashboardSidebarContent() {
             </SidebarMenuButton>
           </Link>
         </SidebarMenuItem>
-        
+
         <SidebarMenuItem>
           <Link href="/dashboard/org-chart">
             <SidebarMenuButton isActive={pathname === "/dashboard/org-chart"} tooltip="Organograma">
