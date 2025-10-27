@@ -14,6 +14,7 @@ import {
   PanelLeft,
   ChevronDown,
   Sparkles,
+  KeyRound, // Importar o ícone KeyRound
 } from "lucide-react";
 import {
   useSidebar,
@@ -119,9 +120,7 @@ export function DashboardSidebarContent() {
                 ) : (
                   clients.map((client) => (
                     <SidebarMenuSubItem key={client.id}>
-                      {/* ======> LINHA ABAIXO FOI ALTERADA (removido asChild): <===== */}
                       <Link href={`/dashboard/clients/${client.id}`}>
-                      {/* ============================================================= */}
                         <SidebarMenuSubButton
                           isActive={pathname === `/dashboard/clients/${client.id}`}
                         >
@@ -162,6 +161,17 @@ export function DashboardSidebarContent() {
             </SidebarMenuButton>
           </Link>
         </SidebarMenuItem>
+
+        {/* ====> NOVO ITEM DE MENU: ACESSOS <==== */}
+        <SidebarMenuItem>
+          <Link href="/dashboard/accesses">
+            <SidebarMenuButton isActive={pathname.startsWith("/dashboard/accesses")} tooltip="Acessos">
+              <KeyRound />
+              <span>Acessos</span>
+            </SidebarMenuButton>
+          </Link>
+        </SidebarMenuItem>
+        {/* ======================================= */}
 
         <SidebarMenuItem>
           <Link href="/dashboard/chat">
