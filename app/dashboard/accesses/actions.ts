@@ -3,6 +3,7 @@
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { randomUUID } from "crypto"; // <-- LINHA REINSERIDA
 
 // Schema de validação para os dados do formulário
 const accessSchema = z.object({
@@ -55,10 +56,13 @@ export async function saveAccess(formData: FormData) {
 
   if (id) {
     // Atualizar (implementação futura)
-    // const { error: updateError } = await supabaseAdmin.from("platform_access").update(dataToSave).eq("id", id);
-    // error = updateError;
-    // successMessage = "Acesso atualizado com sucesso!";
-    return { error: "Funcionalidade de edição ainda não implementada." }; // Placeholder
+     const { error: updateError } = await supabaseAdmin
+       .from("platform_access")
+       .update(dataToSave)
+       .eq("id", id);
+     error = updateError;
+     successMessage = "Acesso atualizado com sucesso!";
+    // return { error: "Funcionalidade de edição ainda não implementada." }; // Placeholder
   } else {
     // Inserir novo acesso
     const { error: insertError } = await supabaseAdmin.from("platform_access").insert(dataToSave);
@@ -76,7 +80,7 @@ export async function saveAccess(formData: FormData) {
 }
 
 
-// Ação para EXCLUIR um acesso (implementação futura)
+// Ação para EXCLUIR um acesso
 const deleteAccessSchema = z.object({
     accessId: z.string().uuid("ID inválido."),
 });
