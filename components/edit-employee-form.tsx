@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select" // Adicionado SelectGroup, SelectLabel
 import { saveEmployee } from "@/app/dashboard/team/actions"
 import { toast } from "sonner"
 import { format } from "date-fns"
@@ -17,7 +17,7 @@ interface Employee {
   id: string;
   name: string;
   email: string;
-  role: string;
+  role: string; // Manter como string, a validação será na action
   department: string | null;
   salary: number | null;
   hire_date: string;
@@ -33,6 +33,22 @@ interface EditEmployeeFormProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }
+
+// Lista de cargos
+const rolesList = [
+  "Diretor de Operações",
+  "Diretor de Relacionamento com Cliente",
+  "Diretor de Marketing",
+  "Diretor de Tecnologia",
+  "Diretor de Audiovisual",
+  "Diretor Comercial",
+  "Videomaker",
+  "Assessor",
+  "Colaborador de Tecnologia",
+  "Backoffice",
+  "Representante Comercial"
+];
+
 
 function SubmitButton({ isEditing }: { isEditing: boolean }) {
   const { pending } = useFormStatus();
@@ -75,7 +91,24 @@ export function EditEmployeeForm({ employee, allEmployees, children, open: contr
           <div className="grid gap-2"><Label htmlFor="name">Nome*</Label><Input id="name" name="name" defaultValue={employee?.name} required /></div>
           <div className="grid gap-2"><Label htmlFor="email">Email*</Label><Input id="email" name="email" type="email" defaultValue={employee?.email} required /></div>
           <div className="grid grid-cols-2 gap-4">
-            <div className="grid gap-2"><Label htmlFor="role">Cargo*</Label><Input id="role" name="role" defaultValue={employee?.role} required /></div>
+            {/* ====> CAMPO CARGO ALTERADO PARA SELECT <==== */}
+            <div className="grid gap-2">
+              <Label htmlFor="role">Cargo*</Label>
+              <Select name="role" defaultValue={employee?.role} required>
+                <SelectTrigger id="role">
+                  <SelectValue placeholder="Selecione o cargo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectLabel>Cargos Disponíveis</SelectLabel>
+                    {rolesList.map((role) => (
+                      <SelectItem key={role} value={role}>{role}</SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+            {/* =========================================== */}
             <div className="grid gap-2"><Label htmlFor="department">Departamento</Label><Input id="department" name="department" defaultValue={employee?.department || ''} /></div>
           </div>
           <div className="grid grid-cols-2 gap-4">

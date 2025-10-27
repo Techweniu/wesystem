@@ -3,7 +3,7 @@
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
-import { randomUUID } from "crypto"
+// REMOVIDO: import { randomUUID } from "crypto" // <-- REMOVA OU COMENTE ESTA LINHA
 
 const addEmployeeSchema = z.object({
   name: z.string().min(3, "O nome é obrigatório."),
@@ -27,19 +27,26 @@ export async function addOrgPosition(formData: FormData) {
     process.env.SUPABASE_SERVICE_KEY!
   );
 
-  const tempEmail = `${name.toLowerCase().replace(/\s/g, '.')}.${randomUUID().substring(0, 5)}@wesystem.io`;
+  // ====> ALTERADO: Usa Math.random() em vez de crypto.randomUUID() <====
+  const randomSuffix = Math.random().toString(36).substring(2, 7); // Gera string aleatória de 5 caracteres
+  const tempEmail = `${name.toLowerCase().replace(/\s+/g, '.')}.${randomSuffix}@wesystem.io`; // Usa '+' no replace para múltiplos espaços
+  // ======================================================================
 
   const { error } = await supabaseAdmin.from("employees").insert({
     name,
     role,
     manager_id: manager_id === 'null' ? null : manager_id,
-    email: tempEmail,
-    hire_date: new Date().toISOString(),
+    email: tempEmail, // Usa o email temporário gerado
+    hire_date: new Date().toISOString().split('T')[0], // Garante formato YYYY-MM-DD
     status: 'active',
   });
 
   if (error) {
-    console.error("Erro do Supabase ao criar colaborador:", error);
+    console.error("Erro do Supabase ao criar colaborador (OrgChart):", error);
+    // Verifica erro de email único
+    if (error.code === '23505' && error.message.includes('employees_email_key')) {
+         return { error: `Ocorreu um erro: O e-mail temporário '${tempEmail}' já existe. Tente adicionar novamente.` };
+    }
     return { error: `Ocorreu um erro no banco de dados: ${error.message}` };
   }
 
@@ -68,10 +75,11 @@ export async function deleteOrgPosition(formData: FormData) {
     // Em vez de '.delete()', usamos '.update()' para mudar o status para 'inactive'
     const { error } = await supabaseAdmin
         .from("employees")
-        .update({ status: 'inactive' })
+        .update({ status: 'inactive', updated_at: new Date().toISOString() }) // Adiciona updated_at
         .eq('id', positionId);
 
     if (error) {
+        console.error("Erro Supabase ao inativar (OrgChart):", error);
         return { error: `Não foi possível inativar o colaborador: ${error.message}` };
     }
 
@@ -85,7 +93,7 @@ export async function deleteOrgPosition(formData: FormData) {
 const updateEmployeeSchema = z.object({
     positionId: z.string().uuid(),
     name: z.string().min(3, "O nome é obrigatório."),
-    role: z.string().min(2, "O cargo é obrigatório."),
+    role: z.string().min(2, "O cargo é obrigatório."), // Manter string aqui, validação mais forte na action saveEmployee
     manager_id: z.string().uuid().optional().or(z.literal('null')),
 });
 
@@ -94,7 +102,8 @@ export async function updateOrgPosition(formData: FormData) {
     const validatedFields = updateEmployeeSchema.safeParse(rawData);
 
     if (!validatedFields.success) {
-        return { error: "Dados inválidos." };
+        const firstError = Object.values(validatedFields.error.flatten().fieldErrors)[0]?.[0];
+        return { error: firstError || "Dados inválidos." };
     }
     const { positionId, name, role, manager_id } = validatedFields.data;
     if (positionId === manager_id) {
@@ -106,16 +115,26 @@ export async function updateOrgPosition(formData: FormData) {
         process.env.SUPABASE_SERVICE_KEY!
     );
 
+    const dataToUpdate = {
+        name,
+        role,
+        manager_id: manager_id === 'null' ? null : manager_id,
+        updated_at: new Date().toISOString() // Adiciona updated_at
+    };
+
     const { error } = await supabaseAdmin
         .from("employees")
-        .update({ name, role, manager_id: manager_id === 'null' ? null : manager_id })
+        .update(dataToUpdate)
         .eq('id', positionId);
 
     if (error) {
+         console.error("Erro Supabase ao atualizar (OrgChart):", error);
         return { error: `Não foi possível atualizar o colaborador: ${error.message}` };
     }
 
     revalidatePath("/dashboard/org-chart");
     revalidatePath("/dashboard/team");
+     // Revalida página de detalhes do funcionário se existir
+    revalidatePath(`/dashboard/team/${positionId}`);
     return { success: "Colaborador atualizado com sucesso!" };
 }

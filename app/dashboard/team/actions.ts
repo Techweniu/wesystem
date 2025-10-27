@@ -5,12 +5,29 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 
+// Lista de cargos válidos (deve ser a mesma do formulário)
+const validRoles = [
+  "Diretor de Operações",
+  "Diretor de Relacionamento com Cliente",
+  "Diretor de Marketing",
+  "Diretor de Tecnologia",
+  "Diretor de Audiovisual",
+  "Diretor Comercial",
+  "Videomaker",
+  "Assessor",
+  "Colaborador de Tecnologia",
+  "Backoffice",
+  "Representante Comercial"
+] as const; // 'as const' torna os valores literais para o z.enum
+
 // Schema completo para validação dos dados do colaborador
 const employeeSchema = z.object({
   id: z.string().uuid().optional().or(z.literal('')),
   name: z.string().min(3, "O nome é obrigatório."),
   email: z.string().email("O e-mail é inválido."),
-  role: z.string().min(2, "O cargo é obrigatório."),
+  // ====> CAMPO ROLE ALTERADO PARA z.enum <====
+  role: z.enum(validRoles, { errorMap: () => ({ message: "Selecione um cargo válido." }) }),
+  // ==========================================
   department: z.string().optional().nullable(),
   salary: z.coerce.number().min(0, "O salário não pode ser negativo.").optional().nullable(),
   hire_date: z.string().min(1, "A data de contratação é obrigatória."),
@@ -24,12 +41,15 @@ export async function saveEmployee(formData: FormData) {
   const validatedFields = employeeSchema.safeParse(rawData);
 
   if (!validatedFields.success) {
-    console.error(validatedFields.error.flatten().fieldErrors);
-    return { error: "Dados inválidos. Verifique os campos preenchidos." };
+    console.error("Erro Validação Colaborador:", validatedFields.error.flatten().fieldErrors);
+    // Tenta pegar o erro específico do campo 'role' se existir
+    const roleError = validatedFields.error.flatten().fieldErrors.role?.[0];
+    const firstOtherError = Object.values(validatedFields.error.flatten().fieldErrors).flat()[0];
+    return { error: roleError || firstOtherError || "Dados inválidos. Verifique os campos preenchidos." };
   }
 
   const { id, ...employeeData } = validatedFields.data;
-  
+
   const dataToSave = {
     ...employeeData,
     manager_id: employeeData.manager_id === 'null' ? null : employeeData.manager_id,
@@ -53,12 +73,16 @@ export async function saveEmployee(formData: FormData) {
   }
 
   if (error) {
-    console.error("Erro do Supabase:", error);
+    console.error("Erro do Supabase (Colaborador):", error);
     return { error: `Ocorreu um erro no banco de dados: ${error.message}` };
   }
 
   revalidatePath("/dashboard/team");
   revalidatePath("/dashboard/org-chart");
+  // Revalida a página de detalhes se estiver editando
+  if (id) {
+      revalidatePath(`/dashboard/team/${id}`);
+  }
   return { success: `Colaborador ${id ? 'atualizado' : 'criado'} com sucesso!` };
 }
 
@@ -145,7 +169,7 @@ export async function addEmployeeContract(formData: FormData) {
     contract_name: formData.get('contract_name'),
     contract_file: formData.get('contract_file'),
   };
-  
+
   const validatedFields = addContractSchema.safeParse(rawFormData);
   if (!validatedFields.success) {
     const firstError = Object.values(validatedFields.error.flatten().fieldErrors)[0]?.[0];
