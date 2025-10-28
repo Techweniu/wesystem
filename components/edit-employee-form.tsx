@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select" // Adicionado SelectGroup, SelectLabel
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { saveEmployee } from "@/app/dashboard/team/actions"
 import { toast } from "sonner"
 import { format } from "date-fns"
@@ -17,8 +17,8 @@ interface Employee {
   id: string;
   name: string;
   email: string;
-  role: string; // Manter como string, a validação será na action
-  department: string | null;
+  role: string;
+  department: string | null; // Mantém como string | null
   salary: number | null;
   hire_date: string;
   status: 'active' | 'inactive';
@@ -34,7 +34,7 @@ interface EditEmployeeFormProps {
   onOpenChange?: (open: boolean) => void;
 }
 
-// Lista de cargos
+// Lista de Cargos (sem alterações)
 const rolesList = [
   "Diretor de Operações",
   "Diretor de Relacionamento com Cliente",
@@ -49,6 +49,15 @@ const rolesList = [
   "Representante Comercial"
 ];
 
+// =====> ADICIONADO: Lista de Departamentos <=====
+const departmentsList = [
+  "Diretoria",
+  "Tecnologia",
+  "Edição",
+  "Assessoria",
+  "Audiovisual"
+];
+// ============================================
 
 function SubmitButton({ isEditing }: { isEditing: boolean }) {
   const { pending } = useFormStatus();
@@ -67,7 +76,14 @@ export function EditEmployeeForm({ employee, allEmployees, children, open: contr
   const open = controlledOpen ?? internalOpen;
   const setOpen = setControlledOpen ?? setInternalOpen;
 
+  // Usa 'none' como valor para representar 'null' no Select
+  const defaultDepartmentValue = employee?.department ?? 'none';
+
   async function handleFormSubmit(formData: FormData) {
+    // Se 'none' foi selecionado para departamento, remove explicitamente para que a action o trate como null
+    if (formData.get('department') === 'none') {
+        formData.delete('department'); // Ou formData.set('department', '') dependendo da validação
+    }
     const result = await saveEmployee(formData);
     if (result.error) {
       toast.error(`Erro ao ${isEditing ? 'atualizar' : 'criar'} colaborador`, { description: result.error });
@@ -88,29 +104,41 @@ export function EditEmployeeForm({ employee, allEmployees, children, open: contr
         </DialogHeader>
         <form ref={formRef} action={handleFormSubmit} className="space-y-4 max-h-[80vh] overflow-y-auto pr-6">
           {employee && <input type="hidden" name="id" value={employee.id} />}
+          {/* Campos Nome e Email (sem alterações) */}
           <div className="grid gap-2"><Label htmlFor="name">Nome*</Label><Input id="name" name="name" defaultValue={employee?.name} required /></div>
           <div className="grid gap-2"><Label htmlFor="email">Email*</Label><Input id="email" name="email" type="email" defaultValue={employee?.email} required /></div>
+
           <div className="grid grid-cols-2 gap-4">
-            {/* ====> CAMPO CARGO ALTERADO PARA SELECT <==== */}
+            {/* Campo Cargo (Select - sem alterações) */}
             <div className="grid gap-2">
               <Label htmlFor="role">Cargo*</Label>
               <Select name="role" defaultValue={employee?.role} required>
-                <SelectTrigger id="role">
-                  <SelectValue placeholder="Selecione o cargo" />
+                <SelectTrigger id="role"><SelectValue placeholder="Selecione o cargo" /></SelectTrigger>
+                <SelectContent><SelectGroup><SelectLabel>Cargos Disponíveis</SelectLabel>{rolesList.map((role) => (<SelectItem key={role} value={role}>{role}</SelectItem>))}</SelectGroup></SelectContent>
+              </Select>
+            </div>
+            {/* ====> CAMPO DEPARTAMENTO ALTERADO DE INPUT PARA SELECT <==== */}
+            <div className="grid gap-2">
+              <Label htmlFor="department">Departamento</Label>
+              <Select name="department" defaultValue={defaultDepartmentValue}>
+                <SelectTrigger id="department">
+                  <SelectValue placeholder="Selecione o departamento" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
-                    <SelectLabel>Cargos Disponíveis</SelectLabel>
-                    {rolesList.map((role) => (
-                      <SelectItem key={role} value={role}>{role}</SelectItem>
+                    <SelectLabel>Departamentos</SelectLabel>
+                    {/* Opção para Nenhum/Remover */}
+                    <SelectItem value="none">Nenhum</SelectItem>
+                    {departmentsList.map((dept) => (
+                      <SelectItem key={dept} value={dept}>{dept}</SelectItem>
                     ))}
                   </SelectGroup>
                 </SelectContent>
               </Select>
             </div>
-            {/* =========================================== */}
-            <div className="grid gap-2"><Label htmlFor="department">Departamento</Label><Input id="department" name="department" defaultValue={employee?.department || ''} /></div>
+            {/* ======================================================== */}
           </div>
+          {/* Restante dos campos (Salário, Dia Pagamento, Data Contratação, Status, Gestor) sem alterações */}
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-2"><Label htmlFor="salary">Salário (R$)</Label><Input id="salary" name="salary" type="number" step="0.01" min="0" defaultValue={employee?.salary || ''} /></div>
             <div className="grid gap-2"><Label htmlFor="payment_day">Dia do Pagamento</Label><Input id="payment_day" name="payment_day" type="number" min="1" max="31" defaultValue={employee?.payment_day || ''} /></div>

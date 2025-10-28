@@ -1,3 +1,4 @@
+// bi-dashboard (4)/app/dashboard/layout.tsx
 "use client"
 
 import type React from "react"
@@ -7,11 +8,12 @@ import { useRouter } from "next/navigation"
 import {
   Sidebar,
   SidebarContent,
-  SidebarInset,
+  SidebarInset, // Ensure this is imported
   SidebarProvider,
   SidebarRail,
-} from "@/components/ui/sidebar"
-import { DashboardSidebarContent } from "@/components/dashboard-sidebar-content"
+} from "@/components/ui/sidebar" // Verify import path
+import { DashboardSidebarContent } from "@/components/dashboard-sidebar-content" // Verify import path
+import { cn } from "@/lib/utils"
 
 const FAKE_USER = {
   id: "master-user",
@@ -47,17 +49,24 @@ export default function DashboardLayout({
     return null
   }
 
+  // SidebarProvider wraps the entire layout structure
   return (
     <SidebarProvider>
       <Sidebar collapsible="icon">
         <SidebarContent>
+          {/* DashboardSidebarContent rendered inside */}
           <DashboardSidebarContent />
         </SidebarContent>
         <SidebarRail />
       </Sidebar>
-      <SidebarInset>
+      <SidebarInset> {/* Container for Header and Main */}
         <DashboardHeader user={FAKE_USER} />
-        <main className="flex-1 overflow-y-auto p-6">{children}</main>
+        <main className={cn(
+          "flex-1 overflow-y-auto p-6", // Existing classes
+          "overflow-x-hidden" // Prevents main content from scrolling horizontally
+        )}>
+          {children} {/* Page content */}
+        </main>
       </SidebarInset>
     </SidebarProvider>
   )

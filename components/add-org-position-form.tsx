@@ -15,8 +15,10 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { addOrgPosition } from "@/app/dashboard/org-chart/actions"
+// =====> ADICIONADO: Imports para Select <=====
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
+// ===========================================
+import { addOrgPosition } from "@/app/dashboard/org-chart/actions" // Action correta
 import { toast } from "sonner"
 import { PlusCircle } from "lucide-react"
 
@@ -28,9 +30,25 @@ interface OrgPosition {
 
 interface AddOrgPositionFormProps {
   managerId?: string | null;
-  positions: OrgPosition[];
-  children: React.ReactNode;
+  positions: OrgPosition[]; // Usado para preencher o select de gestor
+  children: React.ReactNode; // O botão que abre o dialog
 }
+
+// =====> ADICIONADO: Lista de Cargos <=====
+const rolesList = [
+  "Diretor de Operações",
+  "Diretor de Relacionamento com Cliente",
+  "Diretor de Marketing",
+  "Diretor de Tecnologia",
+  "Diretor de Audiovisual",
+  "Diretor Comercial",
+  "Videomaker",
+  "Assessor",
+  "Colaborador de Tecnologia",
+  "Backoffice",
+  "Representante Comercial"
+];
+// ======================================
 
 function SubmitButton() {
   const { pending } = useFormStatus()
@@ -46,6 +64,7 @@ export function AddOrgPositionForm({ managerId, positions, children }: AddOrgPos
   const formRef = useRef<HTMLFormElement>(null)
 
   async function handleFormSubmit(formData: FormData) {
+    // A action addOrgPosition já lida com managerId, não precisa adicionar aqui
     const result = await addOrgPosition(formData)
 
     if (result.error) {
@@ -53,7 +72,7 @@ export function AddOrgPositionForm({ managerId, positions, children }: AddOrgPos
     } else {
       toast.success(result.success)
       setOpen(false)
-      formRef.current?.reset()
+      formRef.current?.reset() // Limpa o formulário após sucesso
     }
   }
 
@@ -73,10 +92,24 @@ export function AddOrgPositionForm({ managerId, positions, children }: AddOrgPos
               <Label htmlFor="name">Nome da Pessoa*</Label>
               <Input id="name" name="name" placeholder="Ex: João da Silva" required />
             </div>
+            {/* ====> CAMPO CARGO ALTERADO DE INPUT PARA SELECT <==== */}
             <div className="grid gap-2">
               <Label htmlFor="role">Cargo*</Label>
-              <Input id="role" name="role" placeholder="Ex: Designer Pleno" required />
+              <Select name="role" required>
+                <SelectTrigger id="role">
+                  <SelectValue placeholder="Selecione o cargo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectLabel>Cargos Disponíveis</SelectLabel>
+                    {rolesList.map((role) => (
+                      <SelectItem key={role} value={role}>{role}</SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
             </div>
+            {/* ======================================================= */}
              <div className="grid gap-2">
               <Label htmlFor="manager_id">Gestor Direto</Label>
               <Select name="manager_id" defaultValue={managerId || 'null'}>
@@ -85,6 +118,7 @@ export function AddOrgPositionForm({ managerId, positions, children }: AddOrgPos
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="null">Nenhum (Liderança)</SelectItem>
+                  {/* Filtra para não mostrar a própria pessoa (embora aqui não faça sentido, mantém consistência) */}
                   {positions.map(pos => (
                     <SelectItem key={pos.id} value={pos.id}>{pos.name} ({pos.role})</SelectItem>
                   ))}
