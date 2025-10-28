@@ -1,45 +1,42 @@
-"use server";
+"use server"
 
-import OpenAI from "openai";
-import { createClient as createAdminClient } from "@supabase/supabase-js";
-import { format } from "date-fns";
+import OpenAI from "openai"
+import { createClient as createAdminClient } from "@supabase/supabase-js"
+import { format } from "date-fns"
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
   dangerouslyAllowBrowser: true,
-});
+})
 
 /**
  * Coleta um resumo completo de todos os dados de negócio do Supabase.
  */
 async function getBusinessSnapshot() {
-  const supabaseAdmin = createAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_KEY!
-  );
+  const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
   const { data: clients } = await supabaseAdmin
     .from("clients")
-    .select('name, status, contracts(name, end_date, status), nps_responses(score, response_date)');
+    .select("name, status, contracts(name, end_date, status), nps_responses(score, response_date)")
 
   const { data: employees } = await supabaseAdmin
     .from("employees")
-    .select('name, status, payment_day, employee_payments(payment_date)');
+    .select("name, status, payment_day, employee_payments(payment_date)")
 
   const snapshot = {
     current_date: format(new Date(), "yyyy-MM-dd"),
     clients,
     employees,
-  };
+  }
 
-  return JSON.stringify(snapshot, null, 2);
+  return JSON.stringify(snapshot, null, 2)
 }
 
 /**
  * Gera insights de negócio usando a IA com base em um snapshot dos dados.
  */
 export async function getAiInsights() {
-  const businessSnapshot = await getBusinessSnapshot();
+  const businessSnapshot = await getBusinessSnapshot()
 
   const systemPrompt = `
     Você é um analista de negócios sênior para uma agência de marketing. Sua tarefa é analisar um snapshot dos dados da empresa em formato JSON e gerar insights acionáveis, concisos e priorizados.
@@ -59,25 +56,92 @@ export async function getAiInsights() {
 
     A seguir, os dados da empresa:
     ${businessSnapshot}
-  `;
+  `
 
   try {
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "system", content: systemPrompt }],
       temperature: 0.5,
-    });
+    })
 
-    const insights = response.choices[0]?.message?.content;
+    const insights = response.choices[0]?.message?.content
 
     if (!insights) {
-      return { error: "A IA não conseguiu gerar insights." };
+      return { error: "A IA não conseguiu gerar insights." }
     }
 
-    return { success: insights };
-
+    return { success: insights }
   } catch (error) {
-    console.error("Erro na API da OpenAI ao gerar insights:", error);
-    return { error: "Ocorreu um erro ao se comunicar com a IA." };
+    console.error("Erro na API da OpenAI ao gerar insights:", error)
+    return { error: "Ocorreu um erro ao se comunicar com a IA." }
+  }
+}
+
+/**
+ * Calcula métricas de saúde operacional baseadas na proporção clientes/funcionários
+ */
+export async function getOperationHealth() {
+  const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+
+  // Buscar clientes ativos
+  const { data: clients, count: activeClients } = await supabaseAdmin
+    .from("clients")
+    .select("*", { count: "exact", head: true })
+    .eq("status", "active")
+
+  // Buscar funcionários ativos por cargo
+  const { data: employees } = await supabaseAdmin.from("employees").select("role, status").eq("status", "active")
+
+  // Contar funcionários por cargo
+  const roleCount: Record<string, number> = {}
+  employees?.forEach((emp) => {
+    roleCount[emp.role] = (roleCount[emp.role] || 0) + 1
+  })
+
+  // Regras de proporção ideal (clientes por funcionário)
+  const idealRatios: Record<string, number> = {
+    Editor: 10,
+    Videomaker: 15,
+    Assessor: 15,
+    "Gestor de Relacionamento": 20,
+  }
+
+  // Calcular alertas de contratação
+  const alerts: Array<{
+    role: string
+    current: number
+    needed: number
+    capacity: number
+    status: "ok" | "warning" | "critical"
+  }> = []
+
+  Object.entries(idealRatios).forEach(([role, ratio]) => {
+    const current = roleCount[role] || 0
+    const capacity = current * ratio
+    const needed = Math.ceil((activeClients || 0) / ratio) - current
+
+    let status: "ok" | "warning" | "critical" = "ok"
+    if (needed > 0) {
+      status = "critical"
+    } else if ((activeClients || 0) > capacity * 0.8) {
+      status = "warning"
+    }
+
+    alerts.push({
+      role,
+      current,
+      needed: Math.max(0, needed),
+      capacity,
+      status,
+    })
+  })
+
+  return {
+    activeClients: activeClients || 0,
+    totalEmployees: employees?.length || 0,
+    roleCount,
+    alerts,
+    overallRatio: employees?.length ? (activeClients || 0) / employees.length : 0,
   }
 }

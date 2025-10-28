@@ -1,47 +1,48 @@
-import { createClient } from "@/lib/supabase/server";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DollarSign, TrendingUp, TrendingDown, Users } from "lucide-react";
-import { RevenueChart } from "@/components/revenue-chart";
-import { NpsChart } from "@/components/nps-chart";
-import { TopClientsTable } from "@/components/top-clients-table";
-import { AiInsightsPanel } from "@/components/ai-insights-panel"; // 1. Importe o novo componente
+import { createClient } from "@/lib/supabase/server"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { DollarSign, TrendingUp, TrendingDown, Users } from "lucide-react"
+import { RevenueChart } from "@/components/revenue-chart"
+import { NpsChart } from "@/components/nps-chart"
+import { TopClientsTable } from "@/components/top-clients-table"
+import { AiInsightsPanel } from "@/components/ai-insights-panel"
+import { OperationHealthCard } from "@/components/operation-health-card"
 
 async function getDashboardData() {
-  const supabase = await createClient();
+  const supabase = await createClient()
 
   // Get one-time services revenue (current month)
-  const currentMonth = new Date().toISOString().slice(0, 7);
+  const currentMonth = new Date().toISOString().slice(0, 7)
   const { data: services } = await supabase
     .from("one_time_services")
     .select("value")
     .eq("status", "completed")
-    .gte("date", `${currentMonth}-01`);
+    .gte("date", `${currentMonth}-01`)
 
-  const oneTimeRevenue = services?.reduce((sum, s) => sum + Number(s.value), 0) || 0;
+  const oneTimeRevenue = services?.reduce((sum, s) => sum + Number(s.value), 0) || 0
 
   // Get total costs (current month)
-  const { data: costs } = await supabase.from("costs").select("value").gte("date", `${currentMonth}-01`);
+  const { data: costs } = await supabase.from("costs").select("value").gte("date", `${currentMonth}-01`)
 
-  const totalCosts = costs?.reduce((sum, c) => sum + Number(c.value), 0) || 0;
+  const totalCosts = costs?.reduce((sum, c) => sum + Number(c.value), 0) || 0
 
   // Get active clients count
   const { count: activeClients } = await supabase
     .from("clients")
     .select("*", { count: "exact", head: true })
-    .eq("status", "active");
+    .eq("status", "active")
 
   // Get average NPS
-  const { data: npsData } = await supabase.from("nps_responses").select("score");
+  const { data: npsData } = await supabase.from("nps_responses").select("score")
 
-  let averageNps = 0;
+  let averageNps = 0
   if (npsData && npsData.length > 0) {
-    const totalScore = npsData.reduce((sum, n) => sum + n.score, 0);
-    averageNps = Math.round(totalScore / npsData.length);
+    const totalScore = npsData.reduce((sum, n) => sum + n.score, 0)
+    averageNps = Math.round(totalScore / npsData.length)
   }
 
-  const totalRevenue = oneTimeRevenue;
-  const profit = totalRevenue - totalCosts;
-  const profitMargin = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0;
+  const totalRevenue = oneTimeRevenue
+  const profit = totalRevenue - totalCosts
+  const profitMargin = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0
 
   return {
     totalRevenue,
@@ -50,18 +51,18 @@ async function getDashboardData() {
     profitMargin,
     activeClients: activeClients || 0,
     averageNps,
-  };
+  }
 }
 
 export default async function DashboardPage() {
-  const data = await getDashboardData();
+  const data = await getDashboardData()
 
   return (
     <div className="space-y-6">
-      {/* O painel de insights foi removido do topo geral */}
-      
-      {/* 2. Adicione o painel de insights aqui */}
-      <AiInsightsPanel />
+      <div className="grid gap-4 md:grid-cols-2">
+        <AiInsightsPanel />
+        <OperationHealthCard />
+      </div>
 
       <div className="flex items-center justify-between">
         <div>
@@ -69,7 +70,7 @@ export default async function DashboardPage() {
           <p className="text-muted-foreground">Visão geral do desempenho da agência</p>
         </div>
       </div>
-      
+
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -138,5 +139,5 @@ export default async function DashboardPage() {
 
       <TopClientsTable />
     </div>
-  );
+  )
 }

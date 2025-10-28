@@ -12,6 +12,7 @@ const validRoles = [
   "Diretor de Tecnologia",
   "Diretor de Audiovisual",
   "Diretor Comercial",
+  "Gestor de Relacionamento", // Adicionado "Gestor de Relacionamento" aos cargos válidos
   "Videomaker",
   "Assessor",
   "Colaborador de Tecnologia",

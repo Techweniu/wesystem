@@ -13,6 +13,7 @@ const validRoles = [
   "Diretor de Tecnologia",
   "Diretor de Audiovisual",
   "Diretor Comercial",
+  "Gestor de Relacionamento",
   "Videomaker",
   "Assessor",
   "Colaborador de Tecnologia",

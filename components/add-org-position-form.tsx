@@ -1,5 +1,7 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useRef } from "react"
 import { useFormStatus } from "react-dom"
 import { Button } from "@/components/ui/button"
@@ -16,22 +18,29 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 // =====> ADICIONADO: Imports para Select <=====
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 // ===========================================
 import { addOrgPosition } from "@/app/dashboard/org-chart/actions" // Action correta
 import { toast } from "sonner"
-import { PlusCircle } from "lucide-react"
 
 interface OrgPosition {
-  id: string;
-  name: string;
-  role: string;
+  id: string
+  name: string
+  role: string
 }
 
 interface AddOrgPositionFormProps {
-  managerId?: string | null;
-  positions: OrgPosition[]; // Usado para preencher o select de gestor
-  children: React.ReactNode; // O botão que abre o dialog
+  managerId?: string | null
+  positions: OrgPosition[] // Usado para preencher o select de gestor
+  children: React.ReactNode // O botão que abre o dialog
 }
 
 // =====> ADICIONADO: Lista de Cargos <=====
@@ -42,12 +51,13 @@ const rolesList = [
   "Diretor de Tecnologia",
   "Diretor de Audiovisual",
   "Diretor Comercial",
+  "Gestor de Relacionamento",
   "Videomaker",
   "Assessor",
   "Colaborador de Tecnologia",
   "Backoffice",
-  "Representante Comercial"
-];
+  "Representante Comercial",
+]
 // ======================================
 
 function SubmitButton() {
@@ -78,9 +88,7 @@ export function AddOrgPositionForm({ managerId, positions, children }: AddOrgPos
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {children}
-      </DialogTrigger>
+      <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Adicionar Posição</DialogTitle>
@@ -103,24 +111,28 @@ export function AddOrgPositionForm({ managerId, positions, children }: AddOrgPos
                   <SelectGroup>
                     <SelectLabel>Cargos Disponíveis</SelectLabel>
                     {rolesList.map((role) => (
-                      <SelectItem key={role} value={role}>{role}</SelectItem>
+                      <SelectItem key={role} value={role}>
+                        {role}
+                      </SelectItem>
                     ))}
                   </SelectGroup>
                 </SelectContent>
               </Select>
             </div>
             {/* ======================================================= */}
-             <div className="grid gap-2">
+            <div className="grid gap-2">
               <Label htmlFor="manager_id">Gestor Direto</Label>
-              <Select name="manager_id" defaultValue={managerId || 'null'}>
+              <Select name="manager_id" defaultValue={managerId || "null"}>
                 <SelectTrigger id="manager_id">
                   <SelectValue placeholder="Selecione um gestor" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="null">Nenhum (Liderança)</SelectItem>
                   {/* Filtra para não mostrar a própria pessoa (embora aqui não faça sentido, mantém consistência) */}
-                  {positions.map(pos => (
-                    <SelectItem key={pos.id} value={pos.id}>{pos.name} ({pos.role})</SelectItem>
+                  {positions.map((pos) => (
+                    <SelectItem key={pos.id} value={pos.id}>
+                      {pos.name} ({pos.role})
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
