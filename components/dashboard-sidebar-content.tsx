@@ -1,10 +1,10 @@
 // Em wesystem6/components/dashboard-sidebar-content.tsx
-"use client";
+"use client"
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
-import { useEffect, useState } from "react";
+import Link from "next/link"
+import { usePathname } from "next/navigation"
+import { createClient } from "@/lib/supabase/client"
+import { useEffect, useState } from "react"
 import {
   LayoutDashboard,
   Users,
@@ -14,8 +14,8 @@ import {
   PanelLeft,
   ChevronDown,
   Sparkles,
-  KeyRound, // Importar o ícone KeyRound
-} from "lucide-react";
+  KeyRound,
+} from "lucide-react"
 import {
   useSidebar,
   SidebarMenu,
@@ -26,45 +26,38 @@ import {
   SidebarMenuSubItem,
   SidebarMenuSubButton,
   SidebarMenuSkeleton,
-} from "@/components/ui/sidebar";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import { Button } from "@/components/ui/button";
+} from "@/components/ui/sidebar"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Button } from "@/components/ui/button"
 
 type Client = {
-  id: string;
-  name: string;
-};
+  id: string
+  name: string
+}
 
 export function DashboardSidebarContent() {
-  const pathname = usePathname();
-  const [clients, setClients] = useState<Client[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const { toggleSidebar } = useSidebar();
+  const pathname = usePathname()
+  const [clients, setClients] = useState<Client[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const { toggleSidebar } = useSidebar()
 
   useEffect(() => {
-    const supabase = createClient();
+    const supabase = createClient()
     const fetchClients = async () => {
-      setIsLoading(true);
-      const { data, error } = await supabase
-        .from("clients")
-        .select("id, name")
-        .order("name", { ascending: true });
+      setIsLoading(true)
+      const { data, error } = await supabase.from("clients").select("id, name").order("name", { ascending: true })
 
       if (error) {
-        console.error("Erro ao buscar clientes para o menu:", error);
-        setClients([]);
+        console.error("Erro ao buscar clientes para o menu:", error)
+        setClients([])
       } else {
-        setClients(data || []);
+        setClients(data || [])
       }
-      setIsLoading(false);
-    };
+      setIsLoading(false)
+    }
 
-    fetchClients();
-  }, []);
+    fetchClients()
+  }, [])
 
   return (
     <>
@@ -79,33 +72,30 @@ export function DashboardSidebarContent() {
         <SidebarSeparator className="my-1" />
 
         <SidebarMenuItem>
-          <Link href="/dashboard">
-            <SidebarMenuButton isActive={pathname === "/dashboard"} tooltip="Dashboard">
+          <SidebarMenuButton asChild isActive={pathname === "/dashboard"} tooltip="Dashboard">
+            <Link href="/dashboard">
               <LayoutDashboard />
               <span>Dashboard</span>
-            </SidebarMenuButton>
-          </Link>
+            </Link>
+          </SidebarMenuButton>
         </SidebarMenuItem>
 
         <Collapsible asChild>
           <SidebarMenuItem>
             <div className="flex w-full items-center justify-between">
-              <Link href="/dashboard/clients" className="flex-1">
-                <SidebarMenuButton
-                  isActive={pathname.startsWith("/dashboard/clients")}
-                  tooltip="Clientes"
-                >
+              <SidebarMenuButton
+                asChild
+                isActive={pathname.startsWith("/dashboard/clients")}
+                tooltip="Clientes"
+                className="flex-1"
+              >
+                <Link href="/dashboard/clients">
                   <Users />
                   <span>Clientes</span>
-                </SidebarMenuButton>
-              </Link>
+                </Link>
+              </SidebarMenuButton>
               <CollapsibleTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="group size-8 shrink-0"
-                  disabled={isLoading}
-                >
+                <Button variant="ghost" size="icon" className="group size-8 shrink-0" disabled={isLoading}>
                   <ChevronDown className="transition-transform duration-200 group-data-[state=open]:rotate-180" />
                 </Button>
               </CollapsibleTrigger>
@@ -120,13 +110,9 @@ export function DashboardSidebarContent() {
                 ) : (
                   clients.map((client) => (
                     <SidebarMenuSubItem key={client.id}>
-                      <Link href={`/dashboard/clients/${client.id}`}>
-                        <SidebarMenuSubButton
-                          isActive={pathname === `/dashboard/clients/${client.id}`}
-                        >
-                          {client.name}
-                        </SidebarMenuSubButton>
-                      </Link>
+                      <SidebarMenuSubButton asChild isActive={pathname === `/dashboard/clients/${client.id}`}>
+                        <Link href={`/dashboard/clients/${client.id}`}>{client.name}</Link>
+                      </SidebarMenuSubButton>
                     </SidebarMenuSubItem>
                   ))
                 )}
@@ -136,53 +122,51 @@ export function DashboardSidebarContent() {
         </Collapsible>
 
         <SidebarMenuItem>
-          <Link href="/dashboard/financial">
-            <SidebarMenuButton isActive={pathname === "/dashboard/financial"} tooltip="Financeiro">
+          <SidebarMenuButton asChild isActive={pathname === "/dashboard/financial"} tooltip="Financeiro">
+            <Link href="/dashboard/financial">
               <DollarSign />
               <span>Financeiro</span>
-            </SidebarMenuButton>
-          </Link>
+            </Link>
+          </SidebarMenuButton>
         </SidebarMenuItem>
 
         <SidebarMenuItem>
-          <Link href="/dashboard/team">
-            <SidebarMenuButton isActive={pathname === "/dashboard/team"} tooltip="Equipe">
+          <SidebarMenuButton asChild isActive={pathname === "/dashboard/team"} tooltip="Equipe">
+            <Link href="/dashboard/team">
               <UserCircle />
               <span>Equipe</span>
-            </SidebarMenuButton>
-          </Link>
+            </Link>
+          </SidebarMenuButton>
         </SidebarMenuItem>
 
         <SidebarMenuItem>
-          <Link href="/dashboard/org-chart">
-            <SidebarMenuButton isActive={pathname === "/dashboard/org-chart"} tooltip="Organograma">
+          <SidebarMenuButton asChild isActive={pathname === "/dashboard/org-chart"} tooltip="Organograma">
+            <Link href="/dashboard/org-chart">
               <Network />
               <span>Organograma</span>
-            </SidebarMenuButton>
-          </Link>
+            </Link>
+          </SidebarMenuButton>
         </SidebarMenuItem>
 
-        {/* ====> NOVO ITEM DE MENU: ACESSOS <==== */}
         <SidebarMenuItem>
-          <Link href="/dashboard/accesses">
-            <SidebarMenuButton isActive={pathname.startsWith("/dashboard/accesses")} tooltip="Acessos">
+          <SidebarMenuButton asChild isActive={pathname.startsWith("/dashboard/accesses")} tooltip="Acessos">
+            <Link href="/dashboard/accesses">
               <KeyRound />
               <span>Acessos</span>
-            </SidebarMenuButton>
-          </Link>
+            </Link>
+          </SidebarMenuButton>
         </SidebarMenuItem>
-        {/* ======================================= */}
 
         <SidebarMenuItem>
-          <Link href="/dashboard/chat">
-            <SidebarMenuButton isActive={pathname === "/dashboard/chat"} tooltip="Assistente IA">
+          <SidebarMenuButton asChild isActive={pathname === "/dashboard/chat"} tooltip="Assistente IA">
+            <Link href="/dashboard/chat">
               <Sparkles />
               <span>Assistente IA</span>
-            </SidebarMenuButton>
-          </Link>
+            </Link>
+          </SidebarMenuButton>
         </SidebarMenuItem>
-
+        {/* </CHANGE> */}
       </SidebarMenu>
     </>
-  );
+  )
 }
