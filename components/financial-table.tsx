@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Pencil, Trash2, Search } from "lucide-react"
 import { deleteCost } from "@/app/dashboard/financial/actions"
 import { toast } from "sonner"
+import { MarkCostPaymentButton } from "@/components/mark-cost-payment-button"
 
 interface FinancialTableProps {
   costs: any[]
@@ -75,6 +76,7 @@ export function FinancialTable({ costs }: FinancialTableProps) {
               <TableHead>Tipo</TableHead>
               <TableHead>Data</TableHead>
               <TableHead className="text-right">Valor</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
@@ -100,6 +102,9 @@ export function FinancialTable({ costs }: FinancialTableProps) {
                       currency: "BRL",
                     }).format(cost.value)}
                   </TableCell>
+                  <TableCell>
+                    <MarkCostPaymentButton costId={cost.id} amount={cost.value} isPaid={cost.is_paid || false} />
+                  </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
                       <Button variant="ghost" size="icon">
@@ -114,7 +119,7 @@ export function FinancialTable({ costs }: FinancialTableProps) {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                   Nenhum custo encontrado
                 </TableCell>
               </TableRow>

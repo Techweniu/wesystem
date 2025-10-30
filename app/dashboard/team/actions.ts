@@ -117,7 +117,7 @@ export async function saveEmployee(formData: FormData) {
 // --- AÇÃO PARA MARCAR PAGAMENTO ---
 const paymentSchema = z.object({
   employeeId: z.string().uuid(),
-  amount: z.coerce.number().positive("O valor do pagamento deve ser positivo."), // Garante que o valor é positivo
+  amount: z.coerce.number().positive("O valor do pagamento deve ser positivo."),
 })
 
 export async function markPaymentAsPaid(formData: FormData) {
@@ -132,11 +132,10 @@ export async function markPaymentAsPaid(formData: FormData) {
 
   const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
-  // Insere o registro de pagamento com a data atual
   const { error } = await supabaseAdmin.from("employee_payments").insert({
     employee_id: employeeId,
     amount: amount,
-    payment_date: new Date().toISOString(), // Grava a data/hora atual em formato ISO
+    payment_date: new Date().toISOString(),
   })
 
   if (error) {
@@ -144,10 +143,57 @@ export async function markPaymentAsPaid(formData: FormData) {
     return { error: `Erro ao registrar pagamento: ${error.message}` }
   }
 
-  // Revalida as páginas para atualizar a informação de pagamento
   revalidatePath("/dashboard/team")
   revalidatePath(`/dashboard/team/${employeeId}`)
   return { success: "Pagamento registrado com sucesso!" }
+}
+
+// --- AÇÃO PARA REVERTER PAGAMENTO ---
+const undoPaymentSchema = z.object({
+  employeeId: z.string().uuid("ID do funcionário inválido."),
+})
+
+export async function undoEmployeePayment(formData: FormData) {
+  const validatedFields = undoPaymentSchema.safeParse(Object.fromEntries(formData))
+
+  if (!validatedFields.success) {
+    const firstError = Object.values(validatedFields.error.flatten().fieldErrors)[0]?.[0]
+    return { error: firstError || "Dados inválidos para reverter o pagamento." }
+  }
+
+  const { employeeId } = validatedFields.data
+
+  const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+
+  // Busca o pagamento mais recente do mês atual para este funcionário
+  const startOfMonth = new Date()
+  startOfMonth.setDate(1)
+  startOfMonth.setHours(0, 0, 0, 0)
+
+  const { data: recentPayment, error: fetchError } = await supabaseAdmin
+    .from("employee_payments")
+    .select("id")
+    .eq("employee_id", employeeId)
+    .gte("payment_date", startOfMonth.toISOString())
+    .order("payment_date", { ascending: false })
+    .limit(1)
+    .single()
+
+  if (fetchError || !recentPayment) {
+    return { error: "Nenhum pagamento encontrado para reverter neste mês." }
+  }
+
+  // Deleta o pagamento
+  const { error: deleteError } = await supabaseAdmin.from("employee_payments").delete().eq("id", recentPayment.id)
+
+  if (deleteError) {
+    console.error("Erro ao reverter pagamento:", deleteError)
+    return { error: `Erro ao reverter pagamento: ${deleteError.message}` }
+  }
+
+  revalidatePath("/dashboard/team")
+  revalidatePath(`/dashboard/team/${employeeId}`)
+  return { success: "Pagamento revertido com sucesso!" }
 }
 
 // --- AÇÃO PARA ADICIONAR OBSERVAÇÃO ---
