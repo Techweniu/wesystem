@@ -1,4 +1,3 @@
-// Em wesystem6/components/dashboard-sidebar-content.tsx
 "use client"
 
 import Link from "next/link"
@@ -165,7 +164,6 @@ export function DashboardSidebarContent() {
             </Link>
           </SidebarMenuButton>
         </SidebarMenuItem>
-        {/* </CHANGE> */}
       </SidebarMenu>
     </>
   )

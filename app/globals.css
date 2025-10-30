@@ -4,74 +4,101 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  /* Aplicando paleta de cores da Weniu */
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: rgb(3, 217, 103);
+
+  /* Verde fluorescente Weniu como cor primária */
+  --primary: 143 98% 43%; /* #03D967 */
   --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
+
+  /* Azul escuro Weniu como secundária */
+  --secondary: 220 100% 18%; /* #001B5E */
+  --secondary-foreground: oklch(0.985 0 0);
+
   --muted: oklch(0.97 0 0);
   --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+
+  /* Verde fluorescente também como accent */
+  --accent: 143 98% 43%;
+  --accent-foreground: oklch(0.985 0 0);
+
   --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
+  --ring: 143 98% 43%; /* Verde fluorescente para focus rings */
+
+  /* Charts usando paleta Weniu */
+  --chart-1: 143 98% 43%; /* Verde fluorescente */
+  --chart-2: 220 100% 18%; /* Azul escuro */
+  --chart-3: 168 100% 14%; /* Verde escuro */
+  --chart-4: 220 100% 29%; /* Azul */
+  --chart-5: 193 50% 91%; /* Cinza claro */
+
   --radius: 0.625rem;
+
+  /* Sidebar com cores Weniu */
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary: 143 98% 43%; /* Verde fluorescente */
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.97 0 0);
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar-ring: 143 98% 43%;
 }
 
 .dark {
-  --background: hsl(20 14.3% 4.1%);
-  --foreground: hsl(0 0% 95%);
-  --card: hsl(24 9.8% 10%);
+  /* Dark mode com paleta Weniu */
+  --background: 220 100% 6%; /* Azul muito escuro */
+  --foreground: oklch(0.985 0 0);
+  --card: 220 50% 10%;
   --card-foreground: oklch(0.985 0 0);
-  --popover: hsl(0 0% 9%);
+  --popover: 220 100% 8%;
   --popover-foreground: oklch(0.985 0 0);
-  --primary: hsl(142.1 70.6% 45.3%);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: hsl(240 3.7% 15.9%);
+
+  /* Verde fluorescente mantido no dark mode */
+  --primary: 143 98% 43%;
+  --primary-foreground: oklch(0.145 0 0);
+
+  /* Azul escuro Weniu */
+  --secondary: 220 100% 18%;
   --secondary-foreground: oklch(0.985 0 0);
-  --muted: hsl(0 0% 15%);
+
+  --muted: 220 50% 15%;
   --muted-foreground: oklch(0.708 0 0);
-  --accent: hsl(12 6.5% 15.1%);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: hsl(0 62.8% 30.6%);
-  --destructive-foreground: oklch(0.637 0.237 25.331);
-  --border: hsl(240 3.7% 15.9%);
-  --input: hsl(240 3.7% 15.9%);
-  --ring: hsl(142.4 71.8% 29.2%);
-  --chart-1: hsl(142.1 70.6% 45.3%);
-  --chart-2: hsl(159 84% 45%);
-  --chart-3: hsl(134 61% 41%);
-  --chart-4: hsl(120 100% 25%);
-  --chart-5: hsl(103 43% 50%);
-  --sidebar: hsl(240 5.9% 10%);
+
+  --accent: 143 98% 43%;
+  --accent-foreground: oklch(0.145 0 0);
+
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+
+  --border: 220 50% 20%;
+  --input: 220 50% 20%;
+  --ring: 143 98% 43%;
+
+  /* Charts dark mode */
+  --chart-1: 143 98% 43%;
+  --chart-2: 220 100% 29%;
+  --chart-3: 168 100% 20%;
+  --chart-4: 220 100% 40%;
+  --chart-5: 193 30% 30%;
+
+  /* Sidebar dark com Weniu */
+  --sidebar: 220 100% 8%;
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-primary: 143 98% 43%;
+  --sidebar-primary-foreground: oklch(0.145 0 0);
+  --sidebar-accent: 220 50% 15%;
   --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(0.269 0 0);
-  --sidebar-ring: oklch(0.439 0 0);
+  --sidebar-border: 220 50% 20%;
+  --sidebar-ring: 143 98% 43%;
 }
 
 @theme inline {
