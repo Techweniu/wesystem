@@ -30,7 +30,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR" className={`${gate.variable} ${poppins.variable}`} suppressHydrationWarning>
-      <body className="antialiased">
+      <body className="font-sans antialiased">
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
           {children}
           <Toaster position="top-right" richColors />
