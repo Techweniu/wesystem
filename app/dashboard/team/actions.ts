@@ -368,3 +368,73 @@ export async function addEmployeeContribution(formData: FormData) {
   revalidatePath(`/dashboard/team/${employeeId}`)
   return { success: "Contribuição registrada com sucesso!" }
 }
+
+// --- AÇÃO PARA ADICIONAR PLANO DE CARREIRA ---
+const addCareerPlanSchema = z.object({
+  employeeId: z.string().uuid("ID do colaborador inválido."),
+  career_plan_file: z.instanceof(File).refine((file) => file.size > 0, "O arquivo do plano de carreira é obrigatório."),
+  expiration_date: z.string().min(1, "A data de expiração é obrigatória."),
+})
+
+export async function addCareerPlan(formData: FormData) {
+  const rawFormData = {
+    employeeId: formData.get("employeeId"),
+    career_plan_file: formData.get("career_plan_file"),
+    expiration_date: formData.get("expiration_date"),
+  }
+
+  const validatedFields = addCareerPlanSchema.safeParse(rawFormData)
+  if (!validatedFields.success) {
+    const firstError = Object.values(validatedFields.error.flatten().fieldErrors)[0]?.[0]
+    return { error: firstError || "Dados inválidos." }
+  }
+
+  const { employeeId, career_plan_file, expiration_date } = validatedFields.data
+
+  try {
+    const supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    )
+
+    // Upload do arquivo para Supabase Storage
+    const fileExtension = career_plan_file.name.split(".").pop()
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExtension}`
+    const filePath = `career-plans/${fileName}`
+
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from("financial-proofs")
+      .upload(filePath, career_plan_file, {
+        contentType: career_plan_file.type,
+        upsert: false,
+      })
+
+    if (uploadError) {
+      console.error("Erro ao fazer upload:", uploadError)
+      return { error: "Erro ao fazer upload do plano de carreira." }
+    }
+
+    const { data: urlData } = supabaseAdmin.storage.from("financial-proofs").getPublicUrl(filePath)
+
+    // Atualiza o colaborador com a URL do plano e a data de expiração
+    const { error: updateError } = await supabaseAdmin
+      .from("employees")
+      .update({
+        career_plan_url: urlData.publicUrl,
+        career_plan_expiration_date: expiration_date,
+      })
+      .eq("id", employeeId)
+
+    if (updateError) {
+      console.error("Erro ao atualizar colaborador:", updateError)
+      return { error: `Erro ao salvar plano de carreira: ${updateError.message}` }
+    }
+
+    revalidatePath("/dashboard/team")
+    revalidatePath(`/dashboard/team/${employeeId}`)
+    return { success: "Plano de carreira adicionado com sucesso!" }
+  } catch (error) {
+    console.error("Erro ao processar plano de carreira:", error)
+    return { error: "Erro ao processar plano de carreira." }
+  }
+}
