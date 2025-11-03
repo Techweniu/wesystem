@@ -6,9 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Pencil, Trash2, Search } from "lucide-react"
-import { deleteCost } from "@/app/dashboard/financial/actions"
-import { toast } from "sonner"
+import { Search, FileText, ExternalLink } from "lucide-react"
 import { MarkCostPaymentButton } from "@/components/mark-cost-payment-button"
 
 interface FinancialTableProps {
@@ -28,17 +26,6 @@ export function FinancialTable({ costs }: FinancialTableProps) {
     const matchesCategory = filterCategory === "all" || cost.category === filterCategory
     return matchesSearch && matchesCategory
   })
-
-  async function handleDelete(id: string) {
-    if (!confirm("Tem certeza que deseja deletar este custo?")) return
-
-    const result = await deleteCost(id)
-    if (result.success) {
-      toast.success("Custo deletado com sucesso!")
-    } else {
-      toast.error(result.error || "Erro ao deletar custo")
-    }
-  }
 
   return (
     <div className="space-y-4">
@@ -77,7 +64,7 @@ export function FinancialTable({ costs }: FinancialTableProps) {
               <TableHead>Data</TableHead>
               <TableHead className="text-right">Valor</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead className="text-right">Ações</TableHead>
+              <TableHead>Comprovante</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -105,15 +92,18 @@ export function FinancialTable({ costs }: FinancialTableProps) {
                   <TableCell>
                     <MarkCostPaymentButton costId={cost.id} amount={cost.value} isPaid={cost.is_paid || false} />
                   </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
-                      <Button variant="ghost" size="icon">
-                        <Pencil className="h-4 w-4" />
+                  <TableCell>
+                    {cost.proof_url ? (
+                      <Button variant="ghost" size="sm" asChild className="gap-2">
+                        <a href={cost.proof_url} target="_blank" rel="noopener noreferrer">
+                          <FileText className="h-4 w-4" />
+                          Ver comprovante
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(cost.id)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">Sem comprovante</span>
+                    )}
                   </TableCell>
                 </TableRow>
               ))

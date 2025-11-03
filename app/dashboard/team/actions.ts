@@ -121,6 +121,15 @@ const paymentSchema = z.object({
 })
 
 export async function markPaymentAsPaid(formData: FormData) {
+  const proofFile = formData.get("proof_file") as File
+  if (!proofFile || proofFile.size === 0) {
+    return { error: "Comprovante de pagamento é obrigatório." }
+  }
+
+  if (proofFile.size > 10 * 1024 * 1024) {
+    return { error: "O arquivo deve ter no máximo 10MB." }
+  }
+
   const validatedFields = paymentSchema.safeParse(Object.fromEntries(formData))
 
   if (!validatedFields.success) {
@@ -130,22 +139,47 @@ export async function markPaymentAsPaid(formData: FormData) {
 
   const { employeeId, amount } = validatedFields.data
 
-  const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+  try {
+    const supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    )
 
-  const { error } = await supabaseAdmin.from("employee_payments").insert({
-    employee_id: employeeId,
-    amount: amount,
-    payment_date: new Date().toISOString(),
-  })
+    const fileExtension = proofFile.name.split(".").pop()
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExtension}`
+    const filePath = `employee-payments/${fileName}`
 
-  if (error) {
-    console.error("Erro Supabase (Pagamento):", error)
-    return { error: `Erro ao registrar pagamento: ${error.message}` }
+    const { error: uploadError } = await supabaseAdmin.storage.from("financial-proofs").upload(filePath, proofFile, {
+      contentType: proofFile.type,
+      upsert: false,
+    })
+
+    if (uploadError) {
+      console.error("Erro ao fazer upload:", uploadError)
+      return { error: "Erro ao fazer upload do comprovante." }
+    }
+
+    const { data: urlData } = supabaseAdmin.storage.from("financial-proofs").getPublicUrl(filePath)
+
+    const { error } = await supabaseAdmin.from("employee_payments").insert({
+      employee_id: employeeId,
+      amount: amount,
+      payment_date: new Date().toISOString(),
+      proof_url: urlData.publicUrl,
+    })
+
+    if (error) {
+      console.error("Erro Supabase (Pagamento):", error)
+      return { error: `Erro ao registrar pagamento: ${error.message}` }
+    }
+
+    revalidatePath("/dashboard/team")
+    revalidatePath(`/dashboard/team/${employeeId}`)
+    return { success: "Pagamento registrado com sucesso!" }
+  } catch (error) {
+    console.error("Erro ao processar pagamento:", error)
+    return { error: "Erro ao processar pagamento." }
   }
-
-  revalidatePath("/dashboard/team")
-  revalidatePath(`/dashboard/team/${employeeId}`)
-  return { success: "Pagamento registrado com sucesso!" }
 }
 
 // --- AÇÃO PARA REVERTER PAGAMENTO ---

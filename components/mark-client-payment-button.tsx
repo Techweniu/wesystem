@@ -1,7 +1,17 @@
 "use client"
 
-import { useTransition } from "react"
+import { useState, useTransition } from "react"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { CheckCircle, CircleDollarSign, Undo2 } from "lucide-react"
 import { toast } from "sonner"
 import { markClientPaymentAsPaid, undoClientPayment } from "@/app/dashboard/financial/actions"
@@ -14,19 +24,19 @@ interface MarkClientPaymentButtonProps {
 
 export function MarkClientPaymentButton({ clientId, expectedAmount, isPaidThisMonth }: MarkClientPaymentButtonProps) {
   const [isPending, startTransition] = useTransition()
+  const [showDialog, setShowDialog] = useState(false)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
   const handlePayment = () => {
-    if (
-      !confirm(
-        `Confirma o recebimento de ${new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(expectedAmount)}?`,
-      )
-    ) {
+    if (!selectedFile) {
+      toast.error("Por favor, anexe o comprovante de recebimento")
       return
     }
 
     const formData = new FormData()
     formData.append("clientId", clientId)
     formData.append("amount", String(expectedAmount))
+    formData.append("proof_file", selectedFile)
 
     startTransition(async () => {
       const result = await markClientPaymentAsPaid(formData)
@@ -34,6 +44,8 @@ export function MarkClientPaymentButton({ clientId, expectedAmount, isPaidThisMo
         toast.error("Erro ao registrar pagamento", { description: result.error })
       } else {
         toast.success(result.success)
+        setShowDialog(false)
+        setSelectedFile(null)
       }
     })
   }
@@ -55,7 +67,6 @@ export function MarkClientPaymentButton({ clientId, expectedAmount, isPaidThisMo
       }
     })
   }
-  // </CHANGE>
 
   if (isPaidThisMonth) {
     return (
@@ -74,27 +85,59 @@ export function MarkClientPaymentButton({ clientId, expectedAmount, isPaidThisMo
         >
           <Undo2 className="h-4 w-4" />
         </Button>
-        {/* </CHANGE> */}
       </div>
     )
   }
 
   return (
-    <Button
-      size="sm"
-      variant="outline"
-      onClick={handlePayment}
-      disabled={isPending || expectedAmount <= 0}
-      className="gap-1 bg-transparent"
-    >
-      {isPending ? (
-        "Registrando..."
-      ) : (
-        <>
-          <CircleDollarSign className="h-4 w-4" />
-          Marcar Recebido
-        </>
-      )}
-    </Button>
+    <>
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => setShowDialog(true)}
+        disabled={isPending || expectedAmount <= 0}
+        className="gap-1 bg-transparent"
+      >
+        <CircleDollarSign className="h-4 w-4" />
+        Marcar Recebido
+      </Button>
+
+      <Dialog open={showDialog} onOpenChange={setShowDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar Recebimento</DialogTitle>
+            <DialogDescription>
+              Anexe o comprovante de recebimento de{" "}
+              {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(expectedAmount)}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="proof_file">Comprovante de Recebimento *</Label>
+              <Input
+                id="proof_file"
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png"
+                onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                required
+                className="cursor-pointer"
+              />
+              {selectedFile && (
+                <p className="text-sm text-muted-foreground">Arquivo selecionado: {selectedFile.name}</p>
+              )}
+              <p className="text-xs text-muted-foreground">Formatos aceitos: PDF, JPG, PNG (máx. 10MB)</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDialog(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handlePayment} disabled={isPending || !selectedFile}>
+              {isPending ? "Registrando..." : "Confirmar Recebimento"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }

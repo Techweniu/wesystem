@@ -1,108 +1,57 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-@custom-variant dark (&:is(.dark *));
-
 :root {
-  /* Aplicando paleta de cores da Weniu */
-  --background: oklch(1 0 0);
+  /* Aplicando paleta de cores da Weniu com melhor contraste */
+  --background: oklch(0.99 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
 
-  /* Verde fluorescente Weniu como cor primária */
-  --primary: 143 98% 43%; /* #03D967 */
-  --primary-foreground: oklch(0.985 0 0);
+  /* Verde fluorescente Weniu mais vibrante para botões e elementos ativos */
+  --primary: 143 95% 43%; /* Verde fluorescente original da Weniu #03D967 */
+  --primary-foreground: oklch(0.145 0 0); /* Texto escuro para melhor contraste */
 
   /* Azul escuro Weniu como secundária */
   --secondary: 220 100% 18%; /* #001B5E */
   --secondary-foreground: oklch(0.985 0 0);
 
   --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
+  --muted-foreground: oklch(0.456 0 0);
 
-  /* Verde fluorescente também como accent */
-  --accent: 143 98% 43%;
-  --accent-foreground: oklch(0.985 0 0);
+  /* Verde fluorescente também como accent para elementos ativos */
+  --accent: 143 95% 43%; /* Verde fluorescente da Weniu */
+  --accent-foreground: oklch(0.145 0 0); /* Texto escuro para contraste */
 
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: 143 98% 43%; /* Verde fluorescente para focus rings */
+  --border: oklch(0.89 0 0);
+  --input: oklch(0.89 0 0);
+  --ring: 143 95% 43%; /* Verde para focus rings */
 
   /* Charts usando paleta Weniu */
-  --chart-1: 143 98% 43%; /* Verde fluorescente */
+  --chart-1: 143 95% 43%; /* Verde fluorescente */
   --chart-2: 220 100% 18%; /* Azul escuro */
   --chart-3: 168 100% 14%; /* Verde escuro */
   --chart-4: 220 100% 29%; /* Azul */
-  --chart-5: 193 50% 91%; /* Cinza claro */
+  --chart-5: 193 30% 70%; /* Cinza */
 
   --radius: 0.625rem;
 
-  /* Sidebar com cores Weniu */
+  /* Sidebar com verde fluorescente para itens ativos */
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: 143 98% 43%; /* Verde fluorescente */
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: 143 98% 43%;
-}
-
-.dark {
-  /* Dark mode com paleta Weniu */
-  --background: 220 100% 6%; /* Azul muito escuro */
-  --foreground: oklch(0.985 0 0);
-  --card: 220 50% 10%;
-  --card-foreground: oklch(0.985 0 0);
-  --popover: 220 100% 8%;
-  --popover-foreground: oklch(0.985 0 0);
-
-  /* Verde fluorescente mantido no dark mode */
-  --primary: 143 98% 43%;
-  --primary-foreground: oklch(0.145 0 0);
-
-  /* Azul escuro Weniu */
-  --secondary: 220 100% 18%;
-  --secondary-foreground: oklch(0.985 0 0);
-
-  --muted: 220 50% 15%;
-  --muted-foreground: oklch(0.708 0 0);
-
-  --accent: 143 98% 43%;
-  --accent-foreground: oklch(0.145 0 0);
-
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
-
-  --border: 220 50% 20%;
-  --input: 220 50% 20%;
-  --ring: 143 98% 43%;
-
-  /* Charts dark mode */
-  --chart-1: 143 98% 43%;
-  --chart-2: 220 100% 29%;
-  --chart-3: 168 100% 20%;
-  --chart-4: 220 100% 40%;
-  --chart-5: 193 30% 30%;
-
-  /* Sidebar dark com Weniu */
-  --sidebar: 220 100% 8%;
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: 143 98% 43%;
+  --sidebar-primary: 143 95% 43%; /* Verde fluorescente */
   --sidebar-primary-foreground: oklch(0.145 0 0);
-  --sidebar-accent: 220 50% 15%;
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: 220 50% 20%;
-  --sidebar-ring: 143 98% 43%;
+  --sidebar-accent: 143 95% 43%; /* Verde fluorescente para itens ativos */
+  --sidebar-accent-foreground: oklch(0.145 0 0); /* Texto escuro para contraste */
+  --sidebar-border: oklch(0.89 0 0);
+  --sidebar-ring: 143 95% 43%;
 }
 
 @theme inline {
-  /* Removendo definições de fonte hardcoded - usando as variáveis do Next.js */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);

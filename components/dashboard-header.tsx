@@ -12,10 +12,9 @@ import {
 import type { User } from "@supabase/supabase-js"
 import { LogOut, UserIcon } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { ThemeToggle } from "@/components/theme-toggle"
 
 interface DashboardHeaderProps {
-  user: Pick<User, 'email'>
+  user: Pick<User, "email">
 }
 
 export function DashboardHeader({ user }: DashboardHeaderProps) {
@@ -33,7 +32,6 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
         <h2 className="text-lg font-semibold">Bem-vindo ao Dashboard</h2>
       </div>
       <div className="flex items-center gap-2">
-        <ThemeToggle />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="rounded-full">

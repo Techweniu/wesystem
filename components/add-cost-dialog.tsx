@@ -27,21 +27,30 @@ export function AddCostDialog({ employees }: AddCostDialogProps) {
   const [open, setOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isRecurring, setIsRecurring] = useState(false)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
+
+    if (!selectedFile) {
+      toast.error("Por favor, anexe o comprovante de pagamento")
+      return
+    }
+
     setIsSubmitting(true)
 
     const formData = new FormData(e.currentTarget)
     formData.set("is_recurring", isRecurring.toString())
+    formData.set("proof_file", selectedFile)
 
     const result = await addCost(formData)
 
     if (result.success) {
       toast.success("Custo adicionado com sucesso!")
-      setOpen(false)
       e.currentTarget.reset()
       setIsRecurring(false)
+      setSelectedFile(null)
+      setOpen(false)
     } else {
       toast.error(result.error || "Erro ao adicionar custo")
     }
@@ -90,6 +99,22 @@ export function AddCostDialog({ employees }: AddCostDialogProps) {
                   defaultValue={new Date().toISOString().split("T")[0]}
                 />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="proof_file">Comprovante de Pagamento *</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="proof_file"
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                  required
+                  className="cursor-pointer"
+                />
+                {selectedFile && <span className="text-sm text-muted-foreground">{selectedFile.name}</span>}
+              </div>
+              <p className="text-xs text-muted-foreground">Formatos aceitos: PDF, JPG, PNG (máx. 10MB)</p>
             </div>
 
             <div className="flex items-center space-x-2">

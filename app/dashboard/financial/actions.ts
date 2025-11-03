@@ -2,8 +2,6 @@
 "use server" // Indica que são Server Actions
 
 import { createAdminClient } from "@/lib/supabase/server" // Helper para criar cliente Supabase Admin no servidor
-// Se não estiver usando o helper, use:
-// import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache" // Função para limpar o cache de rotas específicas
 import { z } from "zod" // Biblioteca para validação de schemas
 
@@ -20,42 +18,62 @@ const costSchema = z.object({
 // Função para adicionar um novo custo
 export async function addCost(formData: FormData) {
   try {
-    // Extrai os dados do FormData
-    const rawData = {
-      description: formData.get("description"),
-      value: formData.get("value"), // Mantém como string para coerce fazer a conversão
-      category: formData.get("category"),
-      date: formData.get("date"),
-      is_recurring: formData.get("is_recurring"), // Mantém como string para preprocess fazer a conversão
+    const proofFile = formData.get("proof_file") as File
+    if (!proofFile || proofFile.size === 0) {
+      return { success: false, error: "Comprovante de pagamento é obrigatório." }
     }
 
-    const validated = costSchema.safeParse(rawData) // Valida os dados com o schema Zod
+    if (proofFile.size > 10 * 1024 * 1024) {
+      return { success: false, error: "O arquivo deve ter no máximo 10MB." }
+    }
 
-    // Verifica se a validação falhou
+    const rawData = {
+      description: formData.get("description"),
+      value: formData.get("value"),
+      category: formData.get("category"),
+      date: formData.get("date"),
+      is_recurring: formData.get("is_recurring"),
+    }
+
+    const validated = costSchema.safeParse(rawData)
+
     if (!validated.success) {
       console.error("Erro validação addCost:", validated.error.flatten().fieldErrors)
-      // Retorna o primeiro erro encontrado
       const firstError = Object.values(validated.error.flatten().fieldErrors)[0]?.[0]
       return { success: false, error: firstError || "Dados inválidos." }
     }
 
-    const supabaseAdmin =
-      createAdminClient(
-        // Se não estiver usando o helper, descomente e preencha as variáveis de ambiente:
-        // process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        // process.env.SUPABASE_SERVICE_ROLE_KEY!
-      )
+    const supabaseAdmin = createAdminClient()
 
-    // Insere o custo validado (validated.data) no banco de dados
-    const { error } = await supabaseAdmin.from("costs").insert([validated.data])
+    const fileExtension = proofFile.name.split(".").pop()
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExtension}`
+    const filePath = `costs/${fileName}`
 
-    if (error) throw error // Lança erro se a inserção falhar
+    const { error: uploadError } = await supabaseAdmin.storage.from("financial-proofs").upload(filePath, proofFile, {
+      contentType: proofFile.type,
+      upsert: false,
+    })
 
-    revalidatePath("/dashboard/financial") // Limpa o cache da página financeira
-    return { success: true, message: "Custo adicionado com sucesso!" } // Retorna sucesso com mensagem
+    if (uploadError) {
+      console.error("Erro ao fazer upload:", uploadError)
+      return { success: false, error: "Erro ao fazer upload do comprovante." }
+    }
+
+    const { data: urlData } = supabaseAdmin.storage.from("financial-proofs").getPublicUrl(filePath)
+
+    const { error } = await supabaseAdmin.from("costs").insert([
+      {
+        ...validated.data,
+        proof_url: urlData.publicUrl,
+      },
+    ])
+
+    if (error) throw error
+
+    revalidatePath("/dashboard/financial")
+    return { success: true, message: "Custo adicionado com sucesso!" }
   } catch (error) {
     console.error("Erro ao adicionar custo:", error)
-    // Retorna falha com mensagem de erro
     return { success: false, error: error instanceof Error ? error.message : "Erro ao adicionar custo" }
   }
 }
@@ -140,42 +158,61 @@ const clientPaymentSchema = z.object({
 
 // Função para registrar o pagamento recebido de um cliente
 export async function markClientPaymentAsPaid(formData: FormData) {
-  // Valida os dados recebidos do formulário (botão)
+  const proofFile = formData.get("proof_file") as File
+  if (!proofFile || proofFile.size === 0) {
+    return { error: "Comprovante de recebimento é obrigatório." }
+  }
+
+  if (proofFile.size > 10 * 1024 * 1024) {
+    return { error: "O arquivo deve ter no máximo 10MB." }
+  }
+
   const validatedFields = clientPaymentSchema.safeParse(Object.fromEntries(formData))
 
   if (!validatedFields.success) {
-    // Se a validação falhar, retorna o primeiro erro encontrado
     const firstError = Object.values(validatedFields.error.flatten().fieldErrors)[0]?.[0]
     return { error: firstError || "Dados inválidos para registrar o pagamento." }
   }
 
-  // Extrai os dados validados
   const { clientId, amount } = validatedFields.data
-  // const { clientId, amount, contractId } = validatedFields.data; // Se usar contractId
 
-  const supabaseAdmin =
-    createAdminClient(
-      // Se não estiver usando o helper, descomente e preencha as variáveis de ambiente:
-      // process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      // process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
+  try {
+    const supabaseAdmin = createAdminClient()
 
-  // Insere o registro de pagamento na tabela client_payments
-  const { error } = await supabaseAdmin.from("client_payments").insert({
-    client_id: clientId,
-    amount: amount,
-    payment_date: new Date().toISOString(), // Usa a data/hora atual no formato ISO
-    // contract_id: contractId || null, // Se usar contractId
-  })
+    const fileExtension = proofFile.name.split(".").pop()
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExtension}`
+    const filePath = `client-payments/${fileName}`
 
-  if (error) {
-    console.error("Erro Supabase (Client Payment):", error)
-    return { error: `Erro ao registrar pagamento do cliente: ${error.message}` }
+    const { error: uploadError } = await supabaseAdmin.storage.from("financial-proofs").upload(filePath, proofFile, {
+      contentType: proofFile.type,
+      upsert: false,
+    })
+
+    if (uploadError) {
+      console.error("Erro ao fazer upload:", uploadError)
+      return { error: "Erro ao fazer upload do comprovante." }
+    }
+
+    const { data: urlData } = supabaseAdmin.storage.from("financial-proofs").getPublicUrl(filePath)
+
+    const { error } = await supabaseAdmin.from("client_payments").insert({
+      client_id: clientId,
+      amount: amount,
+      payment_date: new Date().toISOString(),
+      proof_url: urlData.publicUrl,
+    })
+
+    if (error) {
+      console.error("Erro Supabase (Client Payment):", error)
+      return { error: `Erro ao registrar pagamento do cliente: ${error.message}` }
+    }
+
+    revalidatePath("/dashboard/financial")
+    return { success: "Pagamento do cliente registrado com sucesso!" }
+  } catch (error) {
+    console.error("Erro ao processar pagamento:", error)
+    return { error: "Erro ao processar pagamento." }
   }
-
-  // Limpa o cache da página financeira para mostrar o status atualizado
-  revalidatePath("/dashboard/financial")
-  return { success: "Pagamento do cliente registrado com sucesso!" } // Retorna sucesso
 }
 // --- FIM DA NOVA Ação ---
 
@@ -247,45 +284,77 @@ export async function markCostAsPaid(formData: FormData) {
 
   const supabaseAdmin = createAdminClient()
 
-  // Busca o custo para verificar se é recorrente
   const { data: cost, error: costError } = await supabaseAdmin.from("costs").select("*").eq("id", costId).single()
 
   if (costError || !cost) {
     return { error: "Custo não encontrado." }
   }
 
-  // Marca o custo como pago atualizando paid_date
-  const { error: paymentError } = await supabaseAdmin
-    .from("costs")
-    .update({ paid_date: new Date().toISOString().split("T")[0] })
-    .eq("id", costId)
-
-  if (paymentError) {
-    console.error("Erro ao registrar pagamento:", paymentError)
-    return { error: `Erro ao registrar pagamento: ${paymentError.message}` }
+  const proofFile = formData.get("proof_file") as File
+  if (!proofFile || proofFile.size === 0) {
+    return { error: "Comprovante de pagamento é obrigatório." }
   }
 
-  // Se for recorrente, cria uma nova ocorrência para o próximo mês
-  if (cost.is_recurring) {
-    const nextDate = new Date(cost.date)
-    nextDate.setMonth(nextDate.getMonth() + 1)
+  if (proofFile.size > 10 * 1024 * 1024) {
+    return { error: "O arquivo deve ter no máximo 10MB." }
+  }
 
-    const { error: newCostError } = await supabaseAdmin.from("costs").insert({
-      description: cost.description,
-      value: cost.value,
-      category: cost.category,
-      date: nextDate.toISOString().split("T")[0],
-      is_recurring: true,
-      paid_date: null, // Nova ocorrência começa como não paga
+  try {
+    const fileExtension = proofFile.name.split(".").pop()
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExtension}`
+    const filePath = `cost-payments/${fileName}`
+
+    const { error: uploadError } = await supabaseAdmin.storage.from("financial-proofs").upload(filePath, proofFile, {
+      contentType: proofFile.type,
+      upsert: false,
     })
 
-    if (newCostError) {
-      console.error("Erro ao criar próxima ocorrência:", newCostError)
+    if (uploadError) {
+      console.error("Erro ao fazer upload:", uploadError)
+      return { error: "Erro ao fazer upload do comprovante." }
     }
-  }
 
-  revalidatePath("/dashboard/financial")
-  return { success: "Pagamento registrado com sucesso!" }
+    const { data: urlData } = supabaseAdmin.storage.from("financial-proofs").getPublicUrl(filePath)
+
+    const { error: paymentError } = await supabaseAdmin
+      .from("costs")
+      .update({
+        paid_date: new Date().toISOString().split("T")[0],
+        proof_url: urlData.publicUrl,
+      })
+      .eq("id", costId)
+
+    if (paymentError) {
+      console.error("Erro ao registrar pagamento:", paymentError)
+      return { error: `Erro ao registrar pagamento: ${paymentError.message}` }
+    }
+
+    // Se for recorrente, cria uma nova ocorrência para o próximo mês
+    if (cost.is_recurring) {
+      const nextDate = new Date(cost.date)
+      nextDate.setMonth(nextDate.getMonth() + 1)
+
+      const { error: newCostError } = await supabaseAdmin.from("costs").insert({
+        description: cost.description,
+        value: cost.value,
+        category: cost.category,
+        date: nextDate.toISOString().split("T")[0],
+        is_recurring: true,
+        paid_date: null,
+        proof_url: null, // Nova ocorrência não tem comprovante ainda
+      })
+
+      if (newCostError) {
+        console.error("Erro ao criar próxima ocorrência:", newCostError)
+      }
+    }
+
+    revalidatePath("/dashboard/financial")
+    return { success: "Pagamento registrado com sucesso!" }
+  } catch (error) {
+    console.error("Erro ao processar pagamento:", error)
+    return { error: "Erro ao processar pagamento." }
+  }
 }
 
 // --- NOVA: Ação para Reverter Pagamento de Custo ---
@@ -317,3 +386,69 @@ export async function undoCostPayment(formData: FormData) {
   revalidatePath("/dashboard/financial")
   return { success: "Pagamento revertido com sucesso!" }
 }
+
+// --- NOVA: Ação para Marcar Pagamento de Funcionário ---
+const paymentSchema = z.object({
+  employeeId: z.string().uuid(),
+  amount: z.coerce.number().positive("O valor do pagamento deve ser positivo."),
+})
+
+export async function markPaymentAsPaid(formData: FormData) {
+  const proofFile = formData.get("proof_file") as File
+  if (!proofFile || proofFile.size === 0) {
+    return { error: "Comprovante de pagamento é obrigatório." }
+  }
+
+  if (proofFile.size > 10 * 1024 * 1024) {
+    return { error: "O arquivo deve ter no máximo 10MB." }
+  }
+
+  const validatedFields = paymentSchema.safeParse(Object.fromEntries(formData))
+
+  if (!validatedFields.success) {
+    const firstError = Object.values(validatedFields.error.flatten().fieldErrors)[0]?.[0]
+    return { error: firstError || "Dados inválidos para registrar o pagamento." }
+  }
+
+  const { employeeId, amount } = validatedFields.data
+
+  try {
+    const supabaseAdmin = createAdminClient()
+
+    const fileExtension = proofFile.name.split(".").pop()
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExtension}`
+    const filePath = `employee-payments/${fileName}`
+
+    const { error: uploadError } = await supabaseAdmin.storage.from("financial-proofs").upload(filePath, proofFile, {
+      contentType: proofFile.type,
+      upsert: false,
+    })
+
+    if (uploadError) {
+      console.error("Erro ao fazer upload:", uploadError)
+      return { error: "Erro ao fazer upload do comprovante." }
+    }
+
+    const { data: urlData } = supabaseAdmin.storage.from("financial-proofs").getPublicUrl(filePath)
+
+    const { error } = await supabaseAdmin.from("employee_payments").insert({
+      employee_id: employeeId,
+      amount: amount,
+      payment_date: new Date().toISOString(),
+      proof_url: urlData.publicUrl,
+    })
+
+    if (error) {
+      console.error("Erro Supabase (Pagamento):", error)
+      return { error: `Erro ao registrar pagamento: ${error.message}` }
+    }
+
+    revalidatePath("/dashboard/team")
+    revalidatePath(`/dashboard/team/${employeeId}`)
+    return { success: "Pagamento registrado com sucesso!" }
+  } catch (error) {
+    console.error("Erro ao processar pagamento:", error)
+    return { error: "Erro ao processar pagamento." }
+  }
+}
+// --- FIM DA NOVA Ação ---
