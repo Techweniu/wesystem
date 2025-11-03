@@ -15,6 +15,8 @@ import {
   MicVocal,
   Contact,
   Globe,
+  Search,
+  X,
 } from "lucide-react" // Adicionados ícones
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -49,6 +51,7 @@ export function AccessesClientPage({ initialAccesses }: AccessesClientPageProps)
   const [passwordInput, setPasswordInput] = useState("")
   const [passwordError, setPasswordError] = useState<string | null>(null)
   const [hasDiretoriaAccess, setHasDiretoriaAccess] = useState(false)
+  const [searchTerm, setSearchTerm] = useState("")
   const router = useRouter()
 
   // Efeito para atualizar o estado interno se as props mudarem
@@ -83,18 +86,33 @@ export function AccessesClientPage({ initialAccesses }: AccessesClientPageProps)
     }
   }
 
-  // *** ALTERAÇÃO PRINCIPAL: Cálculo das listas para as ABAS ***
-  // Calcula as listas e contagens diretamente de allAccesses
-  const diretoriaAccesses = allAccesses.filter((a) => a.department === "Diretoria")
-  // Listas específicas para cada aba da Equipe/Diretoria (excluindo Diretoria)
-  const tecnologiaAccesses = allAccesses.filter((a) => a.department === "Tecnologia")
-  const producaoAccesses = allAccesses.filter((a) => a.department === "Produção")
-  const marketingAccesses = allAccesses.filter((a) => a.department === "Marketing")
-  const clienteAccesses = allAccesses.filter((a) => a.department === "Cliente")
-  // Geral/Nulo: Exclui Diretoria e Cliente
-  const geralAccesses = allAccesses.filter(
-    (a) =>
-      (a.department === "Geral" || a.department === null) && a.department !== "Diretoria" && a.department !== "Cliente",
+  const filterAccesses = (accesses: PlatformAccess[]) => {
+    if (!searchTerm.trim()) return accesses
+
+    const term = searchTerm.toLowerCase()
+    return accesses.filter((access) => {
+      return (
+        access.platform_name?.toLowerCase().includes(term) ||
+        access.username?.toLowerCase().includes(term) ||
+        access.notes?.toLowerCase().includes(term) ||
+        access.client_name?.toLowerCase().includes(term)
+      )
+    })
+  }
+
+  // Calcula as listas e contagens diretamente de allAccesses com filtro de pesquisa
+  const diretoriaAccesses = filterAccesses(allAccesses.filter((a) => a.department === "Diretoria"))
+  const tecnologiaAccesses = filterAccesses(allAccesses.filter((a) => a.department === "Tecnologia"))
+  const producaoAccesses = filterAccesses(allAccesses.filter((a) => a.department === "Produção"))
+  const marketingAccesses = filterAccesses(allAccesses.filter((a) => a.department === "Marketing"))
+  const clienteAccesses = filterAccesses(allAccesses.filter((a) => a.department === "Cliente"))
+  const geralAccesses = filterAccesses(
+    allAccesses.filter(
+      (a) =>
+        (a.department === "Geral" || a.department === null) &&
+        a.department !== "Diretoria" &&
+        a.department !== "Cliente",
+    ),
   )
 
   // Determina qual aba deve ser a padrão ao entrar na view de Equipe ou Diretoria
@@ -212,8 +230,43 @@ export function AccessesClientPage({ initialAccesses }: AccessesClientPageProps)
         </CardContent>
       </Card>
 
-      {/* *** ALTERAÇÃO PRINCIPAL: Estrutura das Abas *** */}
-      {/* Define a aba padrão dinamicamente */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Pesquisar plataforma, login, notas ou cliente..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="pl-9 pr-9"
+        />
+        {searchTerm && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
+            onClick={() => setSearchTerm("")}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        )}
+      </div>
+
+      {searchTerm &&
+        diretoriaAccesses.length === 0 &&
+        tecnologiaAccesses.length === 0 &&
+        producaoAccesses.length === 0 &&
+        marketingAccesses.length === 0 &&
+        geralAccesses.length === 0 &&
+        clienteAccesses.length === 0 && (
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-10">
+              <Search className="h-12 w-12 text-muted-foreground mb-4" />
+              <p className="text-lg font-medium">Nenhum resultado encontrado</p>
+              <p className="text-sm text-muted-foreground">Tente pesquisar com outros termos</p>
+            </CardContent>
+          </Card>
+        )}
+
+      {/* Estrutura das Abas */}
       <Tabs defaultValue={getDefaultTab()} className="space-y-4">
         {/* Renderiza a lista de abas (diferente para diretoria e equipe) */}
         <TabsList className={`grid w-full ${viewMode === "diretoria" ? "grid-cols-6" : "grid-cols-5"}`}>
@@ -313,7 +366,6 @@ export function AccessesClientPage({ initialAccesses }: AccessesClientPageProps)
           </Card>
         </TabsContent>
       </Tabs>
-      {/* *** FIM DA ALTERAÇÃO DAS ABAS *** */}
     </div>
   )
 }
