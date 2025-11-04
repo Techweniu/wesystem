@@ -42,12 +42,13 @@ export async function getAiInsights() {
     3.  Seja direto e objetivo.
     4.  Mencione nomes de clientes ou colaboradores quando relevante.
     5.  Se nenhum insight importante for encontrado, retorne a mensagem "Nenhum insight crítico ou oportunidade identificada no momento."
+    6.  NÃO use formatação markdown (como negrito, itálico, # títulos, etc.). Use apenas texto simples.
 
     **Analise os seguintes pontos, com base na data atual (${format(new Date(), "dd/MM/yyyy")}):**
-    - **Contratos a Vencer:** Identifique contratos de clientes ativos que irão expirar nos próximos 45 dias.
-    - **Contratos Expirados:** Verifique se há clientes ativos com contratos já expirados.
-    - **Clientes em Risco:** Aponte clientes com notas de NPS recentes (últimos 3 meses) abaixo de 7.
-    - **Pagamentos de Equipe:** Verifique se o dia de pagamento de algum colaborador já passou no mês corrente e não há registro de pagamento.
+    - Contratos a Vencer: Identifique contratos de clientes ativos que irão expirar nos próximos 45 dias.
+    - Contratos Expirados: Verifique se há clientes ativos com contratos já expirados.
+    - Clientes em Risco: Aponte clientes com notas de NPS recentes (últimos 3 meses) abaixo de 7.
+    - Pagamentos de Equipe: Verifique se o dia de pagamento de algum colaborador já passou no mês corrente e não há registro de pagamento.
 
     A seguir, os dados da empresa:
     ${businessSnapshot}
@@ -55,7 +56,7 @@ export async function getAiInsights() {
 
   try {
     const { text } = await generateText({
-      model: "groq/llama-3.1-70b-versatile",
+      model: "openai/gpt-oss-120b",
       prompt: systemPrompt,
       temperature: 0.5,
     })

@@ -53,11 +53,14 @@ export async function generateChatResponse(chatHistory: unknown) {
   const recentHistory = validatedHistory.data.slice(-10)
 
   const systemPrompt = `Você é um analista de negócios. Analise os dados da empresa fornecidos abaixo em formato JSON e responda em texto às perguntas do usuário.
+  
+  IMPORTANTE: NÃO use formatação markdown (como **negrito**, *itálico*, # títulos, etc.). Use apenas texto simples nas suas respostas.
+  
   Dados: ${businessSnapshot}`
 
   try {
     const { text } = await generateText({
-      model: "groq/llama-3.1-70b-versatile",
+      model: "openai/gpt-oss-120b",
       messages: [
         { role: "system", content: systemPrompt },
         ...recentHistory.map((msg) => ({
