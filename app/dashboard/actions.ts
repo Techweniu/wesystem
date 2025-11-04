@@ -1,20 +1,15 @@
 "use server"
 
-import OpenAI from "openai"
+import { generateText } from "ai"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { format } from "date-fns"
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  dangerouslyAllowBrowser: true,
-})
+const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
 /**
  * Coleta um resumo completo de todos os dados de negócio do Supabase.
  */
 async function getBusinessSnapshot() {
-  const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-
   const { data: clients } = await supabaseAdmin
     .from("clients")
     .select("name, status, contracts(name, end_date, status), nps_responses(score, response_date)")
@@ -59,21 +54,19 @@ export async function getAiInsights() {
   `
 
   try {
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "system", content: systemPrompt }],
+    const { text } = await generateText({
+      model: "groq/llama-3.1-70b-versatile",
+      prompt: systemPrompt,
       temperature: 0.5,
     })
 
-    const insights = response.choices[0]?.message?.content
-
-    if (!insights) {
+    if (!text) {
       return { error: "A IA não conseguiu gerar insights." }
     }
 
-    return { success: insights }
+    return { success: text }
   } catch (error) {
-    console.error("Erro na API da OpenAI ao gerar insights:", error)
+    console.error("Erro na API do Groq ao gerar insights:", error)
     return { error: "Ocorreu um erro ao se comunicar com a IA." }
   }
 }
@@ -82,8 +75,6 @@ export async function getAiInsights() {
  * Calcula métricas de saúde operacional baseadas na proporção clientes/funcionários
  */
 export async function getOperationHealth() {
-  const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-
   // Buscar clientes ativos
   const { data: clients, count: activeClients } = await supabaseAdmin
     .from("clients")
