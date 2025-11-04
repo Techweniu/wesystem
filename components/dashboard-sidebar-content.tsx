@@ -80,7 +80,7 @@ export function DashboardSidebarContent() {
           </SidebarMenuButton>
         </SidebarMenuItem>
 
-        <Collapsible asChild>
+        <Collapsible>
           <SidebarMenuItem>
             <div className="flex w-full items-center justify-between">
               <SidebarMenuButton
