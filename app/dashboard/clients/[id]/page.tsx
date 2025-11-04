@@ -43,6 +43,7 @@ import {
   BreadcrumbPage,
 } from "@/components/ui/breadcrumb"
 import { Label } from "@/components/ui/label"
+import { ContractServiceBadges } from "@/components/contract-service-badges"
 
 const LOOKER_STUDIO_URL =
   "https://lookerstudio.google.com/embed/reporting/dd2d13f5-60b6-4926-ba5d-afe9db7dbcd1/page/jCyaF"
@@ -98,6 +99,20 @@ async function getClientDetails(id: string) {
       if (contract.storage_path) {
         const { data: urlData } = await supabase.storage.from("contracts").createSignedUrl(contract.storage_path, 3600) // URL válida por 1 hora
         ;(contract as any).downloadUrl = urlData?.signedUrl
+      }
+
+      const { data: deliverables, error: deliverablesError } = await supabase
+        .from("contract_deliverables")
+        .select("*")
+        .eq("contract_id", contract.id)
+        .order("service_name")
+
+      // Only set deliverables if the query succeeded (table exists)
+      if (!deliverablesError) {
+        ;(contract as any).deliverables = deliverables || []
+      } else {
+        // Table doesn't exist yet - migration not run
+        ;(contract as any).deliverables = []
       }
     }
   }
@@ -277,16 +292,10 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
             </CardContent>
           </Card>
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Último NPS</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Badge variant={getNpsBadgeVariant(latestNpsScore)}>{latestNpsScore ?? "-"}</Badge>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">MRR</CardTitle>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <BarChart2 className="h-5 w-5 text-blue-500" /> MRR
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
@@ -433,28 +442,34 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
             <CardContent>
               <ul className="space-y-3">
                 {client.contracts?.map((contract: any) => (
-                  <li key={contract.id} className="flex items-center justify-between rounded-md border p-3 text-sm">
-                    <div className="flex items-center gap-3">
-                      <div className="flex flex-col">
+                  <li key={contract.id} className="rounded-md border p-3 text-sm">
+                    <div className="flex items-start justify-between">
+                      <div className="flex flex-col flex-1">
                         <span className="font-medium">{contract.name}</span>
                         <span className="text-xs text-muted-foreground">
                           Início: {format(parseISO(contract.start_date), "dd/MM/yy")}{" "}
                           {contract.end_date ? `- Fim: ${format(parseISO(contract.end_date), "dd/MM/yy")}` : ""}
                         </span>
-                        <Badge variant={contract.status === "active" ? "default" : "outline"} className="mt-1">
+                        <Badge variant={contract.status === "active" ? "default" : "outline"} className="mt-1 w-fit">
                           {contract.status === "active" ? "Ativo" : "Inativo"}
                         </Badge>
+                        <ContractServiceBadges
+                          contractId={contract.id}
+                          clientId={client.id}
+                          services={contract.services || []}
+                          deliverables={contract.deliverables || []}
+                        />
                       </div>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      {contract.downloadUrl && (
-                        <a href={contract.downloadUrl} target="_blank" rel="noopener noreferrer">
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <Download className="h-4 w-4" />
-                          </Button>
-                        </a>
-                      )}
-                      <EditContractForm contract={contract} />
+                      <div className="flex items-center gap-1 ml-2">
+                        {contract.downloadUrl && (
+                          <a href={contract.downloadUrl} target="_blank" rel="noopener noreferrer">
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <Download className="h-4 w-4" />
+                            </Button>
+                          </a>
+                        )}
+                        <EditContractForm contract={contract} />
+                      </div>
                     </div>
                   </li>
                 ))}

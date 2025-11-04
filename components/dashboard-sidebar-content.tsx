@@ -14,6 +14,7 @@ import {
   ChevronDown,
   Sparkles,
   KeyRound,
+  Target,
 } from "lucide-react"
 import {
   useSidebar,
@@ -125,6 +126,15 @@ export function DashboardSidebarContent() {
             <Link href="/dashboard/financial">
               <DollarSign />
               <span>Financeiro</span>
+            </Link>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+
+        <SidebarMenuItem>
+          <SidebarMenuButton asChild isActive={pathname === "/dashboard/commercial"} tooltip="Comercial">
+            <Link href="/dashboard/commercial">
+              <Target />
+              <span>Comercial</span>
             </Link>
           </SidebarMenuButton>
         </SidebarMenuItem>

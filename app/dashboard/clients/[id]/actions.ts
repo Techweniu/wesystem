@@ -5,16 +5,18 @@ import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
+import { isNonRecurringService } from "@/lib/non-recurring-services"
 
 // --- Action para Serviço Pontual ---
 const oneTimeServiceSchema = z.object({
   clientId: z.string().uuid("ID do cliente inválido."),
   name: z.string().min(1, "O nome do serviço é obrigatório."),
   value: z.coerce.number().positive("O valor deve ser maior que zero."),
-  date: z.string().min(1, "A data é obrigatória."), // Validar formato de data se necessário
+  date: z.string().min(1, "A data é obrigatória."),
   status: z.enum(["pending", "completed", "cancelled"], {
     errorMap: () => ({ message: "Status inválido." }),
   }),
+  services: z.string().optional(),
 })
 
 export async function addOneTimeService(formData: FormData) {
@@ -24,15 +26,19 @@ export async function addOneTimeService(formData: FormData) {
     const firstError = Object.values(validatedFields.error.flatten().fieldErrors).flat()[0]
     return { error: firstError || "Dados inválidos." }
   }
-  const { clientId, name, value, date, status } = validatedFields.data
+  const { clientId, name, value, date, status, services } = validatedFields.data
+
+  const servicesArray = services ? JSON.parse(services) : []
+
   const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
   const { error } = await supabaseAdmin.from("one_time_services").insert([
     {
       client_id: clientId,
       name,
       value,
-      date, // Garanta que esteja no formato YYYY-MM-DD
+      date,
       status,
+      services: servicesArray, // Adicionar array de serviços
     },
   ])
   if (error) {
@@ -40,7 +46,7 @@ export async function addOneTimeService(formData: FormData) {
     return { error: `Ocorreu um erro no banco de dados: ${error.message}` }
   }
   revalidatePath(`/dashboard/clients/${clientId}`)
-  revalidatePath("/dashboard/clients") // Revalida a lista também
+  revalidatePath("/dashboard/clients")
   return { success: "Serviço pontual adicionado com sucesso!" }
 }
 
@@ -244,14 +250,14 @@ export async function updateClientNotes(formData: FormData) {
 const addContractSchema = z.object({
   clientId: z.string().uuid(),
   contract_name: z.string().min(3, "O nome do contrato é obrigatório."),
-  valor_mensal: z.coerce.number().min(0, "O valor mensal não pode ser negativo.").optional(), // Valor opcional
-  start_date: z.string().min(1, "A data de início é obrigatória."), // Validar formato de data se necessário
-  end_date: z.string().optional().or(z.literal("")), // Data de fim opcional
-  contract_file: z.instanceof(File).optional(), // Arquivo opcional
+  valor_mensal: z.coerce.number().min(0, "O valor mensal não pode ser negativo.").optional(),
+  start_date: z.string().min(1, "A data de início é obrigatória."),
+  end_date: z.string().optional().or(z.literal("")),
+  contract_file: z.instanceof(File).optional(),
+  services: z.string().optional(), // JSON string de serviços
 })
 
 export async function addContract(formData: FormData) {
-  // Extrai dados crus do FormData
   const rawFormData = {
     clientId: formData.get("clientId"),
     contract_name: formData.get("contract_name"),
@@ -259,6 +265,7 @@ export async function addContract(formData: FormData) {
     start_date: formData.get("start_date"),
     end_date: formData.get("end_date"),
     contract_file: formData.get("contract_file"),
+    services: formData.get("services"),
   }
 
   const validatedFields = addContractSchema.safeParse(rawFormData)
@@ -266,52 +273,122 @@ export async function addContract(formData: FormData) {
     const firstError = Object.values(validatedFields.error.flatten().fieldErrors).flat()[0]
     return { error: firstError || "Dados inválidos." }
   }
-  const { clientId, contract_name, valor_mensal, start_date, end_date, contract_file } = validatedFields.data
+  const { clientId, contract_name, valor_mensal, start_date, end_date, contract_file, services } = validatedFields.data
+
+  const servicesArray = services ? JSON.parse(services) : []
 
   // 1. Upload do arquivo (se existir)
   let contractPath = null
   if (contract_file && contract_file.size > 0) {
-    const supabase = await createClient() // Cliente normal para Storage
+    const supabase = await createClient()
     const fileExtension = contract_file.name.split(".").pop()
-    const newFileName = `${Date.now()}.${fileExtension}` // Nome único
-    const filePath = `${clientId}/${newFileName}` // Organiza por cliente
+    const newFileName = `${Date.now()}.${fileExtension}`
+    const filePath = `${clientId}/${newFileName}`
 
-    const { error: uploadError } = await supabase.storage
-      .from("contracts") // Nome do bucket
-      .upload(filePath, contract_file)
+    const { error: uploadError } = await supabase.storage.from("contracts").upload(filePath, contract_file)
 
     if (uploadError) {
       console.error("Erro Upload Contrato:", uploadError)
       return { error: `Não foi possível enviar o arquivo: ${uploadError.message}` }
     }
-    contractPath = filePath // Guarda o caminho do arquivo
+    contractPath = filePath
   }
 
   // 2. Insere dados na tabela 'contracts'
   const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-  const { error: insertError } = await supabaseAdmin.from("contracts").insert({
+
+  let insertedContract
+  let insertError
+
+  // Primeiro tenta com services
+  const insertData: any = {
     client_id: clientId,
     name: contract_name,
-    valor_mensal: valor_mensal || 0, // Usa 0 se valor não for fornecido
-    storage_path: contractPath, // Pode ser null se não houver arquivo
-    start_date: start_date, // Garanta YYYY-MM-DD
-    end_date: end_date || null, // Salva null se vazio
-    status: "active", // Status inicial padrão
-  })
+    valor_mensal: valor_mensal || 0,
+    storage_path: contractPath,
+    start_date: start_date,
+    end_date: end_date || null,
+    status: "active",
+  }
 
-  if (insertError) {
+  // Tenta incluir services se foi fornecido
+  if (servicesArray.length > 0) {
+    insertData.services = servicesArray
+  }
+
+  const result = await supabaseAdmin.from("contracts").insert(insertData).select().single()
+
+  insertedContract = result.data
+  insertError = result.error
+
+  // Se falhou por causa da coluna services não existir, tenta sem ela
+  if (insertError && insertError.message?.includes("services")) {
+    delete insertData.services
+    const retryResult = await supabaseAdmin.from("contracts").insert(insertData).select().single()
+    insertedContract = retryResult.data
+    insertError = retryResult.error
+  }
+
+  if (insertError || !insertedContract) {
     console.error("Erro Insert Contrato DB:", insertError)
-    // Se deu erro no banco e um arquivo foi enviado, remove o arquivo do Storage
     if (contractPath) {
-      // Usa await createClient() aqui também para garantir acesso ao storage
       await createClient().then((s) => s.storage.from("contracts").remove([contractPath!]))
     }
-    return { error: `Ocorreu um erro ao salvar o contrato: ${insertError.message}` }
+    return { error: `Ocorreu um erro ao salvar o contrato: ${insertError?.message}` }
+  }
+
+  const nonRecurringServices = servicesArray.filter((service: string) => isNonRecurringService(service))
+
+  if (nonRecurringServices.length > 0) {
+    const deliverables = nonRecurringServices.map((service: string) => ({
+      contract_id: insertedContract.id,
+      service_name: service,
+      delivered: false,
+    }))
+
+    try {
+      await supabaseAdmin.from("contract_deliverables").insert(deliverables)
+    } catch (error) {
+      console.error("Erro ao criar deliverables (tabela pode não existir ainda):", error)
+      // Não retorna erro, apenas loga - o contrato já foi criado
+    }
   }
 
   revalidatePath(`/dashboard/clients/${clientId}`)
   revalidatePath("/dashboard/clients")
   return { success: "Contrato adicionado com sucesso!" }
+}
+
+const updateDeliverableSchema = z.object({
+  deliverableId: z.string().uuid(),
+  clientId: z.string().uuid(),
+  delivered: z.boolean(),
+})
+
+export async function updateDeliverable(data: { deliverableId: string; clientId: string; delivered: boolean }) {
+  const validatedFields = updateDeliverableSchema.safeParse(data)
+  if (!validatedFields.success) {
+    const firstError = Object.values(validatedFields.error.flatten().fieldErrors).flat()[0]
+    return { error: firstError || "Dados inválidos." }
+  }
+
+  const { deliverableId, clientId, delivered } = validatedFields.data
+  const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+
+  const updateData: any = {
+    delivered,
+    delivery_date: delivered ? new Date().toISOString().split("T")[0] : null,
+  }
+
+  const { error } = await supabaseAdmin.from("contract_deliverables").update(updateData).eq("id", deliverableId)
+
+  if (error) {
+    console.error("Erro ao atualizar deliverable:", error)
+    return { error: `Não foi possível atualizar: ${error.message}` }
+  }
+
+  revalidatePath(`/dashboard/clients/${clientId}`)
+  return { success: "Status de entrega atualizado!" }
 }
 
 // --- Action para Atualizar Status do Serviço Pontual ---
@@ -351,7 +428,7 @@ const updateContractSchema = z.object({
   contractId: z.string().uuid(),
   name: z.string().min(3, "O nome do contrato é obrigatório."),
   valor_mensal: z.coerce.number().min(0).optional(), // Valor opcional
-  start_date: z.string().min(1, "A data de início é obrigatória."), // Validar formato
+  start_date: z.string().min(1, "A data de início é obrigatória."),
   end_date: z.string().optional().or(z.literal("")), // Fim opcional
   status: z.enum(["active", "inactive"]), // Status obrigatório
 })
@@ -493,4 +570,69 @@ export async function deleteClientContact(formData: FormData) {
   }
   revalidatePath(`/dashboard/clients/${clientId}`)
   return { success: "Contato removido com sucesso." }
+}
+
+// --- Action para Alternar Entrega de Serviço ---
+const toggleServiceDeliverySchema = z.object({
+  contractId: z.string().uuid(),
+  clientId: z.string().uuid(),
+  serviceName: z.string().min(1),
+  currentStatus: z.boolean(),
+})
+
+export async function toggleServiceDelivery(data: {
+  contractId: string
+  clientId: string
+  serviceName: string
+  currentStatus: boolean
+}) {
+  const validatedFields = toggleServiceDeliverySchema.safeParse(data)
+  if (!validatedFields.success) {
+    const firstError = Object.values(validatedFields.error.flatten().fieldErrors).flat()[0]
+    return { error: firstError || "Dados inválidos." }
+  }
+
+  const { contractId, clientId, serviceName, currentStatus } = validatedFields.data
+  const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+
+  // Verifica se já existe um deliverable para este serviço
+  const { data: existingDeliverable } = await supabaseAdmin
+    .from("contract_deliverables")
+    .select("id")
+    .eq("contract_id", contractId)
+    .eq("service_name", serviceName)
+    .maybeSingle()
+
+  if (existingDeliverable) {
+    // Atualiza o status existente
+    const newStatus = !currentStatus
+    const { error } = await supabaseAdmin
+      .from("contract_deliverables")
+      .update({
+        delivered: newStatus,
+        delivery_date: newStatus ? new Date().toISOString().split("T")[0] : null,
+      })
+      .eq("id", existingDeliverable.id)
+
+    if (error) {
+      console.error("Erro ao atualizar deliverable:", error)
+      return { error: `Não foi possível atualizar: ${error.message}` }
+    }
+  } else {
+    // Cria um novo deliverable
+    const { error } = await supabaseAdmin.from("contract_deliverables").insert({
+      contract_id: contractId,
+      service_name: serviceName,
+      delivered: true,
+      delivery_date: new Date().toISOString().split("T")[0],
+    })
+
+    if (error) {
+      console.error("Erro ao criar deliverable:", error)
+      return { error: `Não foi possível criar: ${error.message}` }
+    }
+  }
+
+  revalidatePath(`/dashboard/clients/${clientId}`)
+  return { success: currentStatus ? "Marcado como não entregue" : "Marcado como entregue!" }
 }

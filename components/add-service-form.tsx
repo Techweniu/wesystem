@@ -15,17 +15,12 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ServicesMultiSelect } from "@/components/services-multi-select"
 import { addOneTimeService } from "@/app/dashboard/clients/[id]/actions"
 import { toast } from "sonner"
 import { PlusCircle } from "lucide-react"
-import { useRouter } from "next/navigation" // IMPORTADO AQUI
+import { useRouter } from "next/navigation"
 
 function SubmitButton() {
   const { pending } = useFormStatus()
@@ -37,16 +32,16 @@ function SubmitButton() {
 }
 
 interface AddServiceFormProps {
-  clientId: string;
+  clientId: string
 }
 
 export function AddServiceForm({ clientId }: AddServiceFormProps) {
   const [open, setOpen] = useState(false)
   const formRef = useRef<HTMLFormElement>(null)
-  const router = useRouter() // ADICIONADO AQUI
+  const router = useRouter()
 
   async function handleFormSubmit(formData: FormData) {
-    formData.append('clientId', clientId);
+    formData.append("clientId", clientId)
     const result = await addOneTimeService(formData)
 
     if (result.error) {
@@ -57,7 +52,7 @@ export function AddServiceForm({ clientId }: AddServiceFormProps) {
       toast.success(result.success)
       setOpen(false)
       formRef.current?.reset()
-      router.refresh() // ADICIONADO AQUI PARA FORÇAR A ATUALIZAÇÃO
+      router.refresh()
     }
   }
 
@@ -69,31 +64,47 @@ export function AddServiceForm({ clientId }: AddServiceFormProps) {
           Adicionar Serviço Pontual
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>Adicionar Serviço Pontual</DialogTitle>
-          <DialogDescription>
-            Lance um novo serviço avulso para este cliente.
-          </DialogDescription>
+          <DialogDescription>Lance um novo serviço avulso para este cliente.</DialogDescription>
         </DialogHeader>
         <form ref={formRef} action={handleFormSubmit}>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="name" className="text-right">Serviço*</Label>
+              <Label htmlFor="name" className="text-right">
+                Serviço*
+              </Label>
               <Input id="name" name="name" placeholder="Ex: Criação de Logo" className="col-span-3" required />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="value" className="text-right">Valor*</Label>
-              <Input id="value" name="value" type="number" step="0.01" placeholder="Ex: 1500.00" className="col-span-3" required />
+              <Label htmlFor="value" className="text-right">
+                Valor*
+              </Label>
+              <Input
+                id="value"
+                name="value"
+                type="number"
+                step="0.01"
+                placeholder="Ex: 1500.00"
+                className="col-span-3"
+                required
+              />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="date" className="text-right">Data*</Label>
+              <Label htmlFor="date" className="text-right">
+                Data*
+              </Label>
               <Input id="date" name="date" type="date" className="col-span-3" required />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="status" className="text-right">Status*</Label>
+              <Label htmlFor="status" className="text-right">
+                Status*
+              </Label>
               <Select name="status" defaultValue="pending" required>
-                <SelectTrigger className="col-span-3"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="col-span-3">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="pending">Pendente</SelectItem>
                   <SelectItem value="completed">Concluído</SelectItem>
@@ -101,10 +112,15 @@ export function AddServiceForm({ clientId }: AddServiceFormProps) {
                 </SelectContent>
               </Select>
             </div>
+            <div className="col-span-4">
+              <ServicesMultiSelect name="services" />
+            </div>
           </div>
           <DialogFooter>
             <DialogClose asChild>
-              <Button type="button" variant="outline">Cancelar</Button>
+              <Button type="button" variant="outline">
+                Cancelar
+              </Button>
             </DialogClose>
             <SubmitButton />
           </DialogFooter>
