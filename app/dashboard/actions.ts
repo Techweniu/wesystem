@@ -56,7 +56,7 @@ export async function getAiInsights() {
 
   try {
     const { text } = await generateText({
-      model: "openai/gpt-oss-120b",
+      model: "meta/llama-3.3-70b",
       prompt: systemPrompt,
       temperature: 0.5,
     })

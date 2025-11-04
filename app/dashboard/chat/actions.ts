@@ -60,7 +60,7 @@ export async function generateChatResponse(chatHistory: unknown) {
 
   try {
     const { text } = await generateText({
-      model: "openai/gpt-oss-120b",
+      model: "meta/llama-3.3-70b",
       messages: [
         { role: "system", content: systemPrompt },
         ...recentHistory.map((msg) => ({
