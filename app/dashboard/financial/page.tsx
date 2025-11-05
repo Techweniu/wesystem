@@ -9,6 +9,7 @@ import { FinancialCharts } from "@/components/financial-charts"
 import { PeriodSelector } from "@/components/period-selector"
 import { ClientPaymentsTable } from "@/components/client-payments-table" // Importar o novo componente
 import { FinancialSummaryCards } from "@/components/financial-summary-cards"
+import { EmployeePaymentsTable } from "@/components/employee-payments-table" // Importar novo componente
 import { parseISO, format, isPast, addMonths } from "date-fns" // Funções adicionadas de date-fns
 import { ptBR } from "date-fns/locale"
 
@@ -68,7 +69,7 @@ async function getFinancialData(period = "month") {
 
   const { data: costs } = await supabase
     .from("costs")
-    .select("*")
+    .select("*, proof_url")
     .gte("date", startDateStr)
     .lte("date", endDateStr) // Filtrar até o fim do período
     .order("date", { ascending: false })
@@ -78,9 +79,10 @@ async function getFinancialData(period = "month") {
     is_paid: !!cost.paid_date,
   }))
 
+  // CORREÇÃO 1: Adicionado "payment_day" ao select
   const { data: employees } = await supabase
     .from("employees")
-    .select("id, name, salary")
+    .select("id, name, salary, payment_day")
     .eq("status", "active")
     .order("name")
 
@@ -97,6 +99,20 @@ async function getFinancialData(period = "month") {
     .eq("status", "active") // Apenas clientes ativos
     .order("name") // Ordena por nome
 
+  // Busca pagamentos de clientes dentro do período
+  const { data: clientPaymentsData } = await supabase
+    .from("client_payments")
+    .select("amount, payment_date, proof_url, client_id")
+    .gte("payment_date", startDateStr)
+    .lte("payment_date", endDateStr)
+
+  const clientPaymentProofs = new Map<string, string>()
+  clientPaymentsData?.forEach((payment) => {
+    if (payment.proof_url && payment.client_id) {
+      clientPaymentProofs.set(payment.client_id, payment.proof_url)
+    }
+  })
+
   // Processa os dados dos clientes para a tabela de pagamentos
   const clientPayments = clientsWithContracts
     ?.map((client) => {
@@ -107,48 +123,38 @@ async function getFinancialData(period = "month") {
 
       // Verifica se há um pagamento registrado neste mês/ano
       const paymentThisMonth = client.client_payments.find((p) => {
-        const paymentDate = parseISO(p.payment_date) // Converte string para data
+        const paymentDate = parseISO(p.payment_date)
         return paymentDate.getMonth() === currentMonth && paymentDate.getFullYear() === currentYear
       })
-      const isPaidThisMonth = !!paymentThisMonth // True se encontrou pagamento, false senão
+      const isPaidThisMonth = !!paymentThisMonth
 
-      // Determina a próxima data de pagamento (simplificado: assume pagamento mensal no dia 1 após o início do contrato)
-      // Lógica mais complexa seria necessária para dias de pagamento específicos por cliente/contrato
+      // Determina a próxima data de pagamento
       let nextPaymentDateFormatted = null
-      const paymentDay = 1 // Assumindo dia 1 para simplificar
+      const paymentDay = 1
       if (activeContracts.length > 0) {
         let nextPaymentDate = new Date(currentYear, currentMonth, paymentDay)
 
-        // Se hoje já passou do dia de pagamento e ainda não foi pago, o próximo é no mês seguinte
         if (today.getDate() > paymentDay && !isPaidThisMonth) {
           nextPaymentDate = addMonths(nextPaymentDate, 1)
         } else if (isPaidThisMonth) {
-          // Se já foi pago este mês, o próximo é no mês seguinte
           nextPaymentDate = addMonths(nextPaymentDate, 1)
         }
-        // Poderia adicionar lógica para garantir que a data de pagamento não seja antes do início do contrato, mas mantendo simples por agora.
 
-        nextPaymentDateFormatted = format(nextPaymentDate, "dd/MM/yyyy", { locale: ptBR }) // Formata a data
+        nextPaymentDateFormatted = format(nextPaymentDate, "dd/MM/yyyy", { locale: ptBR })
       }
 
       return {
         clientId: client.id,
         clientName: client.name,
-        expectedAmount: expectedMonthlyPayment, // Valor esperado baseado nos contratos ativos
-        isPaidThisMonth: isPaidThisMonth, // Status do pagamento neste mês
-        nextPaymentDate: nextPaymentDateFormatted, // Data formatada do próximo vencimento
-        // Passa os contratos ativos caso precise vincular pagamento a um contrato específico no futuro
+        expectedAmount: expectedMonthlyPayment,
+        isPaidThisMonth: isPaidThisMonth,
+        nextPaymentDate: nextPaymentDateFormatted,
         activeContracts: activeContracts.map((c) => ({ id: c.id, name: c.name })),
+        proofUrl: clientPaymentProofs.get(client.id) || null,
       }
     })
-    .filter((p) => p.expectedAmount > 0) // Mostra apenas clientes com valor mensal > 0
-    .sort((a, b) => a.clientName.localeCompare(b.clientName)) // Ordena por nome do cliente
-
-  const { data: clientPaymentsData } = await supabase
-    .from("client_payments")
-    .select("amount, payment_date")
-    .gte("payment_date", startDateStr)
-    .lte("payment_date", endDateStr) // Filtrar até o fim do período
+    .filter((p) => p.expectedAmount > 0)
+    .sort((a, b) => a.clientName.localeCompare(b.clientName))
 
   const contractsReceived = clientPaymentsData?.reduce((sum, p) => sum + Number(p.amount), 0) || 0
 
@@ -225,6 +231,54 @@ async function getFinancialData(period = "month") {
   const totalRevenue = servicesRevenue
   const profit = totalRevenue - totalCosts
 
+  const { data: employeePaymentsDetailed } = await supabase
+    .from("employee_payments")
+    .select("employee_id, proof_url, payment_date")
+    .gte("payment_date", startDateStr)
+    .lte("payment_date", endDateStr)
+
+  const employeePaymentProofs = new Map<string, string>()
+  employeePaymentsDetailed?.forEach((payment) => {
+    if (payment.proof_url && payment.employee_id) {
+      employeePaymentProofs.set(payment.employee_id, payment.proof_url)
+    }
+  })
+
+  // CORREÇÃO 2: Lógica de data de pagamento do funcionário atualizada
+  const employeePayments =
+    employees
+      ?.map((employee) => {
+        const isPaidThisMonth = paidEmployeeIds.has(employee.id)
+
+        let nextPaymentDateFormatted = null
+        
+        // --- INÍCIO DA CORREÇÃO ---
+        // Usa o payment_day do funcionário; se não houver, fica null
+        if (employee.payment_day) {
+          const paymentDay = employee.payment_day // Usa o dia específico do funcionário
+          let nextPaymentDate = new Date(currentYear, currentMonth, paymentDay)
+
+          // Lógica robusta (baseada na página da equipe):
+          // Se a data de pagamento deste mês já passou, avança para o próximo mês
+          if (today.getTime() > nextPaymentDate.getTime()) {
+            nextPaymentDate = addMonths(nextPaymentDate, 1)
+          }
+
+          nextPaymentDateFormatted = format(nextPaymentDate, "dd/MM/yyyy", { locale: ptBR })
+        }
+        // --- FIM DA CORREÇÃO ---
+
+        return {
+          employeeId: employee.id,
+          employeeName: employee.name,
+          salary: Number(employee.salary || 0),
+          isPaidThisMonth,
+          nextPaymentDate: nextPaymentDateFormatted, // Agora usa a data correta
+          proofUrl: employeePaymentProofs.get(employee.id) || null,
+        }
+      })
+      .sort((a, b) => a.employeeName.localeCompare(b.employeeName)) || []
+
   return {
     services,
     costs: costsWithPaymentStatus,
@@ -243,6 +297,7 @@ async function getFinancialData(period = "month") {
     salariesPending,
     otherCostsPaid,
     otherCostsPending,
+    employeePayments, // Adicionar aos dados retornados
   }
 }
 
@@ -286,11 +341,14 @@ export default async function FinancialPage({
       <Tabs defaultValue="costs" className="space-y-4">
         {" "}
         {/* Define 'costs' como aba padrão */}
-        {/* Lista de abas (gatilhos) - agora com 4 colunas */}
-        <TabsList className="grid w-full grid-cols-4">
+        {/* Lista de abas (gatilhos) - agora com 5 colunas */}
+        <TabsList className="grid w-full grid-cols-5">
           {/* Gatilho da nova aba */}
           <TabsTrigger value="clientPayments">
             <Users className="mr-2 h-4 w-4" /> Pagamentos de Clientes
+          </TabsTrigger>
+          <TabsTrigger value="employeePayments">
+            <Users className="mr-2 h-4 w-4" /> Pagamentos de Funcionários
           </TabsTrigger>
           <TabsTrigger value="costs">Custos Detalhados</TabsTrigger>
           <TabsTrigger value="services">Serviços Pontuais</TabsTrigger>
@@ -300,6 +358,12 @@ export default async function FinancialPage({
         <TabsContent value="clientPayments">
           {/* Renderiza a nova tabela de pagamentos */}
           <ClientPaymentsTable clientPayments={data.clientPayments} />
+        </TabsContent>
+        {/* --- Fim do Conteúdo da Nova Aba --- */}
+        {/* --- Conteúdo da Nova Aba de Pagamentos de Funcionários --- */}
+        <TabsContent value="employeePayments">
+          {/* Renderiza a nova tabela de pagamentos de funcionários */}
+          <EmployeePaymentsTable employeePayments={data.employeePayments} />
         </TabsContent>
         {/* --- Fim do Conteúdo da Nova Aba --- */}
         {/* Conteúdo da Aba de Custos */}

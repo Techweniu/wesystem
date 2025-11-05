@@ -199,7 +199,7 @@ export async function markClientPaymentAsPaid(formData: FormData) {
       client_id: clientId,
       amount: amount,
       payment_date: new Date().toISOString(),
-      proof_url: urlData.publicUrl,
+      proof_url: urlData.publicUrl, // Now saving the proof URL
     })
 
     if (error) {
@@ -314,13 +314,11 @@ export async function markCostAsPaid(formData: FormData) {
       return { error: "Erro ao fazer upload do comprovante." }
     }
 
-    const { data: urlData } = supabaseAdmin.storage.from("financial-proofs").getPublicUrl(filePath)
-
     const { error: paymentError } = await supabaseAdmin
       .from("costs")
       .update({
         paid_date: new Date().toISOString().split("T")[0],
-        proof_url: urlData.publicUrl,
+        // proof_url: urlData.publicUrl, // Removed proof_url as it does not exist in the current schema
       })
       .eq("id", costId)
 

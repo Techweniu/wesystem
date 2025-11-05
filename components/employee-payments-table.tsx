@@ -5,68 +5,66 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { MarkClientPaymentButton } from "./mark-client-payment-button"
+import { MarkPaymentButton } from "./mark-payment-button"
 import { FileText, ExternalLink } from "lucide-react"
 
-interface ClientPaymentInfo {
-  clientId: string
-  clientName: string
-  expectedAmount: number
+interface EmployeePaymentInfo {
+  employeeId: string
+  employeeName: string
+  salary: number
   isPaidThisMonth: boolean
   nextPaymentDate: string | null
-  activeContracts: Array<{ id: string; name: string }>
   proofUrl?: string | null
 }
 
-interface ClientPaymentsTableProps {
-  clientPayments: ClientPaymentInfo[]
+interface EmployeePaymentsTableProps {
+  employeePayments: EmployeePaymentInfo[]
 }
 
-export function ClientPaymentsTable({ clientPayments }: ClientPaymentsTableProps) {
+export function EmployeePaymentsTable({ employeePayments }: EmployeePaymentsTableProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Próximos Pagamentos de Clientes (Baseado no MRR)</CardTitle>
+        <CardTitle>Próximos Pagamentos de Funcionários</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="rounded-md border">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Cliente</TableHead>
-                <TableHead>Próximo Vencimento</TableHead>
-                <TableHead className="text-right">Valor Esperado (MRR)</TableHead>
+                <TableHead>Funcionário</TableHead>
+                <TableHead>Próximo Pagamento</TableHead>
+                <TableHead className="text-right">Salário</TableHead>
                 <TableHead className="text-center">Status (Mês Atual)</TableHead>
                 <TableHead className="text-center w-[180px]">Ação</TableHead>
                 <TableHead className="text-center">Comprovante</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {clientPayments.length > 0 ? (
-                clientPayments.map((payment) => (
-                  <TableRow key={payment.clientId}>
+              {employeePayments.length > 0 ? (
+                employeePayments.map((payment) => (
+                  <TableRow key={payment.employeeId}>
                     <TableCell className="font-medium">
-                      <Link href={`/dashboard/clients/${payment.clientId}`} className="hover:underline">
-                        {payment.clientName}
+                      <Link href={`/dashboard/team/${payment.employeeId}`} className="hover:underline">
+                        {payment.employeeName}
                       </Link>
                     </TableCell>
                     <TableCell>
                       {payment.nextPaymentDate || <span className="text-muted-foreground italic">Não definido</span>}
                     </TableCell>
                     <TableCell className="text-right font-medium">
-                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
-                        payment.expectedAmount,
-                      )}
+                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(payment.salary)}
                     </TableCell>
                     <TableCell className="text-center">
                       <Badge variant={payment.isPaidThisMonth ? "default" : "secondary"}>
-                        {payment.isPaidThisMonth ? "Recebido" : "Aguardando"}
+                        {payment.isPaidThisMonth ? "Pago" : "Pendente"}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-center">
-                      <MarkClientPaymentButton
-                        clientId={payment.clientId}
-                        expectedAmount={payment.expectedAmount}
+                      <MarkPaymentButton
+                        employeeId={payment.employeeId}
+                        employeeName={payment.employeeName}
+                        salary={payment.salary}
                         isPaidThisMonth={payment.isPaidThisMonth}
                       />
                     </TableCell>
@@ -88,7 +86,7 @@ export function ClientPaymentsTable({ clientPayments }: ClientPaymentsTableProps
               ) : (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                    Nenhum pagamento esperado de clientes ativos com contrato mensal.
+                    Nenhum funcionário ativo encontrado.
                   </TableCell>
                 </TableRow>
               )}
