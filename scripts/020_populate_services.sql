@@ -11,4 +11,5 @@ INSERT INTO services (id, name, description) VALUES
   (gen_random_uuid(), 'Email Marketing', 'Criação e gestão de campanhas de email marketing'),
   (gen_random_uuid(), 'Consultoria Digital', 'Consultoria estratégica em marketing digital'),
   (gen_random_uuid(), 'Branding', 'Desenvolvimento e gestão de marca')
-ON CONFLICT (id) DO NOTHING;
+-- Corrigido ON CONFLICT para usar name ao invés de id
+ON CONFLICT (name) DO NOTHING;
