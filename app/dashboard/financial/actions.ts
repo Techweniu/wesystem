@@ -147,16 +147,12 @@ export async function deleteCost(id: string) {
 
 // --- Fim das Ações de Custo Existentes ---
 
-// --- NOVA: Ação para Marcar Pagamento do Cliente ---
-// Schema para validar dados do pagamento do cliente
+// --- Ação para Marcar Pagamento do Cliente ---
 const clientPaymentSchema = z.object({
-  clientId: z.string().uuid("ID do cliente inválido."), // Garante que é um UUID
-  amount: z.coerce.number().positive("O valor do pagamento deve ser positivo."), // Converte para número e valida
-  // Opcional: Adicione contractId se quiser vincular o pagamento a um contrato específico
-  // contractId: z.string().uuid("ID do contrato inválido.").optional().nullable(),
+  clientId: z.string().uuid("ID do cliente inválido."),
+  amount: z.coerce.number().positive("O valor do pagamento deve ser positivo."),
 })
 
-// Função para registrar o pagamento recebido de um cliente
 export async function markClientPaymentAsPaid(formData: FormData) {
   const proofFile = formData.get("proof_file") as File
   if (!proofFile || proofFile.size === 0) {
@@ -199,7 +195,7 @@ export async function markClientPaymentAsPaid(formData: FormData) {
       client_id: clientId,
       amount: amount,
       payment_date: new Date().toISOString(),
-      proof_url: urlData.publicUrl, // Now saving the proof URL
+      proof_url: urlData.publicUrl,
     })
 
     if (error) {
@@ -214,15 +210,12 @@ export async function markClientPaymentAsPaid(formData: FormData) {
     return { error: "Erro ao processar pagamento." }
   }
 }
-// --- FIM DA NOVA Ação ---
 
-// --- NOVA: Ação para Reverter Pagamento do Cliente ---
-// Schema para validar dados para reverter pagamento do cliente
+// --- Ação para Reverter Pagamento do Cliente ---
 const undoClientPaymentSchema = z.object({
   clientId: z.string().uuid("ID do cliente inválido."),
 })
 
-// Função para reverter o pagamento recebido de um cliente
 export async function undoClientPayment(formData: FormData) {
   const validatedFields = undoClientPaymentSchema.safeParse(Object.fromEntries(formData))
 
@@ -235,7 +228,6 @@ export async function undoClientPayment(formData: FormData) {
 
   const supabaseAdmin = createAdminClient()
 
-  // Busca o pagamento mais recente do mês atual para este cliente
   const startOfMonth = new Date()
   startOfMonth.setDate(1)
   startOfMonth.setHours(0, 0, 0, 0)
@@ -263,15 +255,13 @@ export async function undoClientPayment(formData: FormData) {
   revalidatePath("/dashboard/financial")
   return { success: "Pagamento revertido com sucesso!" }
 }
-// --- FIM DA NOVA Ação ---
 
-// --- NOVA: Ação para Marcar Pagamento de Custo ---
+// --- Ação para Marcar Pagamento de Custo ---
 const costPaymentSchema = z.object({
   costId: z.string().uuid("ID do custo inválido."),
   amount: z.coerce.number().positive("O valor do pagamento deve ser positivo."),
 })
 
-// Função para registrar o pagamento de um custo
 export async function markCostAsPaid(formData: FormData) {
   const validatedFields = costPaymentSchema.safeParse(Object.fromEntries(formData))
 
@@ -327,7 +317,6 @@ export async function markCostAsPaid(formData: FormData) {
       return { error: `Erro ao registrar pagamento: ${paymentError.message}` }
     }
 
-    // Se for recorrente, cria uma nova ocorrência para o próximo mês
     if (cost.is_recurring) {
       const nextDate = new Date(cost.date)
       nextDate.setMonth(nextDate.getMonth() + 1)
@@ -339,7 +328,7 @@ export async function markCostAsPaid(formData: FormData) {
         date: nextDate.toISOString().split("T")[0],
         is_recurring: true,
         paid_date: null,
-        proof_url: null, // Nova ocorrência não tem comprovante ainda
+        proof_url: null,
       })
 
       if (newCostError) {
@@ -355,12 +344,11 @@ export async function markCostAsPaid(formData: FormData) {
   }
 }
 
-// --- NOVA: Ação para Reverter Pagamento de Custo ---
+// --- Ação para Reverter Pagamento de Custo ---
 const undoCostPaymentSchema = z.object({
   costId: z.string().uuid("ID do custo inválido."),
 })
 
-// Função para reverter o pagamento de um custo
 export async function undoCostPayment(formData: FormData) {
   const validatedFields = undoCostPaymentSchema.safeParse(Object.fromEntries(formData))
 
@@ -373,7 +361,6 @@ export async function undoCostPayment(formData: FormData) {
 
   const supabaseAdmin = createAdminClient()
 
-  // Remove a data de pagamento, marcando como não pago
   const { error: updateError } = await supabaseAdmin.from("costs").update({ paid_date: null }).eq("id", costId)
 
   if (updateError) {
@@ -385,7 +372,7 @@ export async function undoCostPayment(formData: FormData) {
   return { success: "Pagamento revertido com sucesso!" }
 }
 
-// --- NOVA: Ação para Marcar Pagamento de Funcionário ---
+// --- Ação para Marcar Pagamento de Funcionário ---
 const paymentSchema = z.object({
   employeeId: z.string().uuid(),
   amount: z.coerce.number().positive("O valor do pagamento deve ser positivo."),
@@ -441,6 +428,10 @@ export async function markPaymentAsPaid(formData: FormData) {
       return { error: `Erro ao registrar pagamento: ${error.message}` }
     }
 
+    // ===================================
+    // --- CORREÇÃO APLICADA AQUI ---
+    // ===================================
+    revalidatePath("/dashboard/financial") // <-- Adicionada esta linha
     revalidatePath("/dashboard/team")
     revalidatePath(`/dashboard/team/${employeeId}`)
     return { success: "Pagamento registrado com sucesso!" }
@@ -449,4 +440,168 @@ export async function markPaymentAsPaid(formData: FormData) {
     return { error: "Erro ao processar pagamento." }
   }
 }
-// --- FIM DA NOVA Ação ---
+
+// --- AÇÃO PARA REVERTER PAGAMENTO (MOVIDA DE team/actions.ts) ---
+const undoPaymentSchema = z.object({
+  employeeId: z.string().uuid("ID do funcionário inválido."),
+})
+
+export async function undoEmployeePayment(formData: FormData) {
+  const validatedFields = undoPaymentSchema.safeParse(Object.fromEntries(formData))
+
+  if (!validatedFields.success) {
+    const firstError = Object.values(validatedFields.error.flatten().fieldErrors)[0]?.[0]
+    return { error: firstError || "Dados inválidos para reverter o pagamento." }
+  }
+
+  const { employeeId } = validatedFields.data
+
+  const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+
+  const startOfMonth = new Date()
+  startOfMonth.setDate(1)
+  startOfMonth.setHours(0, 0, 0, 0)
+
+  const { data: recentPayment, error: fetchError } = await supabaseAdmin
+    .from("employee_payments")
+    .select("id")
+    .eq("employee_id", employeeId)
+    .gte("payment_date", startOfMonth.toISOString())
+    .order("payment_date", { ascending: false })
+    .limit(1)
+    .single()
+
+  if (fetchError || !recentPayment) {
+    return { error: "Nenhum pagamento encontrado para reverter neste mês." }
+  }
+
+  const { error: deleteError } = await supabaseAdmin.from("employee_payments").delete().eq("id", recentPayment.id)
+
+  if (deleteError) {
+    console.error("Erro ao reverter pagamento:", deleteError)
+    return { error: `Erro ao reverter pagamento: ${deleteError.message}` }
+  }
+
+  revalidatePath("/dashboard/financial")
+  revalidatePath("/dashboard/team")
+  revalidatePath(`/dashboard/team/${employeeId}`)
+  return { success: "Pagamento revertido com sucesso!" }
+}
+
+// ==========================================================
+// --- NOVAS AÇÕES PARA SERVIÇOS PONTUAIS ---
+// ==========================================================
+
+// Schema para marcar recebimento de serviço pontual
+const servicePaymentSchema = z.object({
+  serviceId: z.string().uuid("ID do serviço inválido."),
+  clientId: z.string().uuid("ID do cliente inválido."),
+  amount: z.coerce.number().positive("O valor deve ser positivo."),
+})
+
+// Ação para marcar um serviço pontual como RECEBIDO
+export async function markServiceAsReceived(formData: FormData) {
+  const proofFile = formData.get("proof_file") as File
+  if (!proofFile || proofFile.size === 0) {
+    return { error: "Comprovante de recebimento é obrigatório." }
+  }
+  if (proofFile.size > 10 * 1024 * 1024) {
+    return { error: "O arquivo deve ter no máximo 10MB." }
+  }
+
+  const validatedFields = servicePaymentSchema.safeParse(Object.fromEntries(formData))
+  if (!validatedFields.success) {
+    const firstError = Object.values(validatedFields.error.flatten().fieldErrors)[0]?.[0]
+    return { error: firstError || "Dados inválidos." }
+  }
+
+  const { serviceId, clientId, amount } = validatedFields.data
+
+  try {
+    const supabaseAdmin = createAdminClient()
+
+    // 1. Upload do comprovante
+    const fileExtension = proofFile.name.split(".").pop()
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExtension}`
+    const filePath = `service-payments/${fileName}` // Pasta dedicada
+
+    const { error: uploadError } = await supabaseAdmin.storage.from("financial-proofs").upload(filePath, proofFile, {
+      contentType: proofFile.type,
+      upsert: false,
+    })
+
+    if (uploadError) {
+      console.error("Erro ao fazer upload (serviço):", uploadError)
+      return { error: "Erro ao fazer upload do comprovante." }
+    }
+
+    const { data: urlData } = supabaseAdmin.storage.from("financial-proofs").getPublicUrl(filePath)
+
+    // 2. Atualiza a tabela one_time_services
+    const { error: updateError } = await supabaseAdmin
+      .from("one_time_services")
+      .update({
+        received_date: new Date().toISOString().split("T")[0],
+        payment_proof_url: urlData.publicUrl,
+        status: "completed", // Define o status como 'completed' ao receber
+      })
+      .eq("id", serviceId)
+
+    if (updateError) {
+      console.error("Erro Supabase (markServiceAsReceived):", updateError)
+      // Tenta deletar o arquivo órfão se a atualização do DB falhar
+      await supabaseAdmin.storage.from("financial-proofs").remove([filePath])
+      return { error: `Erro ao registrar recebimento: ${updateError.message}` }
+    }
+
+    // Revalida ambas as páginas
+    revalidatePath("/dashboard/financial")
+    revalidatePath(`/dashboard/clients/${clientId}`)
+    return { success: "Recebimento do serviço registrado com sucesso!" }
+  } catch (error) {
+    console.error("Erro ao processar recebimento:", error)
+    return { error: "Erro ao processar recebimento." }
+  }
+}
+
+// Schema para reverter recebimento de serviço pontual
+const undoServiceReceiptSchema = z.object({
+  serviceId: z.string().uuid("ID do serviço inválido."),
+  clientId: z.string().uuid("ID do cliente inválido."),
+})
+
+// Ação para reverter o recebimento de um serviço pontual
+export async function undoServiceReceipt(formData: FormData) {
+  const validatedFields = undoServiceReceiptSchema.safeParse(Object.fromEntries(formData))
+  if (!validatedFields.success) {
+    const firstError = Object.values(validatedFields.error.flatten().fieldErrors)[0]?.[0]
+    return { error: firstError || "Dados inválidos." }
+  }
+
+  const { serviceId, clientId } = validatedFields.data
+
+  const supabaseAdmin = createAdminClient()
+
+  // TODO: Idealmente, deveríamos deletar o comprovante do Storage aqui
+  // (Omitido por simplicidade, mas é uma melhoria recomendada)
+
+  // 2. Atualiza a tabela one_time_services
+  const { error: updateError } = await supabaseAdmin
+    .from("one_time_services")
+    .update({
+      received_date: null,
+      payment_proof_url: null,
+      status: "pending", // Reverte o status para 'pending'
+    })
+    .eq("id", serviceId)
+
+  if (updateError) {
+    console.error("Erro Supabase (undoServiceReceipt):", updateError)
+    return { error: `Erro ao reverter recebimento: ${updateError.message}` }
+  }
+
+  // Revalida ambas as páginas
+  revalidatePath("/dashboard/financial")
+  revalidatePath(`/dashboard/clients/${clientId}`)
+  return { success: "Recebimento do serviço revertido!" }
+}

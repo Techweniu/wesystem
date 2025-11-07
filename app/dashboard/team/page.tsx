@@ -142,7 +142,7 @@ export default async function TeamPage({ searchParams }: { searchParams?: { name
                 <TableHead className="text-right">Custo Gerado</TableHead>
                 <TableHead>Dias Restantes</TableHead>
                 <TableHead>Próximo Pagamento</TableHead>
-                <TableHead>Pagamento (Mês)</TableHead>
+                {/* <TableHead>Pagamento (Mês)</TableHead> <-- COLUNA REMOVIDA */}
                 {/* A coluna "Observações" foi removida daqui */}
                 <TableHead className="w-[50px] text-right">Ações</TableHead>
               </TableRow>
@@ -154,8 +154,8 @@ export default async function TeamPage({ searchParams }: { searchParams?: { name
                 ))
               ) : (
                 <TableRow>
-                  {/* O colSpan foi ajustado para 8 */}
-                  <TableCell colSpan={8} className="h-24 text-center">
+                  {/* O colSpan foi ajustado para 7 */}
+                  <TableCell colSpan={7} className="h-24 text-center">
                     Nenhum colaborador encontrado.
                   </TableCell>
                 </TableRow>

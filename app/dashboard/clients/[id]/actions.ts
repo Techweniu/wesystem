@@ -7,7 +7,7 @@ import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
 import { isNonRecurringService } from "@/lib/non-recurring-services"
 
-// --- Action para Serviço Pontual ---
+// --- Action para Serviço Pontual (MODIFICADA) ---
 const oneTimeServiceSchema = z.object({
   clientId: z.string().uuid("ID do cliente inválido."),
   name: z.string().min(1, "O nome do serviço é obrigatório."),
@@ -16,7 +16,7 @@ const oneTimeServiceSchema = z.object({
   status: z.enum(["pending", "completed", "cancelled"], {
     errorMap: () => ({ message: "Status inválido." }),
   }),
-  services: z.string().optional(),
+  // services: z.string().optional(), // <-- CAMPO REMOVIDO DO SCHEMA
 })
 
 export async function addOneTimeService(formData: FormData) {
@@ -26,9 +26,11 @@ export async function addOneTimeService(formData: FormData) {
     const firstError = Object.values(validatedFields.error.flatten().fieldErrors).flat()[0]
     return { error: firstError || "Dados inválidos." }
   }
-  const { clientId, name, value, date, status, services } = validatedFields.data
+  // 'services' removido da desestruturação
+  const { clientId, name, value, date, status } = validatedFields.data
 
-  const servicesArray = services ? JSON.parse(services) : []
+  // Lógica do 'servicesArray' removida
+  // const servicesArray = services ? JSON.parse(services) : []
 
   const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
   const { error } = await supabaseAdmin.from("one_time_services").insert([
@@ -38,7 +40,7 @@ export async function addOneTimeService(formData: FormData) {
       value,
       date,
       status,
-      services: servicesArray, // Adicionar array de serviços
+      // 'services: servicesArray' removido do insert
     },
   ])
   if (error) {
@@ -47,8 +49,11 @@ export async function addOneTimeService(formData: FormData) {
   }
   revalidatePath(`/dashboard/clients/${clientId}`)
   revalidatePath("/dashboard/clients")
+  revalidatePath("/dashboard/financial") // Adicionado para garantir que o financeiro atualize
   return { success: "Serviço pontual adicionado com sucesso!" }
 }
+
+// ... (Restante do arquivo 'actions.ts' sem alterações) ...
 
 // --- Action para o NPS Interno ---
 const npsSchema = z.object({

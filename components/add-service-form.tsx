@@ -16,7 +16,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ServicesMultiSelect } from "@/components/services-multi-select"
+// ServicesMultiSelect foi removido
 import { addOneTimeService } from "@/app/dashboard/clients/[id]/actions"
 import { toast } from "sonner"
 import { PlusCircle } from "lucide-react"
@@ -69,53 +69,50 @@ export function AddServiceForm({ clientId }: AddServiceFormProps) {
           <DialogTitle>Adicionar Serviço Pontual</DialogTitle>
           <DialogDescription>Lance um novo serviço avulso para este cliente.</DialogDescription>
         </DialogHeader>
-        <form ref={formRef} action={handleFormSubmit}>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="name" className="text-right">
-                Serviço*
-              </Label>
-              <Input id="name" name="name" placeholder="Ex: Criação de Logo" className="col-span-3" required />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="value" className="text-right">
-                Valor*
-              </Label>
+        {/* O layout do formulário foi refeito para ser vertical (space-y-4) */}
+        <form ref={formRef} action={handleFormSubmit} className="space-y-4 py-4">
+          <div className="grid gap-2">
+            <Label htmlFor="name">Nome do Serviço*</Label>
+            <Input id="name" name="name" placeholder="Ex: Criação de Logo" required />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="value">Valor*</Label>
               <Input
                 id="value"
                 name="value"
                 type="number"
                 step="0.01"
                 placeholder="Ex: 1500.00"
-                className="col-span-3"
                 required
               />
             </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="date" className="text-right">
-                Data*
-              </Label>
-              <Input id="date" name="date" type="date" className="col-span-3" required />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="status" className="text-right">
-                Status*
-              </Label>
-              <Select name="status" defaultValue="pending" required>
-                <SelectTrigger className="col-span-3">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="pending">Pendente</SelectItem>
-                  <SelectItem value="completed">Concluído</SelectItem>
-                  <SelectItem value="cancelled">Cancelado</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="col-span-4">
-              <ServicesMultiSelect name="services" />
+            <div className="grid gap-2">
+              <Label htmlFor="date">Data*</Label>
+              <Input id="date" name="date" type="date" required />
             </div>
           </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="status">Status Inicial*</Label>
+            <Select name="status" defaultValue="pending" required>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pending">Pendente</SelectItem>
+                <SelectItem value="completed">Concluído</SelectItem>
+                <SelectItem value="cancelled">Cancelado</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              O status será "Concluído" automaticamente quando o pagamento for registrado no Financeiro.
+            </p>
+          </div>
+
+          {/* O ServicesMultiSelect foi removido daqui */}
+
           <DialogFooter>
             <DialogClose asChild>
               <Button type="button" variant="outline">

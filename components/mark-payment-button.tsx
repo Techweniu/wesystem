@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { CheckCircle, Undo2 } from "lucide-react"
 import { toast } from "sonner"
-import { markPaymentAsPaid, undoEmployeePayment } from "@/app/dashboard/team/actions"
+import { markPaymentAsPaid, undoEmployeePayment } from "@/app/dashboard/financial/actions" // <-- CAMINHO ATUALIZADO
 
 interface MarkPaymentButtonProps {
   employeeId: string

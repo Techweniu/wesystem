@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { EditEmployeeForm } from "@/components/edit-employee-form"
-import { MarkPaymentButton } from "@/components/mark-payment-button"
+// import { MarkPaymentButton } from "@/components/mark-payment-button" // <-- REMOVIDO
 import { AddEmployeeObservationForm } from "@/components/add-employee-observation-form"
 import { AddEmployeeContractForm } from "@/components/add-employee-contract-form"
 import { Separator } from "@/components/ui/separator"
@@ -374,11 +374,7 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
                     )}
                   </p>
                 </div>
-                <MarkPaymentButton
-                  employeeId={employee.id}
-                  salary={employee.salary || 0}
-                  isPaidThisMonth={isPaidThisMonth}
-                />
+                {/* BOTÃO DE PAGAMENTO REMOVIDO DAQUI */}
               </div>
             ) : (
               <p className="text-sm text-muted-foreground text-center">O dia de pagamento ainda não foi definido.</p>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams, usePathname } from "next/navigation" // 1. Importar usePathname
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface PeriodSelectorProps {
@@ -10,11 +10,14 @@ interface PeriodSelectorProps {
 export function PeriodSelector({ currentPeriod }: PeriodSelectorProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const pathname = usePathname() // 2. Obter o pathname atual
 
   function handlePeriodChange(period: string) {
     const params = new URLSearchParams(searchParams.toString())
     params.set("period", period)
-    router.push(`?${params.toString()}`)
+    
+    // 3. Usar o pathname na rota e 'replace' para não poluir o histórico
+    router.replace(`${pathname}?${params.toString()}`)
   }
 
   return (

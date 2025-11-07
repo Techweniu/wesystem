@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Eye } from "lucide-react"
 import { EditEmployeeForm } from "@/components/edit-employee-form"
-import { MarkPaymentButton } from "@/components/mark-payment-button"
+// import { MarkPaymentButton } from "./mark-payment-button" // <-- REMOVIDO
 import { CareerPlanExpirationBadge } from "@/components/career-plan-expiration-badge"
 
 type Employee = any
@@ -47,13 +47,9 @@ export function TeamTableRow({ employee, allEmployees }: { employee: Employee; a
         </TableCell>
         <TableCell>{renderPaymentStatus(employee.daysUntilPayment)}</TableCell>
         <TableCell>{employee.nextPaymentDateFormatted || "-"}</TableCell>
-        <TableCell>
-          <MarkPaymentButton
-            employeeId={employee.id}
-            salary={employee.salary || 0}
-            isPaidThisMonth={employee.isPaidThisMonth}
-          />
-        </TableCell>
+        
+        {/* CÉLULA DE PAGAMENTO REMOVIDA DAQUI */}
+
         <TableCell className="text-right">
           <Link href={`/dashboard/team/${employee.id}`}>
             <Button variant="ghost" size="sm">

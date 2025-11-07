@@ -7,7 +7,8 @@ interface FinancialSummaryCardsProps {
   // Receitas
   contractsReceived: number
   contractsPending: number
-  servicesRevenue: number
+  servicesRevenue: number // <-- Já é "recebido"
+  servicesPending: number // <-- NOVO
 
   // Custos
   salariesPaid: number
@@ -20,58 +21,86 @@ export function FinancialSummaryCards({
   contractsReceived,
   contractsPending,
   servicesRevenue,
+  servicesPending, // <-- NOVO
   salariesPaid,
   salariesPending,
   otherCostsPaid,
   otherCostsPending,
 }: FinancialSummaryCardsProps) {
-  const totalRevenue = contractsReceived + contractsPending + servicesRevenue
+  
+  // --- NOVOS CÁLCULOS ---
+  const totalRecebido = contractsReceived + servicesRevenue
+  const totalAReceber = contractsPending + servicesPending
+  const totalGeralReceita = totalRecebido + totalAReceber
+  
   const totalCosts = salariesPaid + salariesPending + otherCostsPaid + otherCostsPending
-  const profit = totalRevenue - totalCosts
-  const margin = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0
+  const profit = totalGeralReceita - totalCosts
+  const margin = totalGeralReceita > 0 ? (profit / totalGeralReceita) * 100 : 0
 
   const effectiveRevenue = contractsReceived + servicesRevenue
   const effectiveCosts = salariesPaid + otherCostsPaid
   const effectiveProfit = effectiveRevenue - effectiveCosts
   const effectiveMargin = effectiveRevenue > 0 ? (effectiveProfit / effectiveRevenue) * 100 : 0
+  // --- FIM DOS NOVOS CÁLCULOS ---
 
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value)
 
   return (
     <div className="grid gap-4 md:grid-cols-3">
-      {/* Card Receita */}
+      
+      {/* ========================================================== */}
+      {/* --- CARD DE RECEITA (MODIFICADO) --- */}
+      {/* ========================================================== */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Receita</CardTitle>
+          <CardTitle className="text-sm font-medium">Receita Total (Previsto)</CardTitle>
           <DollarSign className="h-4 w-4 text-green-600" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold text-green-600">{formatCurrency(totalRevenue)}</div>
+          <div className="text-2xl font-bold text-green-600">{formatCurrency(totalGeralReceita)}</div>
           <div className="mt-4 space-y-2 text-sm">
+            
+            {/* Seção Recebido */}
             <div className="flex justify-between items-center">
-              <span className="text-muted-foreground">Receita de contratos:</span>
-              <span className="font-medium">{formatCurrency(contractsReceived + contractsPending)}</span>
+              <span className="text-muted-foreground font-medium">Recebido:</span>
+              <span className="font-bold text-green-600">{formatCurrency(totalRecebido)}</span>
             </div>
             <div className="pl-4 space-y-1 text-xs">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">• Recebido:</span>
-                <span className="text-green-600">{formatCurrency(contractsReceived)}</span>
+                <span className="text-muted-foreground">• Contratos:</span>
+                <span>{formatCurrency(contractsReceived)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">• A receber:</span>
-                <span className="text-amber-600">{formatCurrency(contractsPending)}</span>
+                <span className="text-muted-foreground">• Serviços Pontuais:</span>
+                <span>{formatCurrency(servicesRevenue)}</span>
               </div>
             </div>
+
+            {/* Seção A Receber */}
             <div className="flex justify-between items-center pt-2 border-t">
-              <span className="text-muted-foreground">Serviços pontuais:</span>
-              <span className="font-medium">{formatCurrency(servicesRevenue)}</span>
+              <span className="text-muted-foreground font-medium">A Receber:</span>
+              <span className="font-bold text-amber-600">{formatCurrency(totalAReceber)}</span>
             </div>
+            <div className="pl-4 space-y-1 text-xs">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">• Contratos (MRR):</span>
+                <span>{formatCurrency(contractsPending)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">• Serviços Pontuais:</span>
+                <span>{formatCurrency(servicesPending)}</span>
+              </div>
+            </div>
+
           </div>
         </CardContent>
       </Card>
+      {/* ========================================================== */}
+      {/* --- FIM DA MODIFICAÇÃO --- */}
+      {/* ========================================================== */}
 
-      {/* Card Custos */}
+      {/* Card Custos (Sem alteração) */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Custos</CardTitle>
@@ -112,7 +141,7 @@ export function FinancialSummaryCards({
         </CardContent>
       </Card>
 
-      {/* Card Lucro */}
+      {/* Card Lucro (Atualizado para usar totalGeralReceita) */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Lucro</CardTitle>
@@ -124,7 +153,7 @@ export function FinancialSummaryCards({
           </div>
           <div className="mt-4 space-y-2 text-sm">
             <div className="flex justify-between items-center">
-              <span className="text-muted-foreground">Margem:</span>
+              <span className="text-muted-foreground">Margem (Prevista):</span>
               <span className={`font-bold text-lg ${margin >= 0 ? "text-green-600" : "text-red-600"}`}>
                 {margin.toFixed(1)}%
               </span>
@@ -146,8 +175,8 @@ export function FinancialSummaryCards({
             </div>
             <div className="pt-2 border-t space-y-1 text-xs text-muted-foreground">
               <div className="flex justify-between">
-                <span>Receita total:</span>
-                <span>{formatCurrency(totalRevenue)}</span>
+                <span>Receita total (prevista):</span>
+                <span>{formatCurrency(totalGeralReceita)}</span>
               </div>
               <div className="flex justify-between">
                 <span>Custos totais:</span>
