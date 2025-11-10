@@ -61,12 +61,24 @@ async function getEmployeeDetails(id: string) {
   }
 
   let assignedClients: { id: string; name: string }[] = []
-  if (employeeData.role === "Assessor" || employeeData.role === "Videomaker") {
-    const columnToFilter = employeeData.role === "Assessor" ? "assigned_assessor_id" : "assigned_videomaker_id"
+  
+  // --- LÓGICA ATUALIZADA AQUI ---
+  // Mapeia os cargos para as colunas correspondentes na tabela 'clients'
+  const roleToColumnMap: { [key: string]: string } = {
+    "Assessor": "assigned_assessor_id",
+    "Videomaker": "assigned_videomaker_id",
+    "Gestor de Relacionamento": "assigned_relationship_manager_id",
+    "Editor": "assigned_editor_id"
+  };
+
+  const columnToFilter = roleToColumnMap[employeeData.role];
+
+  // Se o cargo do funcionário for um dos mapeados, busca os clientes
+  if (columnToFilter) {
     const { data: clientsData, error: clientsError } = await supabase
       .from("clients")
       .select("id, name")
-      .eq(columnToFilter, id)
+      .eq(columnToFilter, id) // Usa a coluna correta para o filtro
       .eq("status", "active")
       .order("name")
 
@@ -76,6 +88,7 @@ async function getEmployeeDetails(id: string) {
       assignedClients = clientsData || []
     }
   }
+  // --- FIM DA ATUALIZAÇÃO ---
 
   if (employeeData.employee_contracts) {
     for (const contract of employeeData.employee_contracts) {
@@ -255,7 +268,9 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
         </Card>
       </div>
 
-      {(employee.role === "Assessor" || employee.role === "Videomaker") && (
+      {/* --- CARD DE CLIENTES ASSOCIADOS --- */}
+      {/* Agora é renderizado se assignedClients tiver itens, o que só acontece se o cargo for um dos 4 mapeados */}
+      {assignedClients.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -264,21 +279,15 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {assignedClients.length > 0 ? (
-              <ul className="space-y-2">
-                {assignedClients.map((client) => (
-                  <li key={client.id} className="text-sm">
-                    <Link href={`/dashboard/clients/${client.id}`} className="text-primary hover:underline">
-                      {client.name}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                Nenhum cliente ativo atribuído a este {employee.role.toLowerCase()}.
-              </p>
-            )}
+            <ul className="space-y-2">
+              {assignedClients.map((client) => (
+                <li key={client.id} className="text-sm">
+                  <Link href={`/dashboard/clients/${client.id}`} className="text-primary hover:underline">
+                    {client.name}
+                  </Link>
+                </li>
+              ))}
+            </ul>
           </CardContent>
         </Card>
       )}

@@ -15,17 +15,18 @@ const costSchema = z.object({
   is_recurring: z.preprocess((val) => val === "true", z.boolean()).default(false), // Processa strings 'true'/'false' para booleano
 })
 
+// --- AÇÃO addCost ATUALIZADA ---
 // Função para adicionar um novo custo
 export async function addCost(formData: FormData) {
   try {
-    const proofFile = formData.get("proof_file") as File
-    if (!proofFile || proofFile.size === 0) {
-      return { success: false, error: "Comprovante de pagamento é obrigatório." }
-    }
-
-    if (proofFile.size > 10 * 1024 * 1024) {
-      return { success: false, error: "O arquivo deve ter no máximo 10MB." }
-    }
+    // --- LÓGICA DE ARQUIVO REMOVIDA ---
+    // const proofFile = formData.get("proof_file") as File
+    // if (!proofFile || proofFile.size === 0) {
+    //   return { success: false, error: "Comprovante de pagamento é obrigatório." }
+    // }
+    // if (proofFile.size > 10 * 1024 * 1024) {
+    //   return { success: false, error: "O arquivo deve ter no máximo 10MB." }
+    // }
 
     const rawData = {
       description: formData.get("description"),
@@ -45,26 +46,20 @@ export async function addCost(formData: FormData) {
 
     const supabaseAdmin = createAdminClient()
 
-    const fileExtension = proofFile.name.split(".").pop()
-    const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExtension}`
-    const filePath = `costs/${fileName}`
+    // --- LÓGICA DE STORAGE REMOVIDA ---
+    // const fileExtension = proofFile.name.split(".").pop()
+    // const fileName = ...
+    // const filePath = ...
+    // const { error: uploadError } = await supabaseAdmin.storage...
+    // const { data: urlData } = supabaseAdmin.storage...
 
-    const { error: uploadError } = await supabaseAdmin.storage.from("financial-proofs").upload(filePath, proofFile, {
-      contentType: proofFile.type,
-      upsert: false,
-    })
-
-    if (uploadError) {
-      console.error("Erro ao fazer upload:", uploadError)
-      return { success: false, error: "Erro ao fazer upload do comprovante." }
-    }
-
-    const { data: urlData } = supabaseAdmin.storage.from("financial-proofs").getPublicUrl(filePath)
-
+    // --- LÓGICA DE INSERT ATUALIZADA ---
     const { error } = await supabaseAdmin.from("costs").insert([
       {
         ...validated.data,
-        proof_url: urlData.publicUrl,
+        status: "pending", // Define explicitamente como pendente
+        paid_date: null, // Garante que a data de pagamento é nula
+        proof_url: null, // Garante que a URL é nula
       },
     ])
 
@@ -256,6 +251,7 @@ export async function undoClientPayment(formData: FormData) {
   return { success: "Pagamento revertido com sucesso!" }
 }
 
+// --- AÇÃO markCostAsPaid ATUALIZADA ---
 // --- Ação para Marcar Pagamento de Custo ---
 const costPaymentSchema = z.object({
   costId: z.string().uuid("ID do custo inválido."),
@@ -304,13 +300,18 @@ export async function markCostAsPaid(formData: FormData) {
       return { error: "Erro ao fazer upload do comprovante." }
     }
 
+    // --- LÓGICA DE UPLOAD ATUALIZADA ---
+    const { data: urlData } = supabaseAdmin.storage.from("financial-proofs").getPublicUrl(filePath)
+
     const { error: paymentError } = await supabaseAdmin
       .from("costs")
       .update({
         paid_date: new Date().toISOString().split("T")[0],
-        // proof_url: urlData.publicUrl, // Removed proof_url as it does not exist in the current schema
+        status: "paid", // Define o status como pago
+        proof_url: urlData.publicUrl, // Salva a URL do comprovante
       })
       .eq("id", costId)
+    // --- FIM DA ATUALIZAÇÃO ---
 
     if (paymentError) {
       console.error("Erro ao registrar pagamento:", paymentError)
@@ -328,6 +329,7 @@ export async function markCostAsPaid(formData: FormData) {
         date: nextDate.toISOString().split("T")[0],
         is_recurring: true,
         paid_date: null,
+        status: "pending", // Custo futuro nasce como pendente
         proof_url: null,
       })
 
@@ -360,8 +362,19 @@ export async function undoCostPayment(formData: FormData) {
   const { costId } = validatedFields.data
 
   const supabaseAdmin = createAdminClient()
+  
+  // TODO: Idealmente, deveríamos deletar o comprovante do Storage aqui
+  // (Omitido por simplicidade, mas é uma melhoria recomendada)
 
-  const { error: updateError } = await supabaseAdmin.from("costs").update({ paid_date: null }).eq("id", costId)
+  // Atualiza o status para pendente e remove a data de pagamento e comprovante
+  const { error: updateError } = await supabaseAdmin
+    .from("costs")
+    .update({ 
+      paid_date: null,
+      status: 'pending',
+      proof_url: null
+    })
+    .eq("id", costId)
 
   if (updateError) {
     console.error("Erro ao reverter pagamento:", updateError)
@@ -474,6 +487,8 @@ export async function undoEmployeePayment(formData: FormData) {
   if (fetchError || !recentPayment) {
     return { error: "Nenhum pagamento encontrado para reverter neste mês." }
   }
+  
+  // TODO: Idealmente, deveríamos deletar o comprovante do Storage aqui
 
   const { error: deleteError } = await supabaseAdmin.from("employee_payments").delete().eq("id", recentPayment.id)
 

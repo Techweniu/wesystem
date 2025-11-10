@@ -4,7 +4,9 @@ ALTER TABLE costs ADD COLUMN IF NOT EXISTS cost_type TEXT CHECK (cost_type IN ('
 ALTER TABLE costs ADD COLUMN IF NOT EXISTS employee_id UUID REFERENCES employees(id) ON DELETE SET NULL;
 ALTER TABLE costs ADD COLUMN IF NOT EXISTS notes TEXT;
 ALTER TABLE costs ADD COLUMN IF NOT EXISTS payment_method TEXT;
-ALTER TABLE costs ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'paid' CHECK (status IN ('paid', 'pending', 'cancelled'));
+
+-- CORREÇÃO AQUI: O status padrão agora é 'pending'
+ALTER TABLE costs ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending' CHECK (status IN ('paid', 'pending', 'cancelled'));
 
 -- Create cost_categories table for better organization
 CREATE TABLE IF NOT EXISTS cost_categories (

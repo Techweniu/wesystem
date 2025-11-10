@@ -20,7 +20,7 @@ interface CommercialGoalCardProps {
     target_value: number
     description: string | null
     realized_revenue: number
-    recurring_revenue?: number // Adicionando receita recorrente
+    recurring_revenue?: number
     progress: number
   }
 }
@@ -33,8 +33,6 @@ export function CommercialGoalCard({ goal }: CommercialGoalCardProps) {
     quarterly: "Trimestral",
     yearly: "Anual",
   }[goal.period_type]
-
-  const progressColor = goal.progress >= 100 ? "bg-green-500" : goal.progress >= 75 ? "bg-blue-500" : "bg-yellow-500"
 
   async function handleDelete() {
     if (!confirm("Tem certeza que deseja deletar esta meta?")) return
@@ -77,16 +75,22 @@ export function CommercialGoalCard({ goal }: CommercialGoalCardProps) {
             <span className="text-muted-foreground">Progresso</span>
             <span className="font-semibold">{goal.progress.toFixed(1)}%</span>
           </div>
-          <Progress value={Math.min(goal.progress, 100)} className={progressColor} />
+          
+          {/* O fundo (track) é definido como amarelo aqui */}
+          {/* O indicador (fill) usará 'bg-primary' (verde) por padrão */}
+          <Progress 
+            value={Math.min(goal.progress, 100)} 
+            className="bg-amber-500/30" 
+          />
         </div>
 
         <div className="flex items-center justify-between text-sm pt-2 border-t">
           <div className="flex items-center gap-1 text-muted-foreground">
             <TrendingUp className="h-4 w-4" />
-            <span>Programado</span>
+            <span>Realizado</span>
           </div>
           <span className="font-semibold">
-            {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(goal.recurring_revenue || 0)}
+            {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(goal.realized_revenue || 0)}
           </span>
         </div>
 

@@ -15,14 +15,18 @@ function Progress({
       data-slot="progress"
       className={cn(
         'bg-primary/20 relative h-2 w-full overflow-hidden rounded-full',
-        className,
+        className // A cor de fundo (Track), ex: bg-amber-500/30, é aplicada aqui
       )}
       {...props}
     >
       <ProgressPrimitive.Indicator
         data-slot="progress-indicator"
-        className="bg-primary h-full w-full flex-1 transition-all"
-        style={{ transform: `translateX(-${100 - (value || 0)}%)` }}
+        className={cn(
+          'bg-primary h-full transition-all', // Cor do preenchimento (Indicador), ex: bg-primary (verde)
+          // As classes 'w-full' e 'flex-1' foram removidas
+        )}
+        // O preenchimento agora é controlado pela 'width'
+        style={{ width: `${value || 0}%` }}
       />
     </ProgressPrimitive.Root>
   )

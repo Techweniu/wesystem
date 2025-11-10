@@ -18,30 +18,33 @@ import { Switch } from "@/components/ui/switch"
 import { Plus } from "lucide-react"
 import { addCost } from "@/app/dashboard/financial/actions"
 import { toast } from "sonner"
+// --- ATUALIZAÇÃO (Início) ---
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+// --- ATUALIZAÇÃO (Fim) ---
 
 interface AddCostDialogProps {
   employees: Array<{ id: string; name: string }>
+  costCategories: Array<{ id: string; name: string }> // <-- PROP ADICIONADA
 }
 
-export function AddCostDialog({ employees }: AddCostDialogProps) {
+export function AddCostDialog({ employees, costCategories }: AddCostDialogProps) { // <-- PROP ADICIONADA
   const [open, setOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isRecurring, setIsRecurring] = useState(false)
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
-
-    if (!selectedFile) {
-      toast.error("Por favor, anexe o comprovante de pagamento")
-      return
-    }
 
     setIsSubmitting(true)
 
     const formData = new FormData(e.currentTarget)
     formData.set("is_recurring", isRecurring.toString())
-    formData.set("proof_file", selectedFile)
 
     const result = await addCost(formData)
 
@@ -49,7 +52,6 @@ export function AddCostDialog({ employees }: AddCostDialogProps) {
       toast.success("Custo adicionado com sucesso!")
       e.currentTarget.reset()
       setIsRecurring(false)
-      setSelectedFile(null)
       setOpen(false)
     } else {
       toast.error(result.error || "Erro ao adicionar custo")
@@ -69,7 +71,9 @@ export function AddCostDialog({ employees }: AddCostDialogProps) {
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Adicionar Novo Custo</DialogTitle>
-          <DialogDescription>Preencha os detalhes do custo abaixo</DialogDescription>
+          <DialogDescription>
+            Preencha os detalhes do custo abaixo. O status inicial será "Pendente".
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
@@ -85,10 +89,23 @@ export function AddCostDialog({ employees }: AddCostDialogProps) {
             </div>
 
             <div className="grid grid-cols-2 gap-4">
+              {/* --- ATUALIZAÇÃO (Início) --- */}
               <div className="space-y-2">
                 <Label htmlFor="category">Categoria *</Label>
-                <Input id="category" name="category" placeholder="Ex: Salários, Marketing, Infraestrutura" required />
+                <Select name="category" required>
+                  <SelectTrigger id="category">
+                    <SelectValue placeholder="Selecione uma categoria" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {costCategories.map((category) => (
+                      <SelectItem key={category.id} value={category.name}>
+                        {category.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
+              {/* --- ATUALIZAÇÃO (Fim) --- */}
               <div className="space-y-2">
                 <Label htmlFor="date">Data *</Label>
                 <Input
@@ -101,21 +118,7 @@ export function AddCostDialog({ employees }: AddCostDialogProps) {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="proof_file">Comprovante de Pagamento *</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  id="proof_file"
-                  type="file"
-                  accept=".pdf,.jpg,.jpeg,.png"
-                  onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-                  required
-                  className="cursor-pointer"
-                />
-                {selectedFile && <span className="text-sm text-muted-foreground">{selectedFile.name}</span>}
-              </div>
-              <p className="text-xs text-muted-foreground">Formatos aceitos: PDF, JPG, PNG (máx. 10MB)</p>
-            </div>
+            {/* Seção de comprovante foi removida daqui */}
 
             <div className="flex items-center space-x-2">
               <Switch id="is_recurring" checked={isRecurring} onCheckedChange={setIsRecurring} />

@@ -10,7 +10,7 @@ import { PeriodSelector } from "@/components/period-selector"
 import { ClientPaymentsTable } from "@/components/client-payments-table"
 import { FinancialSummaryCards } from "@/components/financial-summary-cards"
 import { EmployeePaymentsTable } from "@/components/employee-payments-table"
-import { parseISO, format, isPast, addMonths } from "date-fns"
+import { parseISO, format, isPast, addMonths, differenceInDays } from "date-fns" // Adicionado differenceInDays
 import { ptBR } from "date-fns/locale"
 // Importar a nova tabela e componentes
 import {
@@ -45,6 +45,7 @@ async function getFinancialData(period = "month") {
 
   let startDate: Date
   let endDate: Date
+  const isAllTime = period === "year"
 
   switch (period) {
     case "week":
@@ -59,9 +60,9 @@ async function getFinancialData(period = "month") {
       startDate = new Date(today.getFullYear(), Math.floor(today.getMonth() / 3) * 3, 1)
       endDate = new Date(today.getFullYear(), Math.floor(today.getMonth() / 3) * 3 + 3, 0)
       break
-    case "year":
-      startDate = new Date(today.getFullYear(), 0, 1)
-      endDate = new Date(today.getFullYear(), 11, 31)
+    case "year": // "Anual" agora significa "All-Time"
+      startDate = new Date(1970, 0, 1) // Data inicial bem antiga
+      endDate = new Date(2100, 11, 31) // Data final bem no futuro
       break
     default:
       startDate = new Date(today.getFullYear(), today.getMonth(), 1)
@@ -71,55 +72,213 @@ async function getFinancialData(period = "month") {
   const startDateStr = startDate.toISOString().split("T")[0]
   const endDateStr = endDate.toISOString().split("T")[0]
 
-  const { data: services } = await supabase
+  // --- 1. Queries (Data Fetching - Escopo de Período ou All-Time) ---
+
+  let servicesQuery = supabase
     .from("one_time_services")
     .select("*, client_id, clients(name), received_date, payment_proof_url")
-    .gte("date", startDateStr)
-    .lte("date", endDateStr)
     .order("date", { ascending: false })
+  if (!isAllTime) {
+    servicesQuery = servicesQuery.gte("date", startDateStr).lte("date", endDateStr)
+  }
+  const { data: services } = await servicesQuery
 
-  const { data: costs } = await supabase
+  let costsQuery = supabase
     .from("costs")
     .select("*, proof_url")
-    .gte("date", startDateStr)
-    .lte("date", endDateStr)
     .order("date", { ascending: false })
+  if (!isAllTime) {
+    costsQuery = costsQuery.gte("date", startDateStr).lte("date", endDateStr)
+  }
+  const { data: costs } = await costsQuery
+
+  let clientPaymentsQuery = supabase
+    .from("client_payments")
+    .select("amount, payment_date, proof_url, client_id")
+  if (!isAllTime) {
+    clientPaymentsQuery = clientPaymentsQuery.gte("payment_date", startDateStr).lte("payment_date", endDateStr)
+  }
+  const { data: clientPaymentsData } = await clientPaymentsQuery
+
+  let employeePaymentsQuery = supabase
+    .from("employee_payments")
+    .select("amount, payment_date")
+  if (!isAllTime) {
+    employeePaymentsQuery = employeePaymentsQuery.gte("payment_date", startDateStr).lte("payment_date", endDateStr)
+  }
+  const { data: employeePaymentsData } = await employeePaymentsQuery
+
+  // --- 2. Dados para Status Operacional (Sempre snapshot do MÊS ATUAL) ---
+  const currentMonthStartDate = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split("T")[0]
+  const currentMonthEndDate = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split("T")[0]
+
+  const [employeesRes, clientsWithContractsRes, employeesWithPaymentsRes, employeePaymentsDetailedRes, clientPaymentsDetailedRes] = await Promise.all([
+    supabase.from("employees").select("id, name, salary, payment_day").eq("status", "active").order("name"),
+    supabase
+      .from("clients")
+      .select(`
+        id,
+        name,
+        status,
+        contracts (id, name, valor_mensal, start_date, end_date, status),
+        client_payments (amount, payment_date, contract_id)
+      `)
+      .eq("status", "active")
+      .order("name"),
+    supabase
+      .from("employees")
+      .select(`id, salary, employee_payments!inner(payment_date)`)
+      .eq("status", "active")
+      .gte("employee_payments.payment_date", currentMonthStartDate)
+      .lte("employee_payments.payment_date", currentMonthEndDate),
+    supabase
+      .from("employee_payments")
+      .select("employee_id, proof_url, payment_date")
+      .gte("payment_date", currentMonthStartDate) // Sempre do mês atual
+      .lte("payment_date", currentMonthEndDate),
+    supabase
+      .from("client_payments")
+      .select("amount, payment_date, proof_url, client_id")
+      .gte("payment_date", currentMonthStartDate) // Sempre do mês atual
+      .lte("payment_date", currentMonthEndDate)
+  ]);
+
+  const employees = employeesRes.data || []
+  const clientsWithContracts = clientsWithContractsRes.data || []
+  const employeesWithPayments = employeesWithPaymentsRes.data || []
+  const employeePaymentsDetailed = employeePaymentsDetailedRes.data || []
+  const clientPaymentsDetailed = clientPaymentsDetailedRes.data || []
+  
+  const { data: costCategories } = await supabase.from("cost_categories").select("id, name").order("name");
+
+
+  // --- 3. Cálculos de Receita (LÓGICA ATUALIZADA) ---
+  
+  let contractsReceived: number
+  let servicesRevenue: number
+  let contractsPending: number
+  let servicesPending: number
+
+  if (isAllTime) {
+    const { data: allClientsAndContracts } = await supabase
+      .from("clients")
+      .select(`id, created_at, contracts (name, valor_mensal, start_date)`)
+
+    contractsReceived = 0
+    allClientsAndContracts?.forEach(client => {
+      client.contracts.forEach(contract => {
+        if (contract.start_date && contract.valor_mensal && Number(contract.valor_mensal) > 0) {
+          const startDate = parseISO(contract.start_date)
+          const daysPassed = Math.max(0, differenceInDays(today, startDate) + 1)
+          contractsReceived += (Number(contract.valor_mensal) / 30.44) * daysPassed
+        }
+      })
+    })
+
+    const completedServices = services?.filter((s) => s.status === 'completed' || s.received_date) || []
+    servicesRevenue = completedServices.reduce((sum, s) => sum + Number(s.value), 0)
+
+  } else {
+    contractsReceived = clientPaymentsData?.reduce((sum, p) => sum + Number(p.amount), 0) || 0
+    const completedServices = services?.filter((s) => s.received_date) || []
+    servicesRevenue = completedServices.reduce((sum, s) => sum + Number(s.value), 0)
+  }
+
+  // --- 4. Cálculos de Pendências (Sempre Snapshot Atual) ---
+
+  const { data: activeContracts } = await supabase
+    .from("contracts")
+    .select("valor_mensal, start_date, end_date")
+    .eq("status", "active")
+  contractsPending = activeContracts
+      ?.filter((c) => isContractVigent(c))
+      .reduce((sum, c) => sum + Number(c.valor_mensal || 0), 0) || 0
+
+  const pendingServices = services?.filter((s) => !s.received_date) || []
+  servicesPending = pendingServices.reduce((sum, s) => sum + Number(s.value), 0)
+
+  const paidEmployeeIds = new Set(employeesWithPayments?.map(e => e.id) || []);
+  const salariesPending =
+    employees?.filter((e) => !paidEmployeeIds.has(e.id)).reduce((sum, e) => sum + Number(e.salary || 0), 0) || 0
+
+
+  // --- 5. Cálculos de Custos (Escopo de data ou All-Time) ---
+  
+  const salariesPaid = employeePaymentsData?.reduce((sum, p) => sum + Number(p.amount), 0) || 0
 
   const costsWithPaymentStatus = costs?.map((cost) => ({
     ...cost,
     is_paid: !!cost.paid_date,
   }))
+  const otherCostsPaid =
+    costsWithPaymentStatus?.filter((c) => c.is_paid).reduce((sum, c) => sum + Number(c.value), 0) || 0
+  const otherCostsPending =
+    costsWithPaymentStatus?.filter((c) => !c.is_paid).reduce((sum, c) => sum + Number(c.value), 0) || 0
 
-  const { data: employees } = await supabase
-    .from("employees")
-    .select("id, name, salary, payment_day")
-    .eq("status", "active")
-    .order("name")
 
-  const { data: clientsWithContracts } = await supabase
-    .from("clients")
-    .select(`
-      id,
-      name,
-      status,
-      contracts (id, name, valor_mensal, start_date, end_date, status),
-      client_payments (amount, payment_date, contract_id)
-    `)
-    .eq("status", "active")
-    .order("name")
+  // --- 6. Agregados Finais ---
 
-  const { data: clientPaymentsData } = await supabase
-    .from("client_payments")
-    .select("amount, payment_date, proof_url, client_id")
-    .gte("payment_date", startDateStr)
-    .lte("payment_date", endDateStr)
+  const totalGeralReceita = contractsReceived + servicesRevenue + contractsPending + servicesPending
 
+  const costsByCategory: Record<string, number> = {}
+  
+  costsWithPaymentStatus?.forEach((cost) => {
+    const category = cost.category || "Outros"
+    costsByCategory[category] = (costsByCategory[category] || 0) + (Number(cost.value) || 0)
+  })
+
+  const totalSalaries = salariesPaid + salariesPending
+  if (totalSalaries > 0) {
+    costsByCategory["Salários"] = (costsByCategory["Salários"] || 0) + totalSalaries
+  }
+
+  const totalCosts = Object.values(costsByCategory).reduce((sum, v) => sum + v, 0)
+  const profit = totalGeralReceita - totalCosts
+
+
+  // --- 7. Dados para Tabela Operacional de Funcionários (Snapshot Mês Atual) ---
+  
+  const employeePaymentProofs = new Map<string, string>()
+  employeePaymentsDetailed?.forEach((payment) => {
+    if (payment.proof_url && payment.employee_id) {
+      employeePaymentProofs.set(payment.employee_id, payment.proof_url)
+    }
+  })
+
+  const employeePayments =
+    employees
+      ?.map((employee) => {
+        const isPaidThisMonth = paidEmployeeIds.has(employee.id)
+        let nextPaymentDateFormatted = null
+        if (employee.payment_day) {
+          const paymentDay = employee.payment_day
+          let nextPaymentDate = new Date(currentYear, currentMonth, paymentDay)
+          if (today.getTime() > nextPaymentDate.getTime()) {
+            nextPaymentDate = addMonths(nextPaymentDate, 1)
+          }
+          nextPaymentDateFormatted = format(nextPaymentDate, "dd/MM/yyyy", { locale: ptBR })
+        }
+        return {
+          employeeId: employee.id,
+          employeeName: employee.name,
+          salary: Number(employee.salary || 0),
+          isPaidThisMonth,
+          nextPaymentDate: nextPaymentDateFormatted,
+          proofUrl: employeePaymentProofs.get(employee.id) || null,
+        }
+      })
+      .sort((a, b) => a.employeeName.localeCompare(b.employeeName)) || []
+
+  // --- 8. Dados para Tabela Operacional de Clientes (Snapshot Mês Atual) ---
+  
+  // --- CORREÇÃO: A variável clientPaymentProofs é declarada AQUI ---
   const clientPaymentProofs = new Map<string, string>()
-  clientPaymentsData?.forEach((payment) => {
+  clientPaymentsDetailed?.forEach((payment) => {
     if (payment.proof_url && payment.client_id) {
       clientPaymentProofs.set(payment.client_id, payment.proof_url)
     }
   })
+  // --- FIM DA CORREÇÃO ---
 
   const clientPayments = clientsWithContracts
     ?.map((client) => {
@@ -136,13 +295,11 @@ async function getFinancialData(period = "month") {
       const paymentDay = 1
       if (activeContracts.length > 0) {
         let nextPaymentDate = new Date(currentYear, currentMonth, paymentDay)
-
         if (today.getDate() > paymentDay && !isPaidThisMonth) {
           nextPaymentDate = addMonths(nextPaymentDate, 1)
         } else if (isPaidThisMonth) {
           nextPaymentDate = addMonths(nextPaymentDate, 1)
         }
-
         nextPaymentDateFormatted = format(nextPaymentDate, "dd/MM/yyyy", { locale: ptBR })
       }
 
@@ -153,144 +310,29 @@ async function getFinancialData(period = "month") {
         isPaidThisMonth: isPaidThisMonth,
         nextPaymentDate: nextPaymentDateFormatted,
         activeContracts: activeContracts.map((c) => ({ id: c.id, name: c.name })),
-        proofUrl: clientPaymentProofs.get(client.id) || null,
+        proofUrl: clientPaymentProofs.get(client.id) || null, // Agora usa o Map do escopo correto
       }
     })
     .filter((p) => p.expectedAmount > 0)
     .sort((a, b) => a.clientName.localeCompare(b.clientName))
 
-  const contractsReceived = clientPaymentsData?.reduce((sum, p) => sum + Number(p.amount), 0) || 0
-
-  const { data: activeContracts } = await supabase
-    .from("contracts")
-    .select("valor_mensal, start_date, end_date")
-    .eq("status", "active")
-
-  const contractsPending =
-    activeContracts
-      ?.filter((c) => {
-        if (!isContractVigent(c)) return false
-        const contractStart = c.start_date ? parseISO(c.start_date) : startDate
-        const contractEnd = c.end_date ? parseISO(c.end_date) : endDate
-        return contractStart <= endDate && contractEnd >= startDate
-      })
-      .reduce((sum, c) => sum + Number(c.valor_mensal || 0), 0) || 0
-
-  const { data: employeePaymentsData } = await supabase
-    .from("employee_payments")
-    .select("amount, payment_date")
-    .gte("payment_date", startDateStr)
-    .lte("payment_date", endDateStr)
-
-  const salariesPaid = employeePaymentsData?.reduce((sum, p) => sum + Number(p.amount), 0) || 0
-
-  const { data: employeesWithPayments } = await supabase
-    .from("employees")
-    .select(`
-      id,
-      salary,
-      employee_payments!inner(payment_date)
-    `)
-    .eq("status", "active")
-
-  const paidEmployeeIds = new Set(
-    employeesWithPayments
-      ?.filter((e) => {
-        const payment = e.employee_payments[0]
-        if (!payment) return false
-        const paymentDate = new Date(payment.payment_date)
-        return paymentDate >= startDate && paymentDate <= endDate
-      })
-      .map((e) => e.id) || [],
-  )
-
-  const salariesPending =
-    employees?.filter((e) => !paidEmployeeIds.has(e.id)).reduce((sum, e) => sum + Number(e.salary || 0), 0) || 0
-
-  const otherCostsPaid =
-    costsWithPaymentStatus?.filter((c) => c.is_paid).reduce((sum, c) => sum + Number(c.value), 0) || 0
-  const otherCostsPending =
-    costsWithPaymentStatus?.filter((c) => !c.is_paid).reduce((sum, c) => sum + Number(c.value), 0) || 0
-
-  const completedServices = services?.filter((s) => s.received_date) || []
-  const servicesRevenue = completedServices.reduce((sum, s) => sum + Number(s.value), 0)
-
-  // +++ ADICIONADO: Calcular serviços pontuais pendentes +++
-  const pendingServices = services?.filter((s) => !s.received_date) || []
-  const servicesPending = pendingServices.reduce((sum, s) => sum + Number(s.value), 0)
-  // +++ FIM DA ADIÇÃO +++
-
-  const totalCosts = costsWithPaymentStatus?.reduce((sum, c) => sum + Number(c.value), 0) || 0
-
-  const costsByCategory: Record<string, number> = {}
-  costsWithPaymentStatus?.forEach((cost) => {
-    const category = cost.category || "Outros"
-    costsByCategory[category] = (costsByCategory[category] || 0) + Number(cost.value)
-  })
-
-  const totalSalaries = employees?.reduce((sum, e) => sum + Number(e.salary || 0), 0) || 0
-  
-  // ATUALIZADO: totalRevenue agora é a soma de TUDO (recebido e pendente)
-  const totalRevenue = contractsReceived + contractsPending + servicesRevenue + servicesPending
-  const profit = totalRevenue - totalCosts
-
-  const { data: employeePaymentsDetailed } = await supabase
-    .from("employee_payments")
-    .select("employee_id, proof_url, payment_date")
-    .gte("payment_date", startDateStr)
-    .lte("payment_date", endDateStr)
-
-  const employeePaymentProofs = new Map<string, string>()
-  employeePaymentsDetailed?.forEach((payment) => {
-    if (payment.proof_url && payment.employee_id) {
-      employeePaymentProofs.set(payment.employee_id, payment.proof_url)
-    }
-  })
-
-  const employeePayments =
-    employees
-      ?.map((employee) => {
-        const isPaidThisMonth = paidEmployeeIds.has(employee.id)
-
-        let nextPaymentDateFormatted = null
-        
-        if (employee.payment_day) {
-          const paymentDay = employee.payment_day
-          let nextPaymentDate = new Date(currentYear, currentMonth, paymentDay)
-
-          if (today.getTime() > nextPaymentDate.getTime()) {
-            nextPaymentDate = addMonths(nextPaymentDate, 1)
-          }
-
-          nextPaymentDateFormatted = format(nextPaymentDate, "dd/MM/yyyy", { locale: ptBR })
-        }
-
-        return {
-          employeeId: employee.id,
-          employeeName: employee.name,
-          salary: Number(employee.salary || 0),
-          isPaidThisMonth,
-          nextPaymentDate: nextPaymentDateFormatted,
-          proofUrl: employeePaymentProofs.get(employee.id) || null,
-        }
-      })
-      .sort((a, b) => a.employeeName.localeCompare(b.employeeName)) || []
 
   return {
     services,
     costs: costsWithPaymentStatus,
     employees: employees || [],
-    servicesRevenue, // Recebido pontual
-    servicesPending, // <-- ADICIONADO
-    totalRevenue,    // Total geral
+    costCategories: costCategories || [], // Retorna as categorias
+    servicesRevenue,
+    servicesPending,
+    totalRevenue: totalGeralReceita,
     totalCosts,
     costsByCategory,
-    totalSalaries,
+    totalSalaries: totalSalaries,
     profit,
     period,
     clientPayments: clientPayments || [],
-    contractsReceived, // Recebido contrato
-    contractsPending,  // Pendente contrato
+    contractsReceived,
+    contractsPending,
     salariesPaid,
     salariesPending,
     otherCostsPaid,
@@ -317,16 +359,15 @@ export default async function FinancialPage({
         </div>
         <div className="flex items-center gap-4">
           <PeriodSelector currentPeriod={period} />
-          <AddCostDialog employees={data.employees} />
+          <AddCostDialog employees={data.employees} costCategories={data.costCategories || []} />
         </div>
       </div>
       
-      {/* ATUALIZAÇÃO: Passar o novo prop 'servicesPending' para os cards */}
       <FinancialSummaryCards
         contractsReceived={data.contractsReceived}
         contractsPending={data.contractsPending}
         servicesRevenue={data.servicesRevenue}
-        servicesPending={data.servicesPending} // <-- ADICIONADO
+        servicesPending={data.servicesPending}
         salariesPaid={data.salariesPaid}
         salariesPending={data.salariesPending}
         otherCostsPaid={data.otherCostsPaid}
@@ -441,7 +482,7 @@ export default async function FinancialPage({
         <TabsContent value="analysis">
           <Card>
             <CardHeader>
-              <CardTitle>Análise por Categoria</CardTitle>
+              <CardTitle>Análise por Categoria (Incluindo Salários)</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
