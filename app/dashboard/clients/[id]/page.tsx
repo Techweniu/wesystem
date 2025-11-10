@@ -18,7 +18,8 @@ import {
   ThumbsDown,
   BlendIcon as ClientIcon,
   Video,
-} from "lucide-react" // Users as ClientIcon
+  Film, // Ícone de Editor
+} from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AddServiceForm } from "@/components/add-service-form"
 import { AddNpsForm } from "@/components/add-nps-form"
@@ -64,7 +65,7 @@ interface NpsResponse {
 }
 type ClientDetails = Awaited<ReturnType<typeof getClientDetails>>
 
-// Função getClientDetails - VERIFIQUE O SELECT
+// Função getClientDetails - ATUALIZADA
 async function getClientDetails(id: string) {
   const supabase = await createClient()
   const { data: clientData, error: clientError } = await supabase
@@ -80,8 +81,9 @@ async function getClientDetails(id: string) {
       client_contacts(*),
       assigned_assessor:assigned_assessor_id ( id, name ),
       assigned_videomaker:assigned_videomaker_id ( id, name ),
-      assigned_relationship_manager:assigned_relationship_manager_id ( id, name )
-    `) // Garante que os joins estão corretos
+      assigned_relationship_manager:assigned_relationship_manager_id ( id, name ),
+      assigned_editor:assigned_editor_id ( id, name ) 
+    `) // ADICIONADO assigned_editor
     .eq("id", id)
     .order("created_at", { foreignTable: "contracts", ascending: false })
     .order("response_date", { foreignTable: "nps_responses", ascending: false })
@@ -117,7 +119,7 @@ async function getClientDetails(id: string) {
     }
   }
 
-  // Busca potenciais assessores, videomakers e gestores de relacionamento
+  // Busca potenciais assessores, videomakers, editores e gestores de relacionamento
   const { data: potentialAssessors } = await supabase
     .from("employees")
     .select("id, name")
@@ -136,23 +138,33 @@ async function getClientDetails(id: string) {
     .eq("status", "active")
     .eq("role", "Gestor de Relacionamento")
     .order("name")
+  const { data: potentialEditors } = await supabase // ADICIONADO
+    .from("employees")
+    .select("id, name")
+    .eq("status", "active")
+    .eq("role", "Editor")
+    .order("name")
 
   return {
     ...clientData,
     potentialAssessors: potentialAssessors || [],
     potentialVideomakers: potentialVideomakers || [],
     potentialManagers: potentialManagers || [],
+    potentialEditors: potentialEditors || [], // ADICIONADO
   }
 }
-// --- FIM DA VERIFICAÇÃO ---
+// --- FIM DA ATUALIZAÇÃO ---
 
 // Funções auxiliares isContractVigent e getNpsBadgeVariant
 const isContractVigent = (contract: { start_date: string | null; end_date: string | null }) => {
   const today = new Date()
+  // --- CORREÇÃO AQUI ---
+  // A lógica !isPast(...) estava errada. Deve ser isPast(...)
   const hasStarted = contract.start_date
-    ? !isPast(parseISO(contract.start_date)) ||
+    ? isPast(parseISO(contract.start_date)) || // <-- CORRIGIDO DE !isPast PARA isPast
       format(parseISO(contract.start_date), "yyyy-MM-dd") === format(today, "yyyy-MM-dd")
     : true
+  // --- FIM DA CORREÇÃO ---
   const hasNotEnded = contract.end_date ? !isPast(parseISO(contract.end_date)) : true
   return hasStarted && hasNotEnded
 }
@@ -172,29 +184,38 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
   if (!clientData) {
     notFound()
   } // Se getClientDetails retornou null, mostra 404
-  const { potentialAssessors, potentialVideomakers, potentialManagers, ...client } = clientData
+  const { potentialAssessors, potentialVideomakers, potentialManagers, potentialEditors, ...client } = clientData // ADICIONADO potentialEditors
 
   const today = new Date()
 
   // Cálculos de Receita, NPS, Valor Gerado, Tempo de Parceria
   const monthlyRevenue =
     client.contracts
-      ?.filter((c) => c.status === "active" && isContractVigent(c))
+      ?.filter((c) => c.status === "active" && isContractVigent(c)) // A função corrigida é usada aqui
       .reduce((sum, c) => sum + Number(c.valor_mensal), 0) || 0
   const completedServices = client.one_time_services?.filter((s: any) => s.status === "completed") || []
   const totalServicesRevenue = completedServices.reduce((sum, s: any) => sum + Number(s.value), 0) || 0
+  
+  // --- LÓGICA DE NPS ATUALIZADA ---
   const npsScores = client.nps_responses?.map((n: any) => n.score) || []
   const avgNps = npsScores.length > 0 ? npsScores.reduce((a: number, b: number) => a + b, 0) / npsScores.length : 0
   const latestNpsResponse = client.nps_responses?.[0] as NpsResponse | undefined
   const latestNpsScore = latestNpsResponse?.score
+  
   let worstNpsCategories: { category: string; score: number }[] = []
   if (latestNpsResponse?.category_scores) {
     worstNpsCategories = Object.entries(latestNpsResponse.category_scores)
-      .map(([category, score]) => ({ category: category.replace(/_/g, " "), score }))
-      .filter((item) => item.score < 8)
+      // Mapeia para o formato de objeto, garantindo que score seja número
+      .map(([category, score]) => ({ category: category.replace(/_/g, " "), score: Number(score) }))
+      // Filtra scores que não são números (caso JSONB venha nulo ou inválido)
+      .filter((item) => !isNaN(item.score))
+      // Ordena pelas menores notas (score ascendente)
       .sort((a, b) => a.score - b.score)
+      // Pega as 3 piores
       .slice(0, 3)
   }
+  // --- FIM DA LÓGICA DE NPS ATUALIZADA ---
+
   let generatedValue = 0
   client.contracts?.forEach((contract) => {
     if (contract.start_date && contract.valor_mensal && contract.valor_mensal > 0) {
@@ -204,26 +225,39 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
     }
   })
   generatedValue += totalServicesRevenue
-  let firstContractDate = client.created_at
+
+  // --- LÓGICA ATUALIZADA PARA TEMPO DE PARCERIA E PRÓXIMO TÉRMINO ---
+  let firstContractDate = client.created_at // Fallback é a data de criação do cliente
   let furthestEndDate: string | null = null
-  const activeContracts = client.contracts?.filter((c) => c.status === "active" && isContractVigent(c))
-  if (activeContracts && activeContracts.length > 0) {
-    const earliestStartDate = activeContracts
-      .filter((c) => c.start_date)
-      .reduce((earliest, current) =>
-        parseISO(current.start_date!) < parseISO(earliest.start_date!) ? current : earliest,
-      ).start_date
-    if (earliestStartDate) firstContractDate = earliestStartDate
-    const contractsWithEndDate = activeContracts.filter((c) => c.end_date)
-    if (contractsWithEndDate.length > 0) {
-      furthestEndDate = contractsWithEndDate.reduce((furthest, current) =>
-        parseISO(current.end_date!) > parseISO(furthest.end_date!) ? current : furthest,
-      ).end_date
+
+  const allContracts = client.contracts || []
+  
+  // 1. Encontrar a data de início mais antiga de TODOS os contratos
+  const contractsWithStartDate = allContracts.filter((c) => c.start_date)
+  if (contractsWithStartDate.length > 0) {
+    const earliestStartDate = contractsWithStartDate.reduce((earliest, current) =>
+      parseISO(current.start_date!) < parseISO(earliest.start_date!) ? current : earliest,
+    ).start_date
+    
+    if (earliestStartDate) {
+      // Compara a data do contrato mais antigo com a data de criação do cliente
+      // e pega a que for mais antiga
+      firstContractDate = parseISO(earliestStartDate) < parseISO(firstContractDate) ? earliestStartDate : firstContractDate
     }
   }
+
+  // 2. Encontrar a data de término mais distante de TODOS os contratos
+  const contractsWithEndDate = allContracts.filter((c) => c.end_date)
+  if (contractsWithEndDate.length > 0) {
+    furthestEndDate = contractsWithEndDate.reduce((furthest, current) =>
+      parseISO(current.end_date!) > parseISO(furthest.end_date!) ? current : furthest,
+    ).end_date
+  }
+  
   const partnershipTime = firstContractDate
     ? formatDistanceToNowStrict(parseISO(firstContractDate), { locale: ptBR })
     : "-"
+  // --- FIM DA ATUALIZAÇÃO ---
 
   return (
     <div className="space-y-6">
@@ -253,11 +287,13 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
           assessors={potentialAssessors}
           videomakers={potentialVideomakers}
           relationshipManagers={potentialManagers}
+          editors={potentialEditors} // ADICIONADO
         />
       </div>
 
-      {/* Grid de Cards Resumo */}
+      {/* Grid de Cards Resumo (LOCAL DA MODIFICAÇÃO) */}
       <div className="flex flex-col gap-6">
+        {/* --- GRID MODIFICADO PARA INCLUIR O NOVO CARD --- */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <Card>
             <CardHeader className="pb-2">
@@ -303,7 +339,58 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
               </div>
             </CardContent>
           </Card>
+
+          {/* === CARD DE NPS === */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Star className="h-5 w-5 text-yellow-500" /> NPS Médio
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="text-2xl font-bold">
+                  {/* Mostra a média com 1 casa decimal */}
+                  {avgNps.toFixed(1)}
+                </div>
+                {/* Mostra o total de avaliações */}
+                <Badge variant={getNpsBadgeVariant(Math.round(avgNps))}>
+                  {npsScores.length} {npsScores.length === 1 ? "Avaliação" : "Avaliações"}
+                </Badge>
+              </div>
+              
+              {/* Seção de Piores Categorias (do último NPS) */}
+              {latestNpsResponse && (
+                <>
+                  <Separator />
+                  <div>
+                    <h4 className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
+                      <ThumbsDown className="h-3 w-3" />
+                      Piores Categorias (Última Avaliação)
+                    </h4>
+                    {worstNpsCategories.length > 0 ? (
+                      <ul className="space-y-1">
+                        {worstNpsCategories.map((item) => (
+                          <li key={item.category} className="flex justify-between items-center text-xs">
+                            <span className="text-muted-foreground truncate" title={item.category}>{item.category}</span>
+                            <Badge variant={getNpsBadgeVariant(item.score)} className="text-xs">
+                              {item.score}
+                            </Badge>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-xs text-muted-foreground italic">Nenhuma categoria pontuada na última avaliação.</p>
+                    )}
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+          {/* === FIM DO CARD DE NPS === */}
+
         </div>
+        {/* --- FIM DO GRID MODIFICADO --- */}
 
         {/* Card Tráfego Pago */}
         <Card>
@@ -328,26 +415,21 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
           </CardContent>
         </Card>
 
-        {/* Card Responsáveis Atribuídos - VERIFIQUE A EXIBIÇÃO */}
+        {/* Card Responsáveis Atribuídos - ATUALIZADO */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <ClientIcon className="h-5 w-5 text-indigo-500" /> Responsáveis Atribuídos
             </CardTitle>
-            <CardDescription>Assessor, Videomaker e Gestor de Relacionamento principais.</CardDescription>
+            <CardDescription>Equipe principal alocada para este cliente.</CardDescription>
           </CardHeader>
-          <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+          {/* Grid ATUALIZADO para 2x2 (lg:grid-cols-4) */}
+          <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
             <div className="flex flex-col space-y-1">
               <Label className="text-muted-foreground flex items-center gap-1">
                 <ClientIcon className="h-4 w-4" /> Assessor
               </Label>
               <p>{client.assigned_assessor?.name ?? <span className="text-muted-foreground italic">Nenhum</span>}</p>
-            </div>
-            <div className="flex flex-col space-y-1">
-              <Label className="text-muted-foreground flex items-center gap-1">
-                <Video className="h-4 w-4" /> Videomaker
-              </Label>
-              <p>{client.assigned_videomaker?.name ?? <span className="text-muted-foreground italic">Nenhum</span>}</p>
             </div>
             <div className="flex flex-col space-y-1">
               <Label className="text-muted-foreground flex items-center gap-1">
@@ -359,9 +441,22 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
                 )}
               </p>
             </div>
+            <div className="flex flex-col space-y-1">
+              <Label className="text-muted-foreground flex items-center gap-1">
+                <Video className="h-4 w-4" /> Videomaker
+              </Label>
+              <p>{client.assigned_videomaker?.name ?? <span className="text-muted-foreground italic">Nenhum</span>}</p>
+            </div>
+            {/* Bloco do Editor ADICIONADO */}
+            <div className="flex flex-col space-y-1">
+              <Label className="text-muted-foreground flex items-center gap-1">
+                <Film className="h-4 w-4" /> Editor
+              </Label>
+              <p>{client.assigned_editor?.name ?? <span className="text-muted-foreground italic">Nenhum</span>}</p>
+            </div>
           </CardContent>
         </Card>
-        {/* --- FIM DA VERIFICAÇÃO --- */}
+        {/* --- FIM DA ATUALIZAÇÃO --- */}
 
         {/* Grid: Infos Cliente | Notas */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -479,6 +574,8 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
               </ul>
             </CardContent>
           </Card>
+          
+          {/* CARD HISTÓRICO E VALOR (COM LÓGICA ATUALIZADA) */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -508,6 +605,8 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
               </div>
             </CardContent>
           </Card>
+          {/* FIM DO CARD ATUALIZADO */}
+
         </div>
 
         {/* Card Dashboard Resultados */}

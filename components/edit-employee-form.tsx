@@ -61,6 +61,7 @@ const rolesList = [
   "Diretor Comercial",
   "Gestor de Relacionamento",
   "Videomaker",
+  "Editor", // <-- ADICIONADO AQUI
   "Assessor",
   "Colaborador de Tecnologia",
   "Backoffice",

@@ -124,6 +124,7 @@ const updateClientSchema = z.object({
     .or(z.literal("null"))
     .optional()
     .nullable(),
+  assigned_editor_id: z.string().uuid("ID de editor inválido.").or(z.literal("null")).optional().nullable(), // <-- ADICIONADO
 })
 
 export async function updateClient(formData: FormData) {
@@ -138,6 +139,9 @@ export async function updateClient(formData: FormData) {
   }
   if (rawFormData.assigned_relationship_manager_id === "null") {
     rawFormData.assigned_relationship_manager_id = null
+  }
+  if (rawFormData.assigned_editor_id === "null") { // <-- ADICIONADO
+    rawFormData.assigned_editor_id = null
   }
 
   const validatedFields = updateClientSchema.safeParse(rawFormData)
@@ -157,6 +161,7 @@ export async function updateClient(formData: FormData) {
     assigned_assessor_id, // Já está como UUID ou null
     assigned_videomaker_id, // Já está como UUID ou null
     assigned_relationship_manager_id, // Já está como UUID ou null
+    assigned_editor_id, // <-- ADICIONADO
     ...updateData
   } = validatedFields.data
 
@@ -171,6 +176,7 @@ export async function updateClient(formData: FormData) {
     assigned_assessor_id: assigned_assessor_id,
     assigned_videomaker_id: assigned_videomaker_id,
     assigned_relationship_manager_id: assigned_relationship_manager_id,
+    assigned_editor_id: assigned_editor_id, // <-- ADICIONADO
     updated_at: new Date().toISOString(), // Atualiza timestamp
   }
 
@@ -180,9 +186,10 @@ export async function updateClient(formData: FormData) {
   let previousAssessorId: string | null = null
   let previousVideomakerId: string | null = null
   let previousManagerId: string | null = null
+  let previousEditorId: string | null = null // <-- ADICIONADO
   const { data: previousClientData } = await supabaseAdmin
     .from("clients")
-    .select("assigned_assessor_id, assigned_videomaker_id, assigned_relationship_manager_id")
+    .select("assigned_assessor_id, assigned_videomaker_id, assigned_relationship_manager_id, assigned_editor_id") // <-- ADICIONADO
     .eq("id", clientId)
     .maybeSingle()
 
@@ -190,6 +197,7 @@ export async function updateClient(formData: FormData) {
     previousAssessorId = previousClientData.assigned_assessor_id
     previousVideomakerId = previousClientData.assigned_videomaker_id
     previousManagerId = previousClientData.assigned_relationship_manager_id
+    previousEditorId = previousClientData.assigned_editor_id // <-- ADICIONADO
   }
 
   // Atualiza o cliente
@@ -206,17 +214,21 @@ export async function updateClient(formData: FormData) {
   // Revalida (limpa cache) das páginas relevantes
   revalidatePath(`/dashboard/clients/${clientId}`) // Página do cliente atual
   revalidatePath("/dashboard/clients") // Lista de clientes
-  // Revalida a página do assessor/videomaker ATUAL se o ID foi definido/alterado
+  // Revalida a página do assessor/videomaker/editor/gestor ATUAL se o ID foi definido/alterado
   if (assigned_assessor_id) revalidatePath(`/dashboard/team/${assigned_assessor_id}`)
   if (assigned_videomaker_id) revalidatePath(`/dashboard/team/${assigned_videomaker_id}`)
   if (assigned_relationship_manager_id) revalidatePath(`/dashboard/team/${assigned_relationship_manager_id}`)
-  // Revalida a página do assessor/videomaker ANTERIOR se ele foi removido ou alterado
+  if (assigned_editor_id) revalidatePath(`/dashboard/team/${assigned_editor_id}`) // <-- ADICIONADO
+  
+  // Revalida a página do assessor/videomaker/editor/gestor ANTERIOR se ele foi removido ou alterado
   if (previousAssessorId && previousAssessorId !== assigned_assessor_id)
     revalidatePath(`/dashboard/team/${previousAssessorId}`)
   if (previousVideomakerId && previousVideomakerId !== assigned_videomaker_id)
     revalidatePath(`/dashboard/team/${previousVideomakerId}`)
   if (previousManagerId && previousManagerId !== assigned_relationship_manager_id)
     revalidatePath(`/dashboard/team/${previousManagerId}`)
+  if (previousEditorId && previousEditorId !== assigned_editor_id) // <-- ADICIONADO
+    revalidatePath(`/dashboard/team/${previousEditorId}`)
 
   return { success: "Cliente atualizado com sucesso!" }
 }

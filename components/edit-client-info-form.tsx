@@ -16,9 +16,9 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { updateClient } from "@/app/dashboard/clients/[id]/actions" // Ação será atualizada no próximo passo
+import { updateClient } from "@/app/dashboard/clients/[id]/actions"
 import { toast } from "sonner"
-import { Pencil, BarChart2, Users } from "lucide-react" // Adicionado Users, Video
+import { Pencil, BarChart2, Users, Video, Film } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
 
@@ -34,7 +34,7 @@ interface ClientInfo {
   name: string
   contact_email: string | null
   contact_phone: string | null
-  status: "active" | "inactive"
+  status: "active" | "inactive" | "prospect"
   health_status: "green" | "yellow" | "red" | null
   cnpj: string | null
   address: string | null
@@ -42,16 +42,18 @@ interface ClientInfo {
   has_traffic_service: boolean | null
   ad_account_organized: boolean | null
   ads_running: boolean | null
-  assigned_assessor_id: string | null // Novo ID
-  assigned_videomaker_id: string | null // Novo ID
-  assigned_relationship_manager_id: string | null // Adicionado
+  assigned_assessor_id: string | null
+  assigned_videomaker_id: string | null
+  assigned_relationship_manager_id: string | null
+  assigned_editor_id: string | null
 }
 
 interface EditClientInfoFormProps {
   client: ClientInfo
-  assessors: EmployeeOption[] // Lista de assessores disponíveis
-  videomakers: EmployeeOption[] // Lista de videomakers disponíveis
-  relationshipManagers: EmployeeOption[] // Adicionado
+  assessors: EmployeeOption[]
+  videomakers: EmployeeOption[]
+  relationshipManagers: EmployeeOption[]
+  editors: EmployeeOption[]
 }
 
 const SubmitButton = () => {
@@ -63,7 +65,13 @@ const SubmitButton = () => {
   )
 }
 
-export function EditClientInfoForm({ client, assessors, videomakers, relationshipManagers }: EditClientInfoFormProps) {
+export function EditClientInfoForm({
+  client,
+  assessors = [], // <-- CORREÇÃO: Adicionado valor padrão
+  videomakers = [], // <-- CORREÇÃO: Adicionado valor padrão
+  relationshipManagers = [], // <-- CORREÇÃO: Adicionado valor padrão
+  editors = [], // <-- CORREÇÃO: Adicionado valor padrão
+}: EditClientInfoFormProps) {
   const [open, setOpen] = useState(false)
   // Estados locais para switches
   const [hasTraffic, setHasTraffic] = useState(!!client.has_traffic_service)
@@ -73,6 +81,7 @@ export function EditClientInfoForm({ client, assessors, videomakers, relationshi
   const [selectedAssessor, setSelectedAssessor] = useState(client.assigned_assessor_id ?? "null") // 'null' como string para o Select
   const [selectedVideomaker, setSelectedVideomaker] = useState(client.assigned_videomaker_id ?? "null") // 'null' como string
   const [selectedManager, setSelectedManager] = useState(client.assigned_relationship_manager_id ?? "null") // Estado para Gestor de Relacionamento
+  const [selectedEditor, setSelectedEditor] = useState(client.assigned_editor_id ?? "null")
 
   // Resetar estados locais ao abrir/fechar
   const handleOpenChange = (isOpen: boolean) => {
@@ -82,7 +91,8 @@ export function EditClientInfoForm({ client, assessors, videomakers, relationshi
       setIsRunning(!!client.ads_running)
       setSelectedAssessor(client.assigned_assessor_id ?? "null")
       setSelectedVideomaker(client.assigned_videomaker_id ?? "null")
-      setSelectedManager(client.assigned_relationship_manager_id ?? "null") // Atualizado
+      setSelectedManager(client.assigned_relationship_manager_id ?? "null")
+      setSelectedEditor(client.assigned_editor_id ?? "null")
     }
     setOpen(isOpen)
   }
@@ -95,7 +105,7 @@ export function EditClientInfoForm({ client, assessors, videomakers, relationshi
           Editar Infos
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto"> {/* Largura aumentada */}
         <DialogHeader>
           <DialogTitle>Editar Informações do Cliente</DialogTitle>
           <DialogDescription>Atualize os dados gerais, de tráfego e responsáveis do cliente.</DialogDescription>
@@ -111,9 +121,10 @@ export function EditClientInfoForm({ client, assessors, videomakers, relationshi
             // Garantir que os campos sejam enviados mesmo se 'null' for selecionado
             formData.set("assigned_assessor_id", selectedAssessor)
             formData.set("assigned_videomaker_id", selectedVideomaker)
-            formData.set("assigned_relationship_manager_id", selectedManager) // Atualizado
+            formData.set("assigned_relationship_manager_id", selectedManager)
+            formData.set("assigned_editor_id", selectedEditor)
 
-            const result = await updateClient(formData) // Ação precisa ser atualizada
+            const result = await updateClient(formData)
             if (result.error) toast.error("Erro ao atualizar", { description: result.error })
             else {
               toast.success(result.success)
@@ -159,6 +170,7 @@ export function EditClientInfoForm({ client, assessors, videomakers, relationshi
                   <SelectContent>
                     <SelectItem value="active">Ativo</SelectItem>
                     <SelectItem value="inactive">Inativo</SelectItem>
+                    <SelectItem value="prospect">Prospect</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -213,12 +225,13 @@ export function EditClientInfoForm({ client, assessors, videomakers, relationshi
 
             <Separator className="my-6" />
 
-            {/* ====> NOVOS CAMPOS DE RESPONSÁVEIS (SELECTS) <==== */}
+            {/* ====> SEÇÃO DE RESPONSÁVEIS ATUALIZADA (GRID 2x2) <==== */}
             <div className="space-y-4">
               <h4 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
                 <Users className="h-4 w-4" /> Responsáveis Atribuídos
               </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {/* Grid 2x2 para os responsáveis */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Select para Assessor */}
                 <div className="grid gap-2">
                   <Label htmlFor="assigned_assessor_id">Assessor Principal</Label>
@@ -238,29 +251,7 @@ export function EditClientInfoForm({ client, assessors, videomakers, relationshi
                     </SelectContent>
                   </Select>
                 </div>
-                {/* Select para Videomaker */}
-                <div className="grid gap-2">
-                  <Label htmlFor="assigned_videomaker_id">Videomaker Principal</Label>
-                  {/* Controla o valor com o estado local */}
-                  <Select
-                    name="assigned_videomaker_id"
-                    value={selectedVideomaker}
-                    onValueChange={setSelectedVideomaker}
-                  >
-                    <SelectTrigger id="assigned_videomaker_id">
-                      <SelectValue placeholder="Selecione um Videomaker" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {/* Opção para remover/nenhum */}
-                      <SelectItem value="null">Nenhum</SelectItem>
-                      {videomakers.map((vm) => (
-                        <SelectItem key={vm.id} value={vm.id}>
-                          {vm.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                
                 {/* Select para Gestor de Relacionamento */}
                 <div className="grid gap-2">
                   <Label htmlFor="assigned_relationship_manager_id">Gestor de Relacionamento</Label>
@@ -277,6 +268,50 @@ export function EditClientInfoForm({ client, assessors, videomakers, relationshi
                       {relationshipManagers.map((manager) => (
                         <SelectItem key={manager.id} value={manager.id}>
                           {manager.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Select para Videomaker */}
+                <div className="grid gap-2">
+                  <Label htmlFor="assigned_videomaker_id">Videomaker Principal</Label>
+                  <Select
+                    name="assigned_videomaker_id"
+                    value={selectedVideomaker}
+                    onValueChange={setSelectedVideomaker}
+                  >
+                    <SelectTrigger id="assigned_videomaker_id">
+                      <SelectValue placeholder="Selecione um Videomaker" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="null">Nenhum</SelectItem>
+                      {videomakers.map((vm) => (
+                        <SelectItem key={vm.id} value={vm.id}>
+                          {vm.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Select para Editor */}
+                <div className="grid gap-2">
+                  <Label htmlFor="assigned_editor_id">Editor Principal</Label>
+                  <Select
+                    name="assigned_editor_id"
+                    value={selectedEditor}
+                    onValueChange={setSelectedEditor}
+                  >
+                    <SelectTrigger id="assigned_editor_id">
+                      <SelectValue placeholder="Selecione um Editor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="null">Nenhum</SelectItem>
+                      {editors.map((editor) => (
+                        <SelectItem key={editor.id} value={editor.id}>
+                          {editor.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
