@@ -10,19 +10,20 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { saveAccess } from "@/app/dashboard/accesses/actions";
+import { saveAccess } from "@/app/dashboard/accesses/actions"; 
 import { toast } from "sonner";
-import type { PlatformAccess } from "@/app/dashboard/accesses/page";
-import { useRouter } from 'next/navigation';
-import { useAuth } from "@/contexts/auth-context"; // <-- IMPORTA O HOOK DE AUTENTICAÇÃO
-import { PlusCircle, Pencil } from "lucide-react";
+import type { PlatformAccess } from "@/app/dashboard/accesses/page"; 
+import { useRouter } from 'next/navigation'; 
+// Remove o 'useAuth'
+// import { useAuth } from "@/contexts/auth-context"; 
+import { PlusCircle, Pencil } from "lucide-react"; 
 
 // Props do componente
 interface AddEditAccessFormProps {
-  access?: PlatformAccess;
-  children: React.ReactNode;
-  open?: boolean;
-  onOpenChange?: (open: boolean) => void;
+  access?: PlatformAccess; 
+  children: React.ReactNode; 
+  open?: boolean; 
+  onOpenChange?: (open: boolean) => void; 
 }
 
 // Botão de submit com estado de loading
@@ -35,7 +36,7 @@ function SubmitButton({ isEditing }: { isEditing: boolean }) {
   );
 }
 
-// Lista de departamentos
+// Lista de departamentos (completa)
 const departmentOptions = [
   { value: "Geral", label: "Nenhum / Geral" },
   { value: "Diretoria", label: "Diretoria" },
@@ -47,25 +48,25 @@ const departmentOptions = [
 
 // Componente principal do formulário
 export function AddEditAccessForm({ access, children, open: controlledOpen, onOpenChange: setControlledOpen }: AddEditAccessFormProps) {
-  const { userRole } = useAuth(); // <-- OBTÉM A ROLE PELO CONTEXTO
+  // Remove 'useAuth'
+  // const { userRole } = useAuth(); 
   const [internalOpen, setInternalOpen] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const [department, setDepartment] = useState(access?.department || 'Geral');
-  const router = useRouter();
+  const router = useRouter(); 
 
   const isEditing = !!access;
   const open = controlledOpen ?? internalOpen;
   const setOpen = setControlledOpen ?? setInternalOpen;
 
-  // Filtra as opções de departamento com base na role
-  const visibleDepartmentOptions =
-    userRole === "admin" ? departmentOptions : departmentOptions.filter((opt) => opt.value !== "Cliente" && opt.value !== "Diretoria");
+  // Mostra todas as opções
+  const visibleDepartmentOptions = departmentOptions;
 
   // Reseta o formulário e estado quando o dialog é aberto
   useEffect(() => {
     if (open && !isEditing) {
         formRef.current?.reset();
-        setDepartment('Geral');
+        setDepartment('Geral'); 
     } else if (open && isEditing) {
         setDepartment(access?.department || 'Geral');
     }
@@ -81,7 +82,7 @@ export function AddEditAccessForm({ access, children, open: controlledOpen, onOp
         formData.set('department', department);
     }
 
-    const result = await saveAccess(formData);
+    const result = await saveAccess(formData); 
 
     if (result.error) {
       toast.error(`Erro ao ${isEditing ? 'atualizar' : 'adicionar'} acesso`, {
@@ -89,7 +90,7 @@ export function AddEditAccessForm({ access, children, open: controlledOpen, onOp
       });
     } else {
       toast.success(result.success);
-      setOpen(false);
+      setOpen(false); 
       router.refresh(); 
     }
   }
@@ -97,7 +98,7 @@ export function AddEditAccessForm({ access, children, open: controlledOpen, onOp
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent className="sm:max-w-[550px]">
+      <DialogContent className="sm:max-w-[550px]"> 
         <DialogHeader>
           <DialogTitle>{isEditing ? 'Editar Acesso' : 'Adicionar Novo Acesso'}</DialogTitle>
           <DialogDescription>
@@ -135,7 +136,7 @@ export function AddEditAccessForm({ access, children, open: controlledOpen, onOp
                 <Select name="department" value={department} onValueChange={setDepartment}>
                     <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                     <SelectContent>
-                      {/* Usa as opções filtradas */}
+                      {/* Mostra todas as opções */}
                       {visibleDepartmentOptions.map(opt => (
                         <SelectItem key={opt.value} value={opt.value}>
                           {opt.label}
@@ -144,7 +145,6 @@ export function AddEditAccessForm({ access, children, open: controlledOpen, onOp
                     </SelectContent>
                 </Select>
              </div>
-             {/* O campo nome do cliente só aparece se o departamento Cliente for selecionado (só o admin vê) */}
              {department === 'Cliente' && (
                 <div className="grid gap-2">
                     <Label htmlFor="client_name">Nome do Cliente</Label>
@@ -152,6 +152,7 @@ export function AddEditAccessForm({ access, children, open: controlledOpen, onOp
                 </div>
              )}
           </div>
+
 
           <div className="grid gap-2">
             <Label htmlFor="notes">Observações</Label>

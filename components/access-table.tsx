@@ -6,20 +6,21 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Pencil, Trash2, Eye, EyeOff } from "lucide-react";
+import { Pencil, Trash2, Eye, EyeOff } from "lucide-react"; 
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { deleteAccess } from "@/app/dashboard/accesses/actions";
-import { AddEditAccessForm } from "@/components/add-edit-access-form";
-import type { PlatformAccess } from "@/app/dashboard/accesses/page";
-import { useAuth } from "@/contexts/auth-context"; // <-- IMPORTA O HOOK DE AUTENTICAÇÃO
+import { deleteAccess } from "@/app/dashboard/accesses/actions"; 
+import { AddEditAccessForm } from "@/components/add-edit-access-form"; 
+import type { PlatformAccess } from "@/app/dashboard/accesses/page"; 
+// Remove o 'useAuth'
+// import { useAuth } from "@/contexts/auth-context"; 
 
 // Props do componente
 interface AccessTableProps {
   accesses: PlatformAccess[];
-  // userRole é removido das props
+  // Remove 'userRole' das props
 }
 
 // Componente do botão de exclusão com confirmação
@@ -81,7 +82,7 @@ function PasswordDisplay({ info }: { info: string | null }) {
             ) : (
                 <span className="text-sm text-muted-foreground truncate">{info}</span>
             )}
-            {looksLikePassword && (
+             {looksLikePassword && (
                 <Button
                     variant="ghost"
                     size="icon"
@@ -98,7 +99,8 @@ function PasswordDisplay({ info }: { info: string | null }) {
 
 // Componente principal da tabela
 export function AccessTable({ accesses }: AccessTableProps) {
-  const { userRole } = useAuth(); // <-- OBTÉM A ROLE PELO CONTEXTO
+  // Remove 'useAuth'
+  // const { userRole } = useAuth(); 
   const [editingAccessId, setEditingAccessId] = useState<string | null>(null);
 
   return (
@@ -111,8 +113,7 @@ export function AccessTable({ accesses }: AccessTableProps) {
             <TableHead>Senha/Informação</TableHead>
             <TableHead>Departamento/Cliente</TableHead>
             <TableHead>Observações</TableHead>
-            {/* Só mostra Ações para admin */}
-            {userRole === "admin" && <TableHead className="text-right w-[100px]">Ações</TableHead>}
+            <TableHead className="text-right w-[100px]">Ações</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -136,29 +137,25 @@ export function AccessTable({ accesses }: AccessTableProps) {
                 <TableCell className="text-xs text-muted-foreground max-w-xs truncate">
                     {access.notes || '-'}
                 </TableCell>
-                {/* Só mostra Ações para admin */}
-                {userRole === "admin" && (
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <AddEditAccessForm
-                          access={access}
-                          open={editingAccessId === access.id}
-                          onOpenChange={(isOpen) => setEditingAccessId(isOpen ? access.id : null)}
-                      >
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <Pencil className="h-4 w-4" />
-                          </Button>
-                      </AddEditAccessForm>
-                      <DeleteAccessButton accessId={access.id} />
-                    </div>
-                  </TableCell>
-                )}
+                <TableCell className="text-right">
+                  <div className="flex items-center justify-end gap-1">
+                    <AddEditAccessForm
+                        access={access}
+                        open={editingAccessId === access.id}
+                        onOpenChange={(isOpen) => setEditingAccessId(isOpen ? access.id : null)}
+                    >
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <Pencil className="h-4 w-4" />
+                        </Button>
+                    </AddEditAccessForm>
+                    <DeleteAccessButton accessId={access.id} />
+                  </div>
+                </TableCell>
               </TableRow>
             ))
           ) : (
             <TableRow>
-              {/* Ajusta o colSpan dinamicamente */}
-              <TableCell colSpan={userRole === "admin" ? 6 : 5} className="h-24 text-center text-muted-foreground">
+              <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
                 Nenhum acesso encontrado para esta categoria.
               </TableCell>
             </TableRow>

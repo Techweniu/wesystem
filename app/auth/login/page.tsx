@@ -9,9 +9,8 @@ import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { toast } from "sonner"
 
-// --- NOVAS SENHAS E PAPÉIS ---
-const ADMIN_PASSWORD = "4321a"
-const LIMITED_PASSWORD = "1234z"
+// A senha mestra original
+const MASTER_PASSWORD = "491hrinh19283"
 
 export default function LoginPage() {
   const [password, setPassword] = useState("")
@@ -22,15 +21,11 @@ export default function LoginPage() {
     e.preventDefault()
     setIsLoading(true)
 
-    // --- LÓGICA DE LOGIN ATUALIZADA ---
-    if (password === ADMIN_PASSWORD) {
-      localStorage.setItem("userRole", "admin") // Salva como admin
-      toast.success("Login (Admin) realizado com sucesso!")
-      router.push("/dashboard") // Redireciona para o dashboard principal
-    } else if (password === LIMITED_PASSWORD) {
-      localStorage.setItem("userRole", "limited") // Salva como limitado
+    // A lógica de senha única original
+    if (password === MASTER_PASSWORD) {
+      localStorage.setItem("isAuthenticated", "true") // <-- Volta a usar 'isAuthenticated'
       toast.success("Login realizado com sucesso!")
-      router.push("/dashboard/clients") // Redireciona direto para clientes
+      router.push("/dashboard")
     } else {
       toast.error("Senha incorreta. Tente novamente.")
       setIsLoading(false)
