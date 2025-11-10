@@ -27,7 +27,7 @@
 
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.985 0 0);
-  --border: rgb(202, 177, 190);
+  --border: rgb(190, 190, 190);
   --input: oklch(0.89 0 0);
   --ring: 143 95% 43%; /* Verde para focus rings */
 
@@ -38,7 +38,7 @@
   --chart-4: 220 100% 29%; /* Azul */
   --chart-5: 193 30% 70%; /* Cinza */
 
-  --radius: 2.125rem;
+  --radius: 0.625rem;
 
   /* Sidebar com verde fluorescente para itens ativos */
   --sidebar: oklch(0.985 0 0);

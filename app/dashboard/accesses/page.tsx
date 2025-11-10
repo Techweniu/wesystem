@@ -14,50 +14,29 @@ export type PlatformAccess = {
   updated_at: string;
 };
 
-// Função de busca de dados no servidor (agora filtra por role)
-async function getAccessData(userRole: "admin" | "limited") {
+// Função de busca de dados no servidor (agora busca TUDO)
+async function getAccessData() {
   const supabase = await createClient(); 
 
-  console.log(`AccessesPage (Server): Buscando dados para role: ${userRole}`);
-
-  let query = supabase
+  const { data, error } = await supabase
     .from("platform_access")
     .select("*")
     .order("department", { nullsfirst: true })
     .order("platform_name", { ascending: true });
-  
-  // SE O USUÁRIO FOR 'LIMITED', NÃO MOSTRA DIRETORIA E CLIENTE
-  if (userRole === 'limited') {
-    query = query.not("department", "eq", "Diretoria");
-    query = query.not("department", "eq", "Cliente");
-  }
-
-  const { data, error } = await query;
 
   if (error) {
     console.error("AccessesPage (Server): Erro ao buscar dados de acesso:", error);
     return [];
   }
 
-  console.log(`AccessesPage (Server): Dados buscados com sucesso (${data?.length || 0} itens).`);
   return (data as PlatformAccess[]) || []; // Garante que retorna um array
 }
 
-// Função para buscar a 'role' do usuário logado
-async function getUserRole() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return "admin" // Padrão
-  const { data: employee } = await supabase.from("employees").select("system_role").eq("id", user.id).single()
-  return employee?.system_role || "admin"
-}
-
-
 // O Server Component principal
 export default async function AccessesPage() {
-  const userRole = await getUserRole(); // Busca a role
-  const initialAccesses = await getAccessData(userRole); // Passa a role para a busca
+  const initialAccesses = await getAccessData();
 
-  // Renderiza o Client Component, passando os dados E a role
-  return <AccessesClientPage initialAccesses={initialAccesses} userRole={userRole} />;
+  // Renderiza o Client Component, passando os dados
+  // O Client Component obterá a role do Contexto
+  return <AccessesClientPage initialAccesses={initialAccesses} />;
 }

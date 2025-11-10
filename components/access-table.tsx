@@ -14,12 +14,12 @@ import { toast } from "sonner";
 import { deleteAccess } from "@/app/dashboard/accesses/actions";
 import { AddEditAccessForm } from "@/components/add-edit-access-form";
 import type { PlatformAccess } from "@/app/dashboard/accesses/page";
-// O hook useAuth não é mais necessário aqui, pois receberemos a role via props
+import { useAuth } from "@/contexts/auth-context"; // <-- IMPORTA O HOOK DE AUTENTICAÇÃO
 
-// Props do componente ATUALIZADAS
+// Props do componente
 interface AccessTableProps {
   accesses: PlatformAccess[];
-  userRole: "admin" | "limited"; // <-- Recebe a role via props
+  // userRole é removido das props
 }
 
 // Componente do botão de exclusão com confirmação
@@ -95,9 +95,9 @@ function PasswordDisplay({ info }: { info: string | null }) {
     );
 }
 
-
 // Componente principal da tabela
-export function AccessTable({ accesses, userRole }: AccessTableProps) {
+export function AccessTable({ accesses }: AccessTableProps) {
+  const { userRole } = useAuth(); // <-- OBTÉM A ROLE PELO CONTEXTO
   const [editingAccessId, setEditingAccessId] = useState<string | null>(null);
 
   return (
@@ -156,7 +156,6 @@ export function AccessTable({ accesses, userRole }: AccessTableProps) {
             ))
           ) : (
             <TableRow>
-              {/* Ajusta o colSpan dinamicamente */}
               <TableCell colSpan={userRole === "admin" ? 6 : 5} className="h-24 text-center text-muted-foreground">
                 Nenhum acesso encontrado para esta categoria.
               </TableCell>

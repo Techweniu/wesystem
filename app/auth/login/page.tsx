@@ -8,33 +8,32 @@ import { Label } from "@/components/ui/label"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { toast } from "sonner"
-import { createClient } from "@/lib/supabase/client" // <-- Importa o cliente Supabase
+
+// --- NOVAS SENHAS E PAPÉIS ---
+const ADMIN_PASSWORD = "4321a"
+const LIMITED_PASSWORD = "1234z"
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("") // <-- Adicionado campo de e-mail
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
-  const supabase = createClient() // <-- Inicializa o cliente
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
 
-    // --- LÓGICA DE LOGIN ATUALIZADA (SUPABASE AUTH) ---
-    const { error } = await supabase.auth.signInWithPassword({
-      email: email,
-      password: password,
-    })
-
-    if (error) {
-      toast.error(error.message || "Senha ou e-mail incorretos.")
-      setIsLoading(false)
-    } else {
+    // --- LÓGICA DE LOGIN ATUALIZADA ---
+    if (password === ADMIN_PASSWORD) {
+      localStorage.setItem("userRole", "admin") // Salva como admin
+      toast.success("Login (Admin) realizado com sucesso!")
+      router.push("/dashboard") // Redireciona para o dashboard principal
+    } else if (password === LIMITED_PASSWORD) {
+      localStorage.setItem("userRole", "limited") // Salva como limitado
       toast.success("Login realizado com sucesso!")
-      // O middleware cuidará do redirecionamento
-      router.push("/dashboard")
-      router.refresh() // Força a atualização do layout
+      router.push("/dashboard/clients") // Redireciona direto para clientes
+    } else {
+      toast.error("Senha incorreta. Tente novamente.")
+      setIsLoading(false)
     }
   }
 
@@ -48,23 +47,11 @@ export default function LoginPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-2xl">Acesso Restrito</CardTitle>
-            <CardDescription>Digite seu e-mail e senha para acessar</CardDescription>
+            <CardDescription>Digite a senha para acessar o dashboard</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleLogin}>
               <div className="flex flex-col gap-6">
-                {/* --- CAMPO DE E-MAIL ADICIONADO --- */}
-                <div className="grid gap-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="seu@email.com"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
-                </div>
                 <div className="grid gap-2">
                   <Label htmlFor="password">Senha</Label>
                   <Input

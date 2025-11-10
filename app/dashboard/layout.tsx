@@ -1,3 +1,5 @@
+"use client" // <-- ESSENCIAL: Este layout agora é client-side
+
 import type React from "react"
 import { DashboardHeader } from "@/components/dashboard-header"
 import {
@@ -9,42 +11,23 @@ import {
 } from "@/components/ui/sidebar"
 import { DashboardSidebarContent } from "@/components/dashboard-sidebar-content"
 import { cn } from "@/lib/utils"
-import { createClient } from "@/lib/supabase/server" // <-- Importa o Server Client
-import { redirect } from "next/navigation"
+import { AuthProvider, useAuth } from "@/contexts/auth-context" // <-- Importa o Provedor
 
-// Este agora é um Server Component (async)
-export default async function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+// Componente de Lógica Interno para usar o hook useAuth
+function DashboardLayoutLogic({ children }: { children: React.ReactNode }) {
+  const { userRole, isLoading } = useAuth() // Obtém a role do contexto
 
-  if (!user) {
-    redirect("/auth/login")
+  if (isLoading || !userRole) {
+    // Mostra um loader global enquanto o AuthProvider verifica o localStorage
+    return <div className="flex h-screen w-full items-center justify-center">Carregando...</div>
   }
 
-  let userRole: "admin" | "limited" = "admin" // Padrão
-
-  // Busca o 'system_role' da tabela 'employees'
-  const { data: employeeData } = await supabase
-    .from("employees")
-    .select("system_role")
-    .eq("id", user.id)
-    .single()
-
-  if (employeeData && employeeData.system_role) {
-    userRole = employeeData.system_role
-  } else {
-    console.warn(`Usuário ${user.id} não encontrado na tabela 'employees'. Aplicando role 'admin' padrão.`)
-    userRole = "admin"
+  // O FAKE_USER é apenas para o Header, mas agora passamos a role real
+  const FAKE_USER = {
+    email: userRole === 'admin' ? "admin@wesystem.io" : "usuario@wesystem.io"
   }
 
   return (
-    // O AuthProvider não é mais necessário aqui
     <SidebarProvider>
       <Sidebar collapsible="icon">
         {/* Passa a role para o conteúdo da sidebar */}
@@ -55,7 +38,7 @@ export default async function DashboardLayout({
       </Sidebar>
       <SidebarInset>
         {/* Passa o usuário e a role para o header */}
-        <DashboardHeader user={user} userRole={userRole} />
+        <DashboardHeader user={FAKE_USER} userRole={userRole} />
         <main className={cn(
           "flex-1 overflow-y-auto p-6",
           "overflow-x-hidden"
@@ -64,5 +47,21 @@ export default async function DashboardLayout({
         </main>
       </SidebarInset>
     </SidebarProvider>
+  )
+}
+
+// Layout principal exportado
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return (
+    // Envolve tudo no AuthProvider
+    <AuthProvider>
+      <DashboardLayoutLogic>
+        {children}
+      </DashboardLayoutLogic>
+    </AuthProvider>
   )
 }

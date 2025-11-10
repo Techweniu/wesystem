@@ -1,7 +1,7 @@
 "use client"
 
 import React, { createContext, useContext, useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 
 type UserRole = "admin" | "limited" | null
 
@@ -16,18 +16,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [userRole, setUserRole] = useState<UserRole>(null)
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
+  const pathname = usePathname()
 
   useEffect(() => {
     const role = localStorage.getItem("userRole") as UserRole
+    
     if (role === "admin" || role === "limited") {
       setUserRole(role)
+      // Se for 'limited' e tentar aceder ao dashboard principal, redireciona
+      if (role === 'limited' && pathname === '/dashboard') {
+        router.replace('/dashboard/clients')
+      }
     } else {
-      // Se não houver role válida, força o logout
+      // Se não houver role válida ou for 'null', envia para o login
       localStorage.removeItem("userRole")
-      router.push("/auth/login")
+      router.replace("/auth/login")
     }
     setIsLoading(false)
-  }, [router])
+  }, [router, pathname])
 
   return (
     <AuthContext.Provider value={{ userRole, isLoading }}>

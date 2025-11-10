@@ -14,23 +14,22 @@ import { PlusCircle } from "lucide-react"
 import { AddEditAccessForm } from "@/components/add-edit-access-form"
 import { AccessTable } from "@/components/access-table"
 import type { PlatformAccess } from "./page"
-// import { useAuth } from "@/contexts/auth-context" // <-- REMOVIDO
+import { useAuth } from "@/contexts/auth-context" // <-- IMPORTA O HOOK DE AUTENTICAÇÃO
 
 interface AccessesClientPageProps {
   initialAccesses: PlatformAccess[]
-  userRole: "admin" | "limited" // <-- Recebe a role via props
+  // userRole é removido das props, pois vem do useAuth
 }
 
-export function AccessesClientPage({ initialAccesses, userRole }: AccessesClientPageProps) {
+export function AccessesClientPage({ initialAccesses }: AccessesClientPageProps) {
+  const { userRole, isLoading } = useAuth() // <-- OBTÉM A ROLE PELO CONTEXTO
   const [allAccesses, setAllAccesses] = useState<PlatformAccess[]>(initialAccesses)
   const [searchTerm, setSearchTerm] = useState("")
 
   // Efeito para atualizar o estado interno se as props mudarem
   useEffect(() => {
-    if (JSON.stringify(initialAccesses) !== JSON.stringify(allAccesses)) {
-      setAllAccesses(initialAccesses)
-    }
-  }, [initialAccesses, allAccesses])
+    setAllAccesses(initialAccesses)
+  }, [initialAccesses])
 
   const filterAccesses = (accesses: PlatformAccess[]) => {
     if (!searchTerm.trim()) return accesses
@@ -45,18 +44,18 @@ export function AccessesClientPage({ initialAccesses, userRole }: AccessesClient
     })
   }
 
-  // Listas de dados (já filtrados pelo servidor, mas filtramos localmente para o search)
-  const diretoriaAccesses = filterAccesses(allAccesses.filter((a) => a.department === "Diretoria"))
+  // Filtra as listas de acesso (agora filtra 'Diretoria' e 'Cliente' para 'limited')
+  const diretoriaAccesses = userRole === 'admin' ? filterAccesses(allAccesses.filter((a) => a.department === "Diretoria")) : []
   const tecnologiaAccesses = filterAccesses(allAccesses.filter((a) => a.department === "Tecnologia"))
   const producaoAccesses = filterAccesses(allAccesses.filter((a) => a.department === "Produção"))
   const marketingAccesses = filterAccesses(allAccesses.filter((a) => a.department === "Marketing"))
-  const clienteAccesses = filterAccesses(allAccesses.filter((a) => a.department === "Cliente"))
+  const clienteAccesses = userRole === 'admin' ? filterAccesses(allAccesses.filter((a) => a.department === "Cliente")) : []
   const geralAccesses = filterAccesses(
     allAccesses.filter(
       (a) =>
         (a.department === "Geral" || a.department === null) &&
         a.department !== "Diretoria" &&
-        a.department !== "Cliente",
+        a.department !== "Cliente", // Garante que não caiam aqui por engano
     ),
   )
 
@@ -73,7 +72,10 @@ export function AccessesClientPage({ initialAccesses, userRole }: AccessesClient
   const visibleTabs = TABS.filter(tab => userRole && tab.roles.includes(userRole));
   const defaultTab = visibleTabs.length > 0 ? visibleTabs[0].value : "";
 
-  // Tela Principal (Tabs + Tabelas)
+  if (isLoading || !userRole) {
+    return <p>Carregando acessos...</p>
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -84,7 +86,6 @@ export function AccessesClientPage({ initialAccesses, userRole }: AccessesClient
           </h1>
           <p className="text-muted-foreground">Gerencie logins e informações de acesso.</p>
         </div>
-        {/* Só Admin pode adicionar */}
         {userRole === "admin" && (
           <AddEditAccessForm>
             <Button>
@@ -115,9 +116,8 @@ export function AccessesClientPage({ initialAccesses, userRole }: AccessesClient
         )}
       </div>
 
-      {/* Estrutura das Abas */}
       <Tabs defaultValue={defaultTab} className="space-y-4">
-        <TabsList className={`grid w-full ${visibleTabs.length === 6 ? "grid-cols-6" : "grid-cols-5"}`}>
+        <TabsList className={`grid w-full grid-cols-${visibleTabs.length}`}>
           {visibleTabs.map(tab => (
             <TabsTrigger key={tab.value} value={tab.value}>
               {tab.label} ({tab.data.length})
@@ -125,7 +125,6 @@ export function AccessesClientPage({ initialAccesses, userRole }: AccessesClient
           ))}
         </TabsList>
 
-        {/* Mapeia o conteúdo das abas visíveis */}
         {visibleTabs.map(tab => (
            <TabsContent key={tab.value} value={tab.value}>
             <Card>
@@ -134,16 +133,12 @@ export function AccessesClientPage({ initialAccesses, userRole }: AccessesClient
                 {tab.value === 'clientes' && <CardDescription>Logins específicos para plataformas de clientes.</CardDescription>}
               </CardHeader>
               <CardContent>
-                {/* Passa a role para a tabela */}
-                <AccessTable accesses={tab.data} userRole={userRole} />
+                <AccessTable accesses={tab.data} />
               </CardContent>
             </Card>
           </TabsContent>
         ))}
-        
       </Tabs>
     </div>
   )
 }
-
-export default AccessesClientPage

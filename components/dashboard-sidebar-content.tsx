@@ -57,7 +57,7 @@ const allowedLinks = {
 }
 
 interface DashboardSidebarContentProps {
-  userRole: "admin" | "limited" // Recebe a role
+  userRole: "admin" | "limited" | null // Recebe a role
 }
 
 export function DashboardSidebarContent({ userRole }: DashboardSidebarContentProps) {
@@ -98,7 +98,7 @@ export function DashboardSidebarContent({ userRole }: DashboardSidebarContentPro
 
   // Filtra os links visíveis
   const visibleLinks = navigation.filter(
-    (link) => allowedLinks[userRole] && allowedLinks[userRole].includes(link.href)
+    (link) => userRole && allowedLinks[userRole] && allowedLinks[userRole].includes(link.href)
   );
 
   return (
@@ -162,7 +162,7 @@ export function DashboardSidebarContent({ userRole }: DashboardSidebarContentPro
               <SidebarMenuButton
                 asChild
                 // Correção: usar startsWith para todas as rotas
-                isActive={pathname.startsWith(item.href)}
+                isActive={pathname.startsWith(item.href) && (item.href !== "/dashboard" || pathname === "/dashboard")}
                 tooltip={item.name}
               >
                 <Link href={item.href}>

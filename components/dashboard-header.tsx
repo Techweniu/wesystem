@@ -9,24 +9,26 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import type { User } from "@supabase/supabase-js" // <-- Importa o tipo User
+// import type { User } from "@supabase/supabase-js" // Removido
 import { LogOut, UserIcon } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { createClient } from "@/lib/supabase/client" // <-- Importa o Client
+
+// Tipo simplificado
+interface DisplayUser {
+  email: string | undefined
+}
 
 interface DashboardHeaderProps {
-  user: User // Recebe o objeto User completo
-  userRole: "admin" | "limited"
+  user: DisplayUser
+  userRole: "admin" | "limited" | null
 }
 
 export function DashboardHeader({ user, userRole }: DashboardHeaderProps) {
   const router = useRouter()
-  const supabase = createClient()
 
-  const handleSignOut = async () => {
-    await supabase.auth.signOut()
-    router.push("/auth/login") // Redireciona para o login
-    router.refresh() // Limpa o cache
+  const handleSignOut = () => {
+    localStorage.removeItem("userRole") // <-- Limpa o localStorage
+    router.push("/auth/login")
   }
 
   const roleLabel = userRole === 'admin' ? 'Administrador' : 'Acesso Limitado'
@@ -46,7 +48,7 @@ export function DashboardHeader({ user, userRole }: DashboardHeaderProps) {
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuLabel>
               <div className="flex flex-col space-y-1">
-                <p className="text-sm font-medium">{user.email || 'Usuário'}</p>
+                <p className="text-sm font-medium">Conta de Acesso</p>
                 <p className="text-xs text-muted-foreground">{roleLabel}</p>
               </div>
             </DropdownMenuLabel>
