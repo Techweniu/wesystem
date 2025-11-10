@@ -44,7 +44,7 @@ const allowedLinks = {
     "/dashboard/financial",
     "/dashboard/team",
     "/dashboard/org-chart",
-    // "/dashboard/analytics", // Você não mencionou Analytics
+    // "/dashboard/analytics", // Removido conforme sua indicação
     "/dashboard/accesses",
     "/dashboard/chat",
   ],

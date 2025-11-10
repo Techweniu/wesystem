@@ -95,6 +95,7 @@ function PasswordDisplay({ info }: { info: string | null }) {
     );
 }
 
+
 // Componente principal da tabela
 export function AccessTable({ accesses }: AccessTableProps) {
   const { userRole } = useAuth(); // <-- OBTÉM A ROLE PELO CONTEXTO
@@ -156,6 +157,7 @@ export function AccessTable({ accesses }: AccessTableProps) {
             ))
           ) : (
             <TableRow>
+              {/* Ajusta o colSpan dinamicamente */}
               <TableCell colSpan={userRole === "admin" ? 6 : 5} className="h-24 text-center text-muted-foreground">
                 Nenhum acesso encontrado para esta categoria.
               </TableCell>

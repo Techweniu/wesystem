@@ -48,7 +48,7 @@ export function DashboardHeader({ user, userRole }: DashboardHeaderProps) {
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuLabel>
               <div className="flex flex-col space-y-1">
-                <p className="text-sm font-medium">Conta de Acesso</p>
+                <p className="text-sm font-medium">{user.email}</p>
                 <p className="text-xs text-muted-foreground">{roleLabel}</p>
               </div>
             </DropdownMenuLabel>

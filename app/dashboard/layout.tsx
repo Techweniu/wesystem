@@ -2,6 +2,7 @@
 
 import type React from "react"
 import { DashboardHeader } from "@/components/dashboard-header"
+import { useRouter, usePathname } from "next/navigation"
 import {
   Sidebar,
   SidebarContent,
@@ -16,14 +17,16 @@ import { AuthProvider, useAuth } from "@/contexts/auth-context" // <-- Importa o
 // Componente de Lógica Interno para usar o hook useAuth
 function DashboardLayoutLogic({ children }: { children: React.ReactNode }) {
   const { userRole, isLoading } = useAuth() // Obtém a role do contexto
+  const router = useRouter()
+  const pathname = usePathname()
 
   if (isLoading || !userRole) {
     // Mostra um loader global enquanto o AuthProvider verifica o localStorage
     return <div className="flex h-screen w-full items-center justify-center">Carregando...</div>
   }
 
-  // O FAKE_USER é apenas para o Header, mas agora passamos a role real
-  const FAKE_USER = {
+  // Define um usuário "falso" para o Header com base no papel
+  const displayUser = {
     email: userRole === 'admin' ? "admin@wesystem.io" : "usuario@wesystem.io"
   }
 
@@ -38,7 +41,7 @@ function DashboardLayoutLogic({ children }: { children: React.ReactNode }) {
       </Sidebar>
       <SidebarInset>
         {/* Passa o usuário e a role para o header */}
-        <DashboardHeader user={FAKE_USER} userRole={userRole} />
+        <DashboardHeader user={displayUser} userRole={userRole} />
         <main className={cn(
           "flex-1 overflow-y-auto p-6",
           "overflow-x-hidden"
