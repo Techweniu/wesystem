@@ -4,17 +4,7 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
-  AlertTriangle,
   KeyRound,
-  Building,
-  UsersIcon,
-  Lock,
-  Unlock,
-  Server,
-  Palette,
-  MicVocal,
-  Contact,
-  Globe,
   Search,
   X,
 } from "lucide-react"
@@ -24,10 +14,7 @@ import { PlusCircle } from "lucide-react"
 import { AddEditAccessForm } from "@/components/add-edit-access-form"
 import { AccessTable } from "@/components/access-table"
 import type { PlatformAccess } from "./page"
-// O useRouter não é mais necessário aqui para esta lógica
-// import { useRouter } from "next/navigation"
-
-// Constante da senha removida
+// import { useAuth } from "@/contexts/auth-context" // <-- REMOVIDO
 
 interface AccessesClientPageProps {
   initialAccesses: PlatformAccess[]
@@ -35,10 +22,8 @@ interface AccessesClientPageProps {
 }
 
 export function AccessesClientPage({ initialAccesses, userRole }: AccessesClientPageProps) {
-  // A lógica de viewMode e senha foi removida
   const [allAccesses, setAllAccesses] = useState<PlatformAccess[]>(initialAccesses)
   const [searchTerm, setSearchTerm] = useState("")
-  // const router = useRouter() // Removido
 
   // Efeito para atualizar o estado interno se as props mudarem
   useEffect(() => {
@@ -49,7 +34,6 @@ export function AccessesClientPage({ initialAccesses, userRole }: AccessesClient
 
   const filterAccesses = (accesses: PlatformAccess[]) => {
     if (!searchTerm.trim()) return accesses
-
     const term = searchTerm.toLowerCase()
     return accesses.filter((access) => {
       return (
@@ -61,7 +45,7 @@ export function AccessesClientPage({ initialAccesses, userRole }: AccessesClient
     })
   }
 
-  // Calcula as listas e contagens (os dados já vêm filtrados do servidor)
+  // Listas de dados (já filtrados pelo servidor, mas filtramos localmente para o search)
   const diretoriaAccesses = filterAccesses(allAccesses.filter((a) => a.department === "Diretoria"))
   const tecnologiaAccesses = filterAccesses(allAccesses.filter((a) => a.department === "Tecnologia"))
   const producaoAccesses = filterAccesses(allAccesses.filter((a) => a.department === "Produção"))
@@ -93,14 +77,12 @@ export function AccessesClientPage({ initialAccesses, userRole }: AccessesClient
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-              <KeyRound className="h-7 w-7" />
-              Acessos - {userRole === "admin" ? "Visão Completa" : "Equipe"}
-            </h1>
-            <p className="text-muted-foreground">Gerencie logins e informações de acesso.</p>
-          </div>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
+            <KeyRound className="h-7 w-7" />
+            Acessos - {userRole === "admin" ? "Visão Completa" : "Equipe"}
+          </h1>
+          <p className="text-muted-foreground">Gerencie logins e informações de acesso.</p>
         </div>
         {/* Só Admin pode adicionar */}
         {userRole === "admin" && (
@@ -152,11 +134,13 @@ export function AccessesClientPage({ initialAccesses, userRole }: AccessesClient
                 {tab.value === 'clientes' && <CardDescription>Logins específicos para plataformas de clientes.</CardDescription>}
               </CardHeader>
               <CardContent>
-                <AccessTable accesses={tab.data} />
+                {/* Passa a role para a tabela */}
+                <AccessTable accesses={tab.data} userRole={userRole} />
               </CardContent>
             </Card>
           </TabsContent>
         ))}
+        
       </Tabs>
     </div>
   )

@@ -1,8 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-// ****** VERIFIQUE ESTA LINHA ******
 import { AccessesClientPage } from "./accesses-client-page";
-// **********************************
-
 
 // Tipagem movida para cá para ser exportada e usada no Client Component
 export type PlatformAccess = {
@@ -17,7 +14,6 @@ export type PlatformAccess = {
   updated_at: string;
 };
 
-// --- FUNÇÃO ATUALIZADA ---
 // Função de busca de dados no servidor (agora filtra por role)
 async function getAccessData(userRole: "admin" | "limited") {
   const supabase = await createClient(); 
@@ -47,7 +43,7 @@ async function getAccessData(userRole: "admin" | "limited") {
   return (data as PlatformAccess[]) || []; // Garante que retorna um array
 }
 
-// --- FUNÇÃO ADICIONADA ---
+// Função para buscar a 'role' do usuário logado
 async function getUserRole() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

@@ -1,9 +1,5 @@
-"use client"
-
 import type React from "react"
 import { DashboardHeader } from "@/components/dashboard-header"
-import { useEffect } from "react" // Removido useState
-import { useRouter, usePathname } from "next/navigation" // Adicionado usePathname
 import {
   Sidebar,
   SidebarContent,
@@ -13,31 +9,42 @@ import {
 } from "@/components/ui/sidebar"
 import { DashboardSidebarContent } from "@/components/dashboard-sidebar-content"
 import { cn } from "@/lib/utils"
-import { AuthProvider, useAuth } from "@/contexts/auth-context" // <-- Importa o Provedor
+import { createClient } from "@/lib/supabase/server" // <-- Importa o Server Client
+import { redirect } from "next/navigation"
 
-// Componente de Lógica Interno para usar o hook useAuth
-function DashboardLayoutLogic({ children }: { children: React.ReactNode }) {
-  const { userRole, isLoading } = useAuth()
-  const router = useRouter()
-  const pathname = usePathname()
+// Este agora é um Server Component (async)
+export default async function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
-  useEffect(() => {
-    if (isLoading) return // Não faz nada enquanto carrega
+  if (!user) {
+    redirect("/auth/login")
+  }
 
-    // Se o usuário for 'limited' e estiver na raiz do dashboard, redireciona
-    if (userRole === 'limited' && pathname === '/dashboard') {
-      router.replace('/dashboard/clients')
-    }
-    
-    // O AuthProvider já lida com o redirecionamento para /auth/login se não houver role
+  let userRole: "admin" | "limited" = "admin" // Padrão
 
-  }, [userRole, isLoading, router, pathname])
+  // Busca o 'system_role' da tabela 'employees'
+  const { data: employeeData } = await supabase
+    .from("employees")
+    .select("system_role")
+    .eq("id", user.id)
+    .single()
 
-  if (isLoading) {
-    return <div className="flex h-screen w-full items-center justify-center">Carregando sistema...</div>
+  if (employeeData && employeeData.system_role) {
+    userRole = employeeData.system_role
+  } else {
+    console.warn(`Usuário ${user.id} não encontrado na tabela 'employees'. Aplicando role 'admin' padrão.`)
+    userRole = "admin"
   }
 
   return (
+    // O AuthProvider não é mais necessário aqui
     <SidebarProvider>
       <Sidebar collapsible="icon">
         {/* Passa a role para o conteúdo da sidebar */}
@@ -47,31 +54,15 @@ function DashboardLayoutLogic({ children }: { children: React.ReactNode }) {
         <SidebarRail />
       </Sidebar>
       <SidebarInset>
-        {/* Passa a role para o header */}
-        <DashboardHeader userRole={userRole} />
+        {/* Passa o usuário e a role para o header */}
+        <DashboardHeader user={user} userRole={userRole} />
         <main className={cn(
           "flex-1 overflow-y-auto p-6",
           "overflow-x-hidden"
         )}>
-          {children} {/* Conteúdo da página */}
+          {children} {/* Page content */}
         </main>
       </SidebarInset>
     </SidebarProvider>
-  )
-}
-
-// Layout principal exportado
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
-  return (
-    // Envolve tudo no AuthProvider
-    <AuthProvider>
-      <DashboardLayoutLogic>
-        {children}
-      </DashboardLayoutLogic>
-    </AuthProvider>
   )
 }

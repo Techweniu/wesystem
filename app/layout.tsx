@@ -1,74 +1,47 @@
 import type React from "react"
-import { DashboardHeader } from "@/components/dashboard-header"
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarInset,
-  SidebarProvider,
-  SidebarRail,
-} from "@/components/ui/sidebar"
-import { DashboardSidebarContent } from "@/components/dashboard-sidebar-content"
-import { cn } from "@/lib/utils"
-import { createClient } from "@/lib/supabase/server" // <-- Importa o Server Client
-import { redirect } from "next/navigation"
+import type { Metadata } from "next"
+import localFont from "next/font/local"
+import "./globals.css"
+import { Toaster } from "sonner"
+import { ThemeProvider } from "@/components/theme-provider" // <-- Importe o ThemeProvider
 
-export default async function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+// Carregamento das fontes locais (como no seu arquivo original)
+const gate = localFont({
+  src: "../public/fonts/gate-regular.ttf",
+  variable: "--font-sans",
+  display: "swap",
+})
 
-  if (!user) {
-    redirect("/auth/login")
-  }
+const poppins = localFont({
+  src: "../public/fonts/Poppins-Regular.ttf",
+  variable: "--font-serif",
+  display: "swap",
+})
 
-  let userRole: "admin" | "limited" = "admin" // Padrão
-
-  // Busca o 'system_role' da tabela 'employees'
-  const { data: employeeData } = await supabase
-    .from("employees")
-    .select("system_role")
-    .eq("id", user.id)
-    .single()
-
-  if (employeeData && employeeData.system_role) {
-    userRole = employeeData.system_role
-  } else {
-    // Se não encontrar, assume admin por segurança (ou 'limited' se preferir)
-    console.warn(`Usuário ${user.id} não encontrado na tabela 'employees'. Aplicando role 'admin' padrão.`)
-    userRole = "admin"
-  }
-
-  return (
-    <SidebarProvider>
-      <Sidebar collapsible="icon">
-        {/* Passa a role para o conteúdo da sidebar */}
-        <SidebarContent>
-          <DashboardSidebarContent userRole={userRole} />
-        </SidebarContent>
-        <SidebarRail />
-      </Sidebar>
-      <SidebarInset>
-        {/* Passa o usuário e a role para o header */}
-        <DashboardHeader user={user} userRole={userRole} />
-        <main className={cn(
-          "flex-1 overflow-y-auto p-6",
-          "overflow-x-hidden"
-        )}>
-          {children} {/* Page content */}
-        </main>
-      </SidebarInset>
-    </SidebarProvider>
-  )
+export const metadata: Metadata = {
+  title: "wesystem",
+  description: "Dashboard de Business Intelligence para agências",
+  generator: "v0.app",
 }
 
-
-import './globals.css'
-
-export const metadata = {
-      generator: 'v0.app'
-    };
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode
+}>) {
+  return (
+    <html lang="pt-BR" className={`${gate.variable} ${poppins.variable}`} suppressHydrationWarning>
+      <body className="font-sans antialiased">
+        {/* Envolvemos o children com o ThemeProvider que estava no 'undefined' */}
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="dark"
+          enableSystem
+        >
+          {children}
+          <Toaster position="top-right" richColors />
+        </ThemeProvider>
+      </body>
+    </html>
+  )
+}

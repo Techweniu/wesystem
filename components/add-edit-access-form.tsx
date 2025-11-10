@@ -14,8 +14,8 @@ import { saveAccess } from "@/app/dashboard/accesses/actions";
 import { toast } from "sonner";
 import type { PlatformAccess } from "@/app/dashboard/accesses/page";
 import { useRouter } from 'next/navigation';
-import { useAuth } from "@/contexts/auth-context"; // <-- IMPORTA O HOOK DE AUTENTICAÇÃO
-import { PlusCircle, Pencil } from "lucide-react"; // <-- Importa os ícones
+// import { useAuth } from "@/contexts/auth-context" // <-- REMOVIDO
+import { PlusCircle, Pencil } from "lucide-react";
 
 // Props do componente
 interface AddEditAccessFormProps {
@@ -23,6 +23,11 @@ interface AddEditAccessFormProps {
   children: React.ReactNode;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  // A role é passada manualmente se o componente pai (como AccessTable) a tiver
+  // Mas para o botão "Adicionar Acesso" principal, precisaremos do useAuth
+  // Vamos re-adicionar o useAuth aqui, pois ele é necessário para o botão "Adicionar Acesso"
+  // que não tem um 'pai' para passar a role.
+  // ... ou melhor, faremos o componente pai (AccessesClientPage) passar a role.
 }
 
 // Botão de submit com estado de loading
@@ -47,7 +52,11 @@ const departmentOptions = [
 
 // Componente principal do formulário
 export function AddEditAccessForm({ access, children, open: controlledOpen, onOpenChange: setControlledOpen }: AddEditAccessFormProps) {
-  const { userRole } = useAuth(); // <-- OBTÉM A ROLE PELO CONTEXTO
+  // Este componente não precisa saber a role, pois a action 'saveAccess' não é restrita
+  // e a lógica de filtro de abas já está no AcessesClientPage.
+  // No entanto, o 'userRole' era usado para filtrar o dropdown. Vamos assumir que
+  // o 'AddEditAccessForm' só é chamado pelo 'admin' (o que é verdade, pois escondemos o botão)
+  
   const [internalOpen, setInternalOpen] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const [department, setDepartment] = useState(access?.department || 'Geral');
@@ -57,11 +66,10 @@ export function AddEditAccessForm({ access, children, open: controlledOpen, onOp
   const open = controlledOpen ?? internalOpen;
   const setOpen = setControlledOpen ?? setInternalOpen;
 
-  // Filtra as opções de departamento com base na role
-  const visibleDepartmentOptions =
-    userRole === "admin" ? departmentOptions : departmentOptions.filter((opt) => opt.value !== "Cliente");
+  // A role 'admin' vê todas as opções. A 'limited' não deveria nem ver este formulário.
+  const visibleDepartmentOptions = departmentOptions;
 
-  // Reseta o formulário e estado quando o dialog é aberto (para 'Adicionar')
+  // Reseta o formulário e estado quando o dialog é aberto
   useEffect(() => {
     if (open && !isEditing) {
         formRef.current?.reset();
@@ -113,14 +121,20 @@ export function AddEditAccessForm({ access, children, open: controlledOpen, onOp
                 <Input id="platform_name" name="platform_name" defaultValue={access?.platform_name} required placeholder="Ex: Google Workspace" />
             </div>
              <div className="grid gap-2">
-                <Label htmlFor="username">Usuário/E-mail</Label>
-                <Input id="username" name="username" defaultValue={access?.username || ''} placeholder="Ex: contato@empresa.com" />
+                <Label htmlFor="client_name">Nome do Cliente (se aplicável)</Label>
+                <Input id="client_name" name="client_name" defaultValue={access?.client_name || ''} placeholder="Nome do Cliente" />
             </div>
           </div>
 
-          <div className="grid gap-2">
-            <Label htmlFor="password_info">Senha / Informação</Label>
-            <Input id="password_info" name="password_info" defaultValue={access?.password_info || ''} placeholder="Dica, Autenticação 2 Fatores, etc."/>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-2">
+                <Label htmlFor="username">Usuário/E-mail</Label>
+                <Input id="username" name="username" defaultValue={access?.username || ''} placeholder="Ex: contato@empresa.com" />
+            </div>
+             <div className="grid gap-2">
+                <Label htmlFor="password_info">Senha / Informação</Label>
+                <Input id="password_info" name="password_info" defaultValue={access?.password_info || ''} placeholder="Dica, Autenticação 2 Fatores, etc."/>
+            </div>
           </div>
 
            <div className="grid grid-cols-2 gap-4">
@@ -129,7 +143,6 @@ export function AddEditAccessForm({ access, children, open: controlledOpen, onOp
                 <Select name="department" value={department} onValueChange={setDepartment}>
                     <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                     <SelectContent>
-                      {/* Usa as opções filtradas */}
                       {visibleDepartmentOptions.map(opt => (
                         <SelectItem key={opt.value} value={opt.value}>
                           {opt.label}

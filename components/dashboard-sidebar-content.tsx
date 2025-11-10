@@ -161,7 +161,8 @@ export function DashboardSidebarContent({ userRole }: DashboardSidebarContentPro
             <SidebarMenuItem key={item.name}>
               <SidebarMenuButton
                 asChild
-                isActive={pathname.startsWith(item.href)} // Usar startsWith para Acessos, etc.
+                // Correção: usar startsWith para todas as rotas
+                isActive={pathname.startsWith(item.href)}
                 tooltip={item.name}
               >
                 <Link href={item.href}>

@@ -1,9 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server"
-import { createServerClient } from "@supabase/ssr" // Importa o SSR client
-import type { CookieOptions } from "@supabase/ssr" // Importa o tipo
+import { createServerClient } from "@supabase/ssr"
+import type { CookieOptions } from "@supabase/ssr"
 
 // --- INÍCIO: createClient (copiado de lib/supabase/middleware.ts) ---
-// Precisamos ter a função aqui para que o middleware seja autossuficiente
 export const createClient = (request: NextRequest) => {
   let response = NextResponse.next({ request: { headers: request.headers } })
 
