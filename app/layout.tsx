@@ -19,7 +19,7 @@ const poppins = localFont({
 })
 
 export const metadata: Metadata = {
-  title: "wesystem",
+  title: "wesystemv1",
   description: "Dashboard de Business Intelligence para agências",
   generator: "v0.app",
 }
