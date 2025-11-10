@@ -10,17 +10,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { saveAccess } from "@/app/dashboard/accesses/actions"; // Importa a nova ação
+import { saveAccess } from "@/app/dashboard/accesses/actions";
 import { toast } from "sonner";
-import type { PlatformAccess } from "@/app/dashboard/accesses/page"; // Importa o tipo
-import { useRouter } from 'next/navigation'; // *** IMPORTAR useRouter ***
+import type { PlatformAccess } from "@/app/dashboard/accesses/page";
+import { useRouter } from 'next/navigation';
+import { useAuth } from "@/contexts/auth-context"; // <-- IMPORTA O HOOK DE AUTENTICAÇÃO
+import { PlusCircle, Pencil } from "lucide-react"; // <-- Importa os ícones
 
 // Props do componente
 interface AddEditAccessFormProps {
-  access?: PlatformAccess; // Opcional: para edição
-  children: React.ReactNode; // O botão que abre o dialog
-  open?: boolean; // Para controlar o estado de fora, se necessário
-  onOpenChange?: (open: boolean) => void; // Para controlar o estado de fora, se necessário
+  access?: PlatformAccess;
+  children: React.ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 // Botão de submit com estado de loading
@@ -33,41 +35,53 @@ function SubmitButton({ isEditing }: { isEditing: boolean }) {
   );
 }
 
+// Lista de departamentos
+const departmentOptions = [
+  { value: "Geral", label: "Nenhum / Geral" },
+  { value: "Diretoria", label: "Diretoria" },
+  { value: "Tecnologia", label: "Tecnologia" },
+  { value: "Produção", label: "Produção" },
+  { value: "Marketing", label: "Marketing" },
+  { value: "Cliente", label: "Cliente" },
+]
+
 // Componente principal do formulário
 export function AddEditAccessForm({ access, children, open: controlledOpen, onOpenChange: setControlledOpen }: AddEditAccessFormProps) {
+  const { userRole } = useAuth(); // <-- OBTÉM A ROLE PELO CONTEXTO
   const [internalOpen, setInternalOpen] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const [department, setDepartment] = useState(access?.department || 'Geral');
-  const router = useRouter(); // *** INICIALIZAR useRouter ***
+  const router = useRouter();
 
   const isEditing = !!access;
   const open = controlledOpen ?? internalOpen;
   const setOpen = setControlledOpen ?? setInternalOpen;
 
+  // Filtra as opções de departamento com base na role
+  const visibleDepartmentOptions =
+    userRole === "admin" ? departmentOptions : departmentOptions.filter((opt) => opt.value !== "Cliente");
+
   // Reseta o formulário e estado quando o dialog é aberto (para 'Adicionar')
   useEffect(() => {
     if (open && !isEditing) {
         formRef.current?.reset();
-        setDepartment('Geral'); // Reseta para 'Geral'
+        setDepartment('Geral');
     } else if (open && isEditing) {
-        // Define o estado inicial do departamento ao editar
-        setDepartment(access?.department || 'Geral'); // Usa 'Geral' se for null
+        setDepartment(access?.department || 'Geral');
     }
   }, [open, isEditing, access]);
 
 
   // Função chamada ao submeter o formulário
   async function handleFormSubmit(formData: FormData) {
-    // Adiciona o ID se estiver editando
     if (isEditing) {
       formData.append('id', access.id);
     }
-    // Garante que o valor 'Geral' seja enviado se for o selecionado
     if (!formData.has('department')) {
         formData.set('department', department);
     }
 
-    const result = await saveAccess(formData); // Chama a Server Action
+    const result = await saveAccess(formData);
 
     if (result.error) {
       toast.error(`Erro ao ${isEditing ? 'atualizar' : 'adicionar'} acesso`, {
@@ -75,15 +89,15 @@ export function AddEditAccessForm({ access, children, open: controlledOpen, onOp
       });
     } else {
       toast.success(result.success);
-      setOpen(false); // Fecha o dialog em caso de sucesso
-      router.refresh(); // *** ADICIONADO router.refresh() AQUI ***
+      setOpen(false);
+      router.refresh(); 
     }
   }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent className="sm:max-w-[550px]"> {/* Ajuste a largura se necessário */}
+      <DialogContent className="sm:max-w-[550px]">
         <DialogHeader>
           <DialogTitle>{isEditing ? 'Editar Acesso' : 'Adicionar Novo Acesso'}</DialogTitle>
           <DialogDescription>
@@ -91,7 +105,6 @@ export function AddEditAccessForm({ access, children, open: controlledOpen, onOp
           </DialogDescription>
         </DialogHeader>
         <form ref={formRef} action={handleFormSubmit} className="space-y-4">
-          {/* Campo oculto para ID em caso de edição */}
           {isEditing && <input type="hidden" name="id" value={access.id} />}
 
           <div className="grid grid-cols-2 gap-4">
@@ -116,12 +129,12 @@ export function AddEditAccessForm({ access, children, open: controlledOpen, onOp
                 <Select name="department" value={department} onValueChange={setDepartment}>
                     <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Geral">Nenhum / Geral</SelectItem>
-                      <SelectItem value="Diretoria">Diretoria</SelectItem>
-                      <SelectItem value="Tecnologia">Tecnologia</SelectItem>
-                      <SelectItem value="Produção">Produção</SelectItem>
-                      <SelectItem value="Marketing">Marketing</SelectItem>
-                      <SelectItem value="Cliente">Cliente</SelectItem>
+                      {/* Usa as opções filtradas */}
+                      {visibleDepartmentOptions.map(opt => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                 </Select>
              </div>
@@ -132,7 +145,6 @@ export function AddEditAccessForm({ access, children, open: controlledOpen, onOp
                 </div>
              )}
           </div>
-
 
           <div className="grid gap-2">
             <Label htmlFor="notes">Observações</Label>

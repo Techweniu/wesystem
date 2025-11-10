@@ -1,73 +1,77 @@
-// bi-dashboard (4)/app/dashboard/layout.tsx
 "use client"
 
 import type React from "react"
 import { DashboardHeader } from "@/components/dashboard-header"
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useEffect } from "react" // Removido useState
+import { useRouter, usePathname } from "next/navigation" // Adicionado usePathname
 import {
   Sidebar,
   SidebarContent,
-  SidebarInset, // Ensure this is imported
+  SidebarInset,
   SidebarProvider,
   SidebarRail,
-} from "@/components/ui/sidebar" // Verify import path
-import { DashboardSidebarContent } from "@/components/dashboard-sidebar-content" // Verify import path
+} from "@/components/ui/sidebar"
+import { DashboardSidebarContent } from "@/components/dashboard-sidebar-content"
 import { cn } from "@/lib/utils"
+import { AuthProvider, useAuth } from "@/contexts/auth-context" // <-- Importa o Provedor
 
-const FAKE_USER = {
-  id: "master-user",
-  email: "admin@wesystem.io",
-  app_metadata: {},
-  user_metadata: {},
-  aud: "",
-  created_at: "",
+// Componente de Lógica Interno para usar o hook useAuth
+function DashboardLayoutLogic({ children }: { children: React.ReactNode }) {
+  const { userRole, isLoading } = useAuth()
+  const router = useRouter()
+  const pathname = usePathname()
+
+  useEffect(() => {
+    if (isLoading) return // Não faz nada enquanto carrega
+
+    // Se o usuário for 'limited' e estiver na raiz do dashboard, redireciona
+    if (userRole === 'limited' && pathname === '/dashboard') {
+      router.replace('/dashboard/clients')
+    }
+    
+    // O AuthProvider já lida com o redirecionamento para /auth/login se não houver role
+
+  }, [userRole, isLoading, router, pathname])
+
+  if (isLoading) {
+    return <div className="flex h-screen w-full items-center justify-center">Carregando sistema...</div>
+  }
+
+  return (
+    <SidebarProvider>
+      <Sidebar collapsible="icon">
+        {/* Passa a role para o conteúdo da sidebar */}
+        <SidebarContent>
+          <DashboardSidebarContent userRole={userRole} />
+        </SidebarContent>
+        <SidebarRail />
+      </Sidebar>
+      <SidebarInset>
+        {/* Passa a role para o header */}
+        <DashboardHeader userRole={userRole} />
+        <main className={cn(
+          "flex-1 overflow-y-auto p-6",
+          "overflow-x-hidden"
+        )}>
+          {children} {/* Conteúdo da página */}
+        </main>
+      </SidebarInset>
+    </SidebarProvider>
+  )
 }
 
+// Layout principal exportado
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
-  const router = useRouter()
-
-  useEffect(() => {
-    const authStatus = localStorage.getItem("isAuthenticated")
-    if (authStatus === "true") {
-      setIsAuthenticated(true)
-    } else {
-      router.push("/auth/login")
-    }
-  }, [router])
-
-  if (isAuthenticated === null) {
-    return <div className="flex h-screen w-full items-center justify-center">Carregando sistema...</div>
-  }
-
-  if (!isAuthenticated) {
-    return null
-  }
-
-  // SidebarProvider wraps the entire layout structure
   return (
-    <SidebarProvider>
-      <Sidebar collapsible="icon">
-        <SidebarContent>
-          {/* DashboardSidebarContent rendered inside */}
-          <DashboardSidebarContent />
-        </SidebarContent>
-        <SidebarRail />
-      </Sidebar>
-      <SidebarInset> {/* Container for Header and Main */}
-        <DashboardHeader user={FAKE_USER} />
-        <main className={cn(
-          "flex-1 overflow-y-auto p-6", // Existing classes
-          "overflow-x-hidden" // Prevents main content from scrolling horizontally
-        )}>
-          {children} {/* Page content */}
-        </main>
-      </SidebarInset>
-    </SidebarProvider>
+    // Envolve tudo no AuthProvider
+    <AuthProvider>
+      <DashboardLayoutLogic>
+        {children}
+      </DashboardLayoutLogic>
+    </AuthProvider>
   )
 }

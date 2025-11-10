@@ -8,27 +8,33 @@ import { Label } from "@/components/ui/label"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { toast } from "sonner"
-
-// A senha mestra
-const MASTER_PASSWORD = "491hrinh19283"
+import { createClient } from "@/lib/supabase/client" // <-- Importa o cliente Supabase
 
 export default function LoginPage() {
+  const [email, setEmail] = useState("") // <-- Adicionado campo de e-mail
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
+  const supabase = createClient() // <-- Inicializa o cliente
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
 
-    // A lógica de senha única
-    if (password === MASTER_PASSWORD) {
-      localStorage.setItem("isAuthenticated", "true")
-      toast.success("Login realizado com sucesso!")
-      router.push("/dashboard")
-    } else {
-      toast.error("Senha incorreta. Tente novamente.")
+    // --- LÓGICA DE LOGIN ATUALIZADA (SUPABASE AUTH) ---
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email,
+      password: password,
+    })
+
+    if (error) {
+      toast.error(error.message || "Senha ou e-mail incorretos.")
       setIsLoading(false)
+    } else {
+      toast.success("Login realizado com sucesso!")
+      // O middleware cuidará do redirecionamento
+      router.push("/dashboard")
+      router.refresh() // Força a atualização do layout
     }
   }
 
@@ -42,11 +48,23 @@ export default function LoginPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-2xl">Acesso Restrito</CardTitle>
-            <CardDescription>Digite a senha para acessar o dashboard</CardDescription>
+            <CardDescription>Digite seu e-mail e senha para acessar</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleLogin}>
               <div className="flex flex-col gap-6">
+                {/* --- CAMPO DE E-MAIL ADICIONADO --- */}
+                <div className="grid gap-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="seu@email.com"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                </div>
                 <div className="grid gap-2">
                   <Label htmlFor="password">Senha</Label>
                   <Input

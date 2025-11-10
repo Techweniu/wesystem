@@ -35,7 +35,32 @@ type Client = {
   name: string
 }
 
-export function DashboardSidebarContent() {
+// Define os links permitidos para cada role (Conforme seu pedido)
+const allowedLinks = {
+  admin: [
+    "/dashboard",
+    "/dashboard/clients",
+    "/dashboard/commercial",
+    "/dashboard/financial",
+    "/dashboard/team",
+    "/dashboard/org-chart",
+    // "/dashboard/analytics", // Você não mencionou Analytics
+    "/dashboard/accesses",
+    "/dashboard/chat",
+  ],
+  limited: [
+    "/dashboard/clients", 
+    "/dashboard/org-chart", 
+    "/dashboard/accesses", 
+    "/dashboard/chat"
+  ],
+}
+
+interface DashboardSidebarContentProps {
+  userRole: "admin" | "limited" // Recebe a role
+}
+
+export function DashboardSidebarContent({ userRole }: DashboardSidebarContentProps) {
   const pathname = usePathname()
   const [clients, setClients] = useState<Client[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -59,6 +84,23 @@ export function DashboardSidebarContent() {
     fetchClients()
   }, [])
 
+  const navigation = [
+    { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+    { name: "Clientes", href: "/dashboard/clients", icon: Users, collapsible: true },
+    { name: "Comercial", href: "/dashboard/commercial", icon: Target },
+    { name: "Financeiro", href: "/dashboard/financial", icon: DollarSign },
+    { name: "Equipe", href: "/dashboard/team", icon: UserCircle },
+    { name: "Organograma", href: "/dashboard/org-chart", icon: Network },
+    { name: "Acessos", href: "/dashboard/accesses", icon: KeyRound },
+    { name: "Assistente IA", href: "/dashboard/chat", icon: Sparkles },
+    // { name: "Analytics", href: "/dashboard/analytics", icon: BarChart3 }, // Removido
+  ]
+
+  // Filtra os links visíveis
+  const visibleLinks = navigation.filter(
+    (link) => allowedLinks[userRole] && allowedLinks[userRole].includes(link.href)
+  );
+
   return (
     <>
       <SidebarMenu>
@@ -71,109 +113,65 @@ export function DashboardSidebarContent() {
 
         <SidebarSeparator className="my-1" />
 
-        <SidebarMenuItem>
-          <SidebarMenuButton asChild isActive={pathname === "/dashboard"} tooltip="Dashboard">
-            <Link href="/dashboard">
-              <LayoutDashboard />
-              <span>Dashboard</span>
-            </Link>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
-
-        <Collapsible>
-          <SidebarMenuItem>
-            <div className="flex w-full items-center justify-between">
+        {visibleLinks.map((item) => (
+          // Lógica especial para o item "Clientes"
+          item.collapsible ? (
+            <Collapsible key={item.name}>
+              <SidebarMenuItem>
+                <div className="flex w-full items-center justify-between">
+                  <SidebarMenuButton
+                    asChild
+                    isActive={pathname.startsWith(item.href)}
+                    tooltip={item.name}
+                    className="flex-1"
+                  >
+                    <Link href={item.href}>
+                      <item.icon />
+                      <span>{item.name}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" size="icon" className="group size-8 shrink-0" disabled={isLoading}>
+                      <ChevronDown className="transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                    </Button>
+                  </CollapsibleTrigger>
+                </div>
+                <CollapsibleContent>
+                  <SidebarMenuSub>
+                    {isLoading ? (
+                      <>
+                        <SidebarMenuSkeleton />
+                        <SidebarMenuSkeleton />
+                      </>
+                    ) : (
+                      clients.map((client) => (
+                        <SidebarMenuSubItem key={client.id}>
+                          <SidebarMenuSubButton asChild isActive={pathname === `/dashboard/clients/${client.id}`}>
+                            <Link href={`/dashboard/clients/${client.id}`}>{client.name}</Link>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      ))
+                    )}
+                  </SidebarMenuSub>
+                </CollapsibleContent>
+              </SidebarMenuItem>
+            </Collapsible>
+          ) : (
+            // Lógica para links normais
+            <SidebarMenuItem key={item.name}>
               <SidebarMenuButton
                 asChild
-                isActive={pathname.startsWith("/dashboard/clients")}
-                tooltip="Clientes"
-                className="flex-1"
+                isActive={pathname.startsWith(item.href)} // Usar startsWith para Acessos, etc.
+                tooltip={item.name}
               >
-                <Link href="/dashboard/clients">
-                  <Users />
-                  <span>Clientes</span>
+                <Link href={item.href}>
+                  <item.icon />
+                  <span>{item.name}</span>
                 </Link>
               </SidebarMenuButton>
-              <CollapsibleTrigger asChild>
-                <Button variant="ghost" size="icon" className="group size-8 shrink-0" disabled={isLoading}>
-                  <ChevronDown className="transition-transform duration-200 group-data-[state=open]:rotate-180" />
-                </Button>
-              </CollapsibleTrigger>
-            </div>
-            <CollapsibleContent>
-              <SidebarMenuSub>
-                {isLoading ? (
-                  <>
-                    <SidebarMenuSkeleton />
-                    <SidebarMenuSkeleton />
-                  </>
-                ) : (
-                  clients.map((client) => (
-                    <SidebarMenuSubItem key={client.id}>
-                      <SidebarMenuSubButton asChild isActive={pathname === `/dashboard/clients/${client.id}`}>
-                        <Link href={`/dashboard/clients/${client.id}`}>{client.name}</Link>
-                      </SidebarMenuSubButton>
-                    </SidebarMenuSubItem>
-                  ))
-                )}
-              </SidebarMenuSub>
-            </CollapsibleContent>
-          </SidebarMenuItem>
-        </Collapsible>
-
-        <SidebarMenuItem>
-          <SidebarMenuButton asChild isActive={pathname === "/dashboard/financial"} tooltip="Financeiro">
-            <Link href="/dashboard/financial">
-              <DollarSign />
-              <span>Financeiro</span>
-            </Link>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
-
-        <SidebarMenuItem>
-          <SidebarMenuButton asChild isActive={pathname === "/dashboard/commercial"} tooltip="Comercial">
-            <Link href="/dashboard/commercial">
-              <Target />
-              <span>Comercial</span>
-            </Link>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
-
-        <SidebarMenuItem>
-          <SidebarMenuButton asChild isActive={pathname === "/dashboard/team"} tooltip="Equipe">
-            <Link href="/dashboard/team">
-              <UserCircle />
-              <span>Equipe</span>
-            </Link>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
-
-        <SidebarMenuItem>
-          <SidebarMenuButton asChild isActive={pathname === "/dashboard/org-chart"} tooltip="Organograma">
-            <Link href="/dashboard/org-chart">
-              <Network />
-              <span>Organograma</span>
-            </Link>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
-
-        <SidebarMenuItem>
-          <SidebarMenuButton asChild isActive={pathname.startsWith("/dashboard/accesses")} tooltip="Acessos">
-            <Link href="/dashboard/accesses">
-              <KeyRound />
-              <span>Acessos</span>
-            </Link>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
-
-        <SidebarMenuItem>
-          <SidebarMenuButton asChild isActive={pathname === "/dashboard/chat"} tooltip="Assistente IA">
-            <Link href="/dashboard/chat">
-              <Sparkles />
-              <span>Assistente IA</span>
-            </Link>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
+            </SidebarMenuItem>
+          )
+        ))}
       </SidebarMenu>
     </>
   )

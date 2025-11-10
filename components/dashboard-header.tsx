@@ -9,26 +9,31 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import type { User } from "@supabase/supabase-js"
+import type { User } from "@supabase/supabase-js" // <-- Importa o tipo User
 import { LogOut, UserIcon } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { createClient } from "@/lib/supabase/client" // <-- Importa o Client
 
 interface DashboardHeaderProps {
-  user: Pick<User, "email">
+  user: User // Recebe o objeto User completo
+  userRole: "admin" | "limited"
 }
 
-export function DashboardHeader({ user }: DashboardHeaderProps) {
+export function DashboardHeader({ user, userRole }: DashboardHeaderProps) {
   const router = useRouter()
+  const supabase = createClient()
 
-  const handleSignOut = () => {
-    localStorage.removeItem("isAuthenticated")
-    router.push("/auth/login")
+  const handleSignOut = async () => {
+    await supabase.auth.signOut()
+    router.push("/auth/login") // Redireciona para o login
+    router.refresh() // Limpa o cache
   }
+
+  const roleLabel = userRole === 'admin' ? 'Administrador' : 'Acesso Limitado'
 
   return (
     <header className="flex h-16 shrink-0 items-center justify-between border-b border-border bg-card px-6">
       <div className="flex items-center gap-4">
-        {/* O SidebarTrigger foi removido daqui */}
         <h2 className="text-lg font-semibold">Bem-vindo ao Dashboard</h2>
       </div>
       <div className="flex items-center gap-2">
@@ -41,8 +46,8 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuLabel>
               <div className="flex flex-col space-y-1">
-                <p className="text-sm font-medium">Conta de Acesso</p>
-                <p className="text-xs text-muted-foreground">{user.email}</p>
+                <p className="text-sm font-medium">{user.email || 'Usuário'}</p>
+                <p className="text-xs text-muted-foreground">{roleLabel}</p>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
