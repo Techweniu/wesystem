@@ -49,9 +49,9 @@ const allNavigation = [
   { name: "Assistente IA", href: "/dashboard/chat", icon: Sparkles },
 ]
 
-// --- ALTERAÇÃO AQUI: Lista restrita apenas a Clientes e Organograma ---
-const limitedAccessNav = ["Clientes", "Organograma"]
-// ----------------------------------------------------------------------
+// Lista de nomes de links permitidos para o papel 'limited'
+// ADICIONADO: "Acessos"
+const limitedAccessNav = ["Clientes", "Organograma", "Acessos"]
 
 // Recebe 'userRole' como prop
 export function DashboardSidebarContent({ userRole }: { userRole: UserRole }) {
@@ -91,7 +91,7 @@ export function DashboardSidebarContent({ userRole }: { userRole: UserRole }) {
     }
 
     fetchClients()
-  }, [showClients])
+  }, [showClients]) // Re-executa se 'showClients' mudar
 
   return (
     <>
