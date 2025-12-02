@@ -17,7 +17,6 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-// =====> ADICIONADO: Imports para Select <=====
 import {
   Select,
   SelectContent,
@@ -27,9 +26,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-// ===========================================
-import { addOrgPosition } from "@/app/dashboard/org-chart/actions" // Action correta
+import { addOrgPosition } from "@/app/dashboard/org-chart/actions"
 import { toast } from "sonner"
+// --- ALTERAÇÃO: Importar a constante ---
+import { ROLES } from "@/lib/constants"
+// -------------------------------------
 
 interface OrgPosition {
   id: string
@@ -39,27 +40,9 @@ interface OrgPosition {
 
 interface AddOrgPositionFormProps {
   managerId?: string | null
-  positions: OrgPosition[] // Usado para preencher o select de gestor
-  children: React.ReactNode // O botão que abre o dialog
+  positions: OrgPosition[]
+  children: React.ReactNode
 }
-
-// =====> ADICIONADO: Lista de Cargos <=====
-const rolesList = [
-  "Diretor de Operações",
-  "Diretor de Relacionamento com Cliente",
-  "Diretor de Marketing",
-  "Diretor de Tecnologia",
-  "Diretor de Audiovisual",
-  "Diretor Comercial",
-  "Gestor de Relacionamento",
-  "Videomaker",
-  "Editor", // <-- ADICIONADO AQUI
-  "Assessor",
-  "Colaborador de Tecnologia",
-  "Backoffice",
-  "Representante Comercial",
-]
-// ======================================
 
 function SubmitButton() {
   const { pending } = useFormStatus()
@@ -75,7 +58,6 @@ export function AddOrgPositionForm({ managerId, positions, children }: AddOrgPos
   const formRef = useRef<HTMLFormElement>(null)
 
   async function handleFormSubmit(formData: FormData) {
-    // A action addOrgPosition já lida com managerId, não precisa adicionar aqui
     const result = await addOrgPosition(formData)
 
     if (result.error) {
@@ -83,7 +65,7 @@ export function AddOrgPositionForm({ managerId, positions, children }: AddOrgPos
     } else {
       toast.success(result.success)
       setOpen(false)
-      formRef.current?.reset() // Limpa o formulário após sucesso
+      formRef.current?.reset()
     }
   }
 
@@ -101,7 +83,7 @@ export function AddOrgPositionForm({ managerId, positions, children }: AddOrgPos
               <Label htmlFor="name">Nome da Pessoa*</Label>
               <Input id="name" name="name" placeholder="Ex: João da Silva" required />
             </div>
-            {/* ====> CAMPO CARGO ALTERADO DE INPUT PARA SELECT <==== */}
+            
             <div className="grid gap-2">
               <Label htmlFor="role">Cargo*</Label>
               <Select name="role" required>
@@ -111,16 +93,18 @@ export function AddOrgPositionForm({ managerId, positions, children }: AddOrgPos
                 <SelectContent>
                   <SelectGroup>
                     <SelectLabel>Cargos Disponíveis</SelectLabel>
-                    {rolesList.map((role) => (
+                    {/* --- ALTERAÇÃO: Map na constante ROLES --- */}
+                    {ROLES.map((role) => (
                       <SelectItem key={role} value={role}>
                         {role}
                       </SelectItem>
                     ))}
+                    {/* ------------------------------------------ */}
                   </SelectGroup>
                 </SelectContent>
               </Select>
             </div>
-            {/* ======================================================= */}
+            
             <div className="grid gap-2">
               <Label htmlFor="manager_id">Gestor Direto</Label>
               <Select name="manager_id" defaultValue={managerId || "null"}>
@@ -129,7 +113,6 @@ export function AddOrgPositionForm({ managerId, positions, children }: AddOrgPos
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="null">Nenhum (Liderança)</SelectItem>
-                  {/* Filtra para não mostrar a própria pessoa (embora aqui não faça sentido, mantém consistência) */}
                   {positions.map((pos) => (
                     <SelectItem key={pos.id} value={pos.id}>
                       {pos.name} ({pos.role})

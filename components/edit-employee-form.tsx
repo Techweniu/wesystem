@@ -29,6 +29,9 @@ import {
 import { saveEmployee } from "@/app/dashboard/team/actions"
 import { toast } from "sonner"
 import { format } from "date-fns"
+// --- ALTERAÇÃO: Importar as constantes ---
+import { ROLES, DEPARTMENTS } from "@/lib/constants"
+// ----------------------------------------
 
 interface Employee {
   id: string
@@ -50,26 +53,6 @@ interface EditEmployeeFormProps {
   open?: boolean
   onOpenChange?: (open: boolean) => void
 }
-
-// Lista de Cargos (atualizada)
-const rolesList = [
-  "Diretor de Operações",
-  "Diretor de Relacionamento com Cliente",
-  "Diretor de Marketing",
-  "Diretor de Tecnologia",
-  "Diretor de Audiovisual",
-  "Diretor Comercial",
-  "Gestor de Relacionamento",
-  "Videomaker",
-  "Editor", // <-- ADICIONADO AQUI
-  "Assessor",
-  "Colaborador de Tecnologia",
-  "Backoffice",
-  "Representante Comercial",
-]
-
-// Lista de Departamentos (sem alterações)
-const departmentsList = ["Diretoria", "Tecnologia", "Edição", "Assessoria", "Audiovisual"]
 
 function SubmitButton({ isEditing }: { isEditing: boolean }) {
   const { pending } = useFormStatus()
@@ -94,13 +77,11 @@ export function EditEmployeeForm({
   const open = controlledOpen ?? internalOpen
   const setOpen = setControlledOpen ?? setInternalOpen
 
-  // Usa 'none' como valor para representar 'null' no Select
   const defaultDepartmentValue = employee?.department ?? "none"
 
   async function handleFormSubmit(formData: FormData) {
-    // Se 'none' foi selecionado para departamento, remove explicitamente para que a action o trate como null
     if (formData.get("department") === "none") {
-      formData.delete("department") // Ou formData.set('department', '') dependendo da validação
+      formData.delete("department") 
     }
     const result = await saveEmployee(formData)
     if (result.error) {
@@ -122,7 +103,6 @@ export function EditEmployeeForm({
         </DialogHeader>
         <form ref={formRef} action={handleFormSubmit} className="space-y-4 max-h-[80vh] overflow-y-auto pr-6">
           {employee && <input type="hidden" name="id" value={employee.id} />}
-          {/* Campos Nome e Email (sem alterações) */}
           <div className="grid gap-2">
             <Label htmlFor="name">Nome*</Label>
             <Input id="name" name="name" defaultValue={employee?.name} required />
@@ -133,7 +113,7 @@ export function EditEmployeeForm({
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            {/* Campo Cargo (Select - atualizado) */}
+            {/* Campo Cargo (Select - usando constante) */}
             <div className="grid gap-2">
               <Label htmlFor="role">Cargo*</Label>
               <Select name="role" defaultValue={employee?.role} required>
@@ -143,16 +123,19 @@ export function EditEmployeeForm({
                 <SelectContent>
                   <SelectGroup>
                     <SelectLabel>Cargos Disponíveis</SelectLabel>
-                    {rolesList.map((role) => (
+                    {/* --- ALTERAÇÃO: Map na constante ROLES --- */}
+                    {ROLES.map((role) => (
                       <SelectItem key={role} value={role}>
                         {role}
                       </SelectItem>
                     ))}
+                    {/* ------------------------------------------ */}
                   </SelectGroup>
                 </SelectContent>
               </Select>
             </div>
-            {/* Campo Departamento (Select - sem alterações) */}
+            
+            {/* Campo Departamento (Select - usando constante) */}
             <div className="grid gap-2">
               <Label htmlFor="department">Departamento</Label>
               <Select name="department" defaultValue={defaultDepartmentValue}>
@@ -162,19 +145,20 @@ export function EditEmployeeForm({
                 <SelectContent>
                   <SelectGroup>
                     <SelectLabel>Departamentos</SelectLabel>
-                    {/* Opção para Nenhum/Remover */}
                     <SelectItem value="none">Nenhum</SelectItem>
-                    {departmentsList.map((dept) => (
+                    {/* --- ALTERAÇÃO: Map na constante DEPARTMENTS --- */}
+                    {DEPARTMENTS.map((dept) => (
                       <SelectItem key={dept} value={dept}>
                         {dept}
                       </SelectItem>
                     ))}
+                    {/* ----------------------------------------------- */}
                   </SelectGroup>
                 </SelectContent>
               </Select>
             </div>
           </div>
-          {/* Restante dos campos (Salário, Dia Pagamento, Data Contratação, Status, Gestor) sem alterações */}
+          
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-2">
               <Label htmlFor="salary">Salário (R$)</Label>

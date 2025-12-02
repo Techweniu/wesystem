@@ -3,39 +3,23 @@
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
-
-// =====> ADICIONADO: Lista de cargos válidos para validação <=====
-const validRoles = [
-  "Diretor de Operações",
-  "Diretor de Relacionamento com Cliente",
-  "Diretor de Marketing",
-  "Diretor de Tecnologia",
-  "Diretor de Audiovisual",
-  "Diretor Comercial",
-  "Gestor de Relacionamento",
-  "Videomaker",
-  "Editor", // <-- ADICIONADO AQUI
-  "Assessor",
-  "Colaborador de Tecnologia",
-  "Backoffice",
-  "Representante Comercial",
-] as const
-// ============================================================
+// --- ALTERAÇÃO: Importar a constante ---
+import { ROLES } from "@/lib/constants" 
+// -------------------------------------
 
 // Schema para adicionar colaborador via organograma
 const addEmployeeSchema = z.object({
   name: z.string().min(3, "O nome é obrigatório."),
-  // ====> CAMPO ROLE ALTERADO PARA z.enum <====
-  role: z.enum(validRoles, {
+  // --- ALTERAÇÃO: Usar a constante no Zod ---
+  role: z.enum(ROLES, {
     errorMap: () => ({ message: "Selecione um cargo válido da lista." }),
   }),
-  // ==========================================
-  manager_id: z.string().uuid().optional().or(z.literal("null")).nullable(), // Permite 'null' como string
+  // -----------------------------------------
+  manager_id: z.string().uuid().optional().or(z.literal("null")).nullable(),
 })
 
 export async function addOrgPosition(formData: FormData) {
   const rawData = Object.fromEntries(formData.entries())
-  // Trata explicitamente o 'null' string do select antes da validação
   if (rawData.manager_id === "null") {
     rawData.manager_id = null
   }
@@ -48,19 +32,17 @@ export async function addOrgPosition(formData: FormData) {
     return { error: roleError || firstOtherError || "Dados inválidos." }
   }
 
-  // manager_id já está como null ou UUID aqui
   const { name, role, manager_id } = validatedFields.data
 
   const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
-  // Geração de email temporário (sem alterações)
   const randomSuffix = Math.random().toString(36).substring(2, 7)
   const tempEmail = `${name.toLowerCase().replace(/\s+/g, ".")}.${randomSuffix}@wesystem.io`
 
   const { error } = await supabaseAdmin.from("employees").insert({
     name,
     role,
-    manager_id: manager_id, // Já está no formato correto (null ou UUID)
+    manager_id: manager_id,
     email: tempEmail,
     hire_date: new Date().toISOString().split("T")[0],
     status: "active",
@@ -79,12 +61,12 @@ export async function addOrgPosition(formData: FormData) {
   return { success: "Colaborador adicionado com sucesso!" }
 }
 
-// Schema para deletar (agora inativar) - Sem alterações na validação em si
+// Schema para deletar (agora inativar)
 const deleteEmployeeSchema = z.object({
   positionId: z.string().uuid("ID inválido"),
 })
 
-// Ação de deletar (agora inativar) - Sem alterações na lógica
+// Ação de deletar (agora inativar)
 export async function deleteOrgPosition(formData: FormData) {
   const rawData = { positionId: formData.get("positionId") }
   const validatedFields = deleteEmployeeSchema.safeParse(rawData)
@@ -115,18 +97,17 @@ export async function deleteOrgPosition(formData: FormData) {
 const updateEmployeeSchema = z.object({
   positionId: z.string().uuid(),
   name: z.string().min(3, "O nome é obrigatório."),
-  // ====> CAMPO ROLE ALTERADO PARA z.enum AQUI TAMBÉM <====
-  role: z.enum(validRoles, {
+  // --- ALTERAÇÃO: Usar a constante no Zod ---
+  role: z.enum(ROLES, {
     errorMap: () => ({ message: "Selecione um cargo válido da lista." }),
   }),
-  // ======================================================
-  manager_id: z.string().uuid().optional().or(z.literal("null")).nullable(), // Permite 'null' como string
+  // -----------------------------------------
+  manager_id: z.string().uuid().optional().or(z.literal("null")).nullable(),
 })
 
 // Ação de atualizar posição via organograma
 export async function updateOrgPosition(formData: FormData) {
   const rawData = Object.fromEntries(formData)
-  // Trata explicitamente o 'null' string do select antes da validação
   if (rawData.manager_id === "null") {
     rawData.manager_id = null
   }
@@ -138,7 +119,7 @@ export async function updateOrgPosition(formData: FormData) {
     const firstOtherError = Object.values(validatedFields.error.flatten().fieldErrors).flat()[0]
     return { error: roleError || firstOtherError || "Dados inválidos." }
   }
-  // manager_id já está como null ou UUID aqui
+  
   const { positionId, name, role, manager_id } = validatedFields.data
   if (positionId === manager_id) {
     return { error: "Um colaborador não pode ser seu próprio gestor." }
@@ -149,7 +130,7 @@ export async function updateOrgPosition(formData: FormData) {
   const dataToUpdate = {
     name,
     role,
-    manager_id: manager_id, // Já está no formato correto (null ou UUID)
+    manager_id: manager_id,
     updated_at: new Date().toISOString(),
   }
 
