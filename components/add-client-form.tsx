@@ -1,4 +1,3 @@
-// Caminho: wesystem7/components/add-client-form.tsx
 "use client";
 
 import { useState, useRef, useEffect } from "react";
@@ -22,8 +21,11 @@ import { addClient } from "@/app/dashboard/clients/actions";
 import { toast } from "sonner";
 import { PlusCircle } from "lucide-react";
 import { MultiSelect, OptionType } from "@/components/ui/multi-select";
-import { createClient } from "@/lib/supabase/client"; // Import Supabase client
+import { createClient } from "@/lib/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
+// --- ALTERAÇÃO: Importar o hook useRole ---
+import { useRole } from "@/app/dashboard/layout";
+// ------------------------------------------
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -35,13 +37,22 @@ function SubmitButton() {
 }
 
 export function AddClientForm() {
+  // --- ALTERAÇÃO: Verificar permissão ---
+  const userRole = useRole();
+  // ------------------------------------
+  
   const [open, setOpen] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [availableServices, setAvailableServices] = useState<OptionType[]>([]);
   const [isLoadingServices, setIsLoadingServices] = useState(true);
 
-  // Fetch available services when the dialog opens
+  // --- ALTERAÇÃO: Se for limitado, não renderiza nada ---
+  if (userRole === "limited") {
+    return null;
+  }
+  // -----------------------------------------------------
+
   useEffect(() => {
     async function fetchServices() {
       if (open) {
@@ -68,10 +79,9 @@ export function AddClientForm() {
       }
     }
     fetchServices();
-  }, [open]); // Re-fetch if the dialog is reopened
+  }, [open]); 
 
   async function handleFormSubmit(formData: FormData) {
-    // Append selected service IDs to formData
     selectedServices.forEach((serviceId) => {
       formData.append("service_ids[]", serviceId);
     });
@@ -84,7 +94,7 @@ export function AddClientForm() {
       toast.success(result.success);
       setOpen(false);
       formRef.current?.reset();
-      setSelectedServices([]); // Reset selected services
+      setSelectedServices([]);
     }
   }
 
@@ -162,7 +172,6 @@ export function AddClientForm() {
             <Textarea id="objectives" name="objectives" rows={3} />
           </div>
 
-           {/* --- SELEÇÃO DE SERVIÇOS --- */}
            <div className="border-t pt-4">
              <h4 className="text-sm font-semibold text-muted-foreground mb-3">Serviços Contratados</h4>
              {isLoadingServices ? (
@@ -177,7 +186,6 @@ export function AddClientForm() {
                 />
              )}
           </div>
-          {/* --- FIM DA SELEÇÃO DE SERVIÇOS --- */}
 
           <DialogFooter>
             <DialogClose asChild>

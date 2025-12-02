@@ -16,11 +16,11 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-// ServicesMultiSelect foi removido
 import { addOneTimeService } from "@/app/dashboard/clients/[id]/actions"
 import { toast } from "sonner"
 import { PlusCircle } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { useRole } from "@/app/dashboard/layout" // --- ALTERAÇÃO
 
 function SubmitButton() {
   const { pending } = useFormStatus()
@@ -36,9 +36,14 @@ interface AddServiceFormProps {
 }
 
 export function AddServiceForm({ clientId }: AddServiceFormProps) {
+  const userRole = useRole(); // --- ALTERAÇÃO
   const [open, setOpen] = useState(false)
   const formRef = useRef<HTMLFormElement>(null)
   const router = useRouter()
+
+  // --- ALTERAÇÃO ---
+  if (userRole === "limited") return null;
+  // ----------------
 
   async function handleFormSubmit(formData: FormData) {
     formData.append("clientId", clientId)
@@ -65,11 +70,11 @@ export function AddServiceForm({ clientId }: AddServiceFormProps) {
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[500px]">
+        {/* ... conteúdo do form (omitido, sem alterações) ... */}
         <DialogHeader>
           <DialogTitle>Adicionar Serviço Pontual</DialogTitle>
           <DialogDescription>Lance um novo serviço avulso para este cliente.</DialogDescription>
         </DialogHeader>
-        {/* O layout do formulário foi refeito para ser vertical (space-y-4) */}
         <form ref={formRef} action={handleFormSubmit} className="space-y-4 py-4">
           <div className="grid gap-2">
             <Label htmlFor="name">Nome do Serviço*</Label>
@@ -110,8 +115,6 @@ export function AddServiceForm({ clientId }: AddServiceFormProps) {
               O status será "Concluído" automaticamente quando o pagamento for registrado no Financeiro.
             </p>
           </div>
-
-          {/* O ServicesMultiSelect foi removido daqui */}
 
           <DialogFooter>
             <DialogClose asChild>

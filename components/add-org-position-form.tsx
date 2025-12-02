@@ -28,9 +28,8 @@ import {
 } from "@/components/ui/select"
 import { addOrgPosition } from "@/app/dashboard/org-chart/actions"
 import { toast } from "sonner"
-// --- ALTERAÇÃO: Importar a constante ---
 import { ROLES } from "@/lib/constants"
-// -------------------------------------
+import { useRole } from "@/app/dashboard/layout" // --- ALTERAÇÃO
 
 interface OrgPosition {
   id: string
@@ -54,8 +53,13 @@ function SubmitButton() {
 }
 
 export function AddOrgPositionForm({ managerId, positions, children }: AddOrgPositionFormProps) {
+  const userRole = useRole(); // --- ALTERAÇÃO
   const [open, setOpen] = useState(false)
   const formRef = useRef<HTMLFormElement>(null)
+
+  // --- ALTERAÇÃO ---
+  if (userRole === "limited") return null;
+  // ----------------
 
   async function handleFormSubmit(formData: FormData) {
     const result = await addOrgPosition(formData)
@@ -72,6 +76,7 @@ export function AddOrgPositionForm({ managerId, positions, children }: AddOrgPos
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
+      {/* ... conteúdo do dialog (omitido, sem alterações) ... */}
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Adicionar Posição</DialogTitle>
@@ -93,13 +98,11 @@ export function AddOrgPositionForm({ managerId, positions, children }: AddOrgPos
                 <SelectContent>
                   <SelectGroup>
                     <SelectLabel>Cargos Disponíveis</SelectLabel>
-                    {/* --- ALTERAÇÃO: Map na constante ROLES --- */}
                     {ROLES.map((role) => (
                       <SelectItem key={role} value={role}>
                         {role}
                       </SelectItem>
                     ))}
-                    {/* ------------------------------------------ */}
                   </SelectGroup>
                 </SelectContent>
               </Select>

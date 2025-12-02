@@ -21,6 +21,7 @@ import { addContract } from "@/app/dashboard/clients/[id]/actions"
 import { toast } from "sonner"
 import { PlusCircle, FileText } from "lucide-react"
 import { ServicesMultiSelect } from "@/components/services-multi-select"
+import { useRole } from "@/app/dashboard/layout" // --- ALTERAÇÃO
 
 interface AddContractFormProps {
   clientId: string
@@ -36,9 +37,14 @@ function SubmitButton() {
 }
 
 export function AddContractForm({ clientId }: AddContractFormProps) {
+  const userRole = useRole(); // --- ALTERAÇÃO
   const [open, setOpen] = useState(false)
   const [fileName, setFileName] = useState<string | null>(null)
   const formRef = useRef<HTMLFormElement>(null)
+
+  // --- ALTERAÇÃO ---
+  if (userRole === "limited") return null;
+  // ----------------
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -73,6 +79,7 @@ export function AddContractForm({ clientId }: AddContractFormProps) {
           Adicionar Contrato
         </Button>
       </DialogTrigger>
+      {/* ... conteúdo do dialog (omitido para brevidade, sem alterações) ... */}
       <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Adicionar Novo Contrato</DialogTitle>
@@ -80,7 +87,8 @@ export function AddContractForm({ clientId }: AddContractFormProps) {
         </DialogHeader>
         <form ref={formRef} action={handleFormSubmit}>
           <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
+             {/* ... campos do form ... */}
+             <div className="grid gap-2">
               <Label htmlFor="contract_name">Nome do Contrato*</Label>
               <Input id="contract_name" name="contract_name" placeholder="Ex: Aditivo de Contrato Q4" required />
             </div>
@@ -105,7 +113,6 @@ export function AddContractForm({ clientId }: AddContractFormProps) {
                 Selecione os serviços incluídos neste contrato. Serviços não recorrentes terão checklist de entrega.
               </p>
             </div>
-            {/* </CHANGE> */}
             <div className="grid gap-2">
               <Label htmlFor="contract_file">Arquivo (PDF)*</Label>
               <Input

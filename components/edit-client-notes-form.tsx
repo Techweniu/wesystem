@@ -6,9 +6,10 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { updateClientNotes } from "@/app/dashboard/clients/[id]/actions" // CORREÇÃO: Usando a nova action
+import { updateClientNotes } from "@/app/dashboard/clients/[id]/actions"
 import { toast } from "sonner"
 import { Pencil } from "lucide-react"
+import { useRole } from "@/app/dashboard/layout" // --- ALTERAÇÃO
 
 interface ClientNotes {
   id: string;
@@ -26,7 +27,12 @@ const SubmitButton = () => {
 }
 
 export function EditClientNotesForm({ client }: EditClientNotesFormProps) {
+  const userRole = useRole(); // --- ALTERAÇÃO
   const [open, setOpen] = useState(false);
+
+  // --- ALTERAÇÃO ---
+  if (userRole === "limited") return null;
+  // ----------------
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -34,12 +40,12 @@ export function EditClientNotesForm({ client }: EditClientNotesFormProps) {
         <Button variant="ghost" size="icon" className="h-8 w-8"><Pencil className="h-4 w-4" /></Button>
       </DialogTrigger>
       <DialogContent>
+        {/* ... conteúdo do form (sem alterações) ... */}
         <DialogHeader>
           <DialogTitle>Editar Nota e Objetivos</DialogTitle>
         </DialogHeader>
         <form action={async (formData) => {
           formData.append('clientId', client.id);
-          // CORREÇÃO: Chamando a nova action
           const result = await updateClientNotes(formData);
           if (result.error) toast.error("Erro", { description: result.error });
           else { toast.success(result.success); setOpen(false); }

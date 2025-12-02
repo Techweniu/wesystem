@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { UserCircle } from "lucide-react"
 import { DeleteOrgPositionButton } from "@/components/delete-org-position-button"
 import { EditOrgPositionForm } from "@/components/edit-org-position-form"
+import { useRole } from "@/app/dashboard/layout" // --- ALTERAÇÃO
 
 interface OrgPosition {
   id: string
@@ -19,6 +20,8 @@ interface OrgChartTreeProps {
 }
 
 export function OrgChartTree({ employee, allEmployees }: OrgChartTreeProps) {
+  const userRole = useRole(); // --- ALTERAÇÃO
+
   return (
     <div className="flex flex-col items-center">
       <Card className="relative group w-64 border-2 border-primary/20 bg-card hover:border-primary/40 transition-colors">
@@ -34,10 +37,14 @@ export function OrgChartTree({ employee, allEmployees }: OrgChartTreeProps) {
           </div>
         </CardContent>
         {/* Botões de Ação */}
-        <div className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity">
-           <EditOrgPositionForm position={employee} allPositions={allEmployees} />
-           <DeleteOrgPositionButton position={employee} />
-        </div>
+        {/* --- ALTERAÇÃO: Só mostra se não for limitado --- */}
+        {userRole !== "limited" && (
+          <div className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity">
+             <EditOrgPositionForm position={employee} allPositions={allEmployees} />
+             <DeleteOrgPositionButton position={employee} />
+          </div>
+        )}
+        {/* ------------------------------------------------ */}
       </Card>
 
       {/* Conectores e Children */}

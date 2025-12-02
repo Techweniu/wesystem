@@ -15,9 +15,9 @@ import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { EditEmployeeForm } from "@/components/edit-employee-form"
-// import { MarkPaymentButton } from "@/components/mark-payment-button" // <-- REMOVIDO
 import { AddEmployeeObservationForm } from "@/components/add-employee-observation-form"
 import { AddEmployeeContractForm } from "@/components/add-employee-contract-form"
+import { AddEmployeeContributionForm } from "@/components/add-employee-contribution-form" // --- ALTERAÇÃO: Importado
 import { Separator } from "@/components/ui/separator"
 import { AddCareerPlanForm } from "@/components/add-career-plan-form"
 import {
@@ -31,6 +31,7 @@ import {
   Download,
   FileText,
   BlendIcon as ClientIcon,
+  Lightbulb,
 } from "lucide-react"
 import { differenceInDays, parseISO, format, formatDistanceToNowStrict } from "date-fns"
 import { ptBR } from "date-fns/locale"
@@ -38,32 +39,33 @@ import { ptBR } from "date-fns/locale"
 async function getEmployeeDetails(id: string) {
   const supabase = await createClient()
 
+  // --- ALTERAÇÃO: Adicionado employee_contributions ao select ---
   const { data: employeeData, error: employeeError } = await supabase
     .from("employees")
     .select(`*,
       manager:manager_id ( name ),
       employee_payments ( * ),
       employee_observations ( * ),
-      employee_contracts ( * )
+      employee_contracts ( * ),
+      employee_contributions ( * ) 
     `)
     .eq("id", id)
     .order("created_at", { foreignTable: "employee_observations", ascending: false })
     .order("payment_date", { foreignTable: "employee_payments", ascending: false })
     .order("created_at", { foreignTable: "employee_contracts", ascending: false })
+    .order("date", { foreignTable: "employee_contributions", ascending: false }) // Ordena contribuições
     .maybeSingle()
+  // -------------------------------------------------------------
 
   if (employeeError) {
     console.error("Erro ao buscar detalhes do colaborador:", employeeError)
   }
   if (!employeeData) {
-    console.log(`Colaborador com ID ${id} não encontrado.`)
     return null
   }
 
   let assignedClients: { id: string; name: string }[] = []
   
-  // --- LÓGICA ATUALIZADA AQUI ---
-  // Mapeia os cargos para as colunas correspondentes na tabela 'clients'
   const roleToColumnMap: { [key: string]: string } = {
     "Assessor": "assigned_assessor_id",
     "Videomaker": "assigned_videomaker_id",
@@ -73,22 +75,16 @@ async function getEmployeeDetails(id: string) {
 
   const columnToFilter = roleToColumnMap[employeeData.role];
 
-  // Se o cargo do funcionário for um dos mapeados, busca os clientes
   if (columnToFilter) {
-    const { data: clientsData, error: clientsError } = await supabase
+    const { data: clientsData } = await supabase
       .from("clients")
       .select("id, name")
-      .eq(columnToFilter, id) // Usa a coluna correta para o filtro
+      .eq(columnToFilter, id)
       .eq("status", "active")
       .order("name")
 
-    if (clientsError) {
-      console.error(`Erro ao buscar clientes para ${employeeData.role}:`, clientsError)
-    } else {
-      assignedClients = clientsData || []
-    }
+    assignedClients = clientsData || []
   }
-  // --- FIM DA ATUALIZAÇÃO ---
 
   if (employeeData.employee_contracts) {
     for (const contract of employeeData.employee_contracts) {
@@ -119,15 +115,9 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
 
   const today = new Date()
   const hireDate = parseISO(employee.hire_date)
-  const totalCostGenerated = employee.salary
-    ? (employee.salary / 30.44) * (differenceInDays(today, hireDate) > 0 ? differenceInDays(today, hireDate) : 0)
-    : 0
   const currentMonth = today.getMonth()
   const currentYear = today.getFullYear()
-  const isPaidThisMonth = employee.employee_payments.some((p) => {
-    const paymentDate = new Date(p.payment_date)
-    return paymentDate.getMonth() === currentMonth && paymentDate.getFullYear() === currentYear
-  })
+  
   let nextPaymentDateFormatted = null
   if (employee.payment_day) {
     const nextPaymentDate = new Date(currentYear, currentMonth, employee.payment_day)
@@ -229,47 +219,41 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
             </div>
           </CardContent>
         </Card>
+        
+        {/* --- NOVO CARD: CONTRIBUIÇÕES E ENTREGAS --- */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Observações e Feedbacks</CardTitle>
-            <AddEmployeeObservationForm employeeId={employee.id} />
+            <CardTitle className="flex items-center gap-2">
+                <Lightbulb className="h-5 w-5" /> Contribuições
+            </CardTitle>
+            <AddEmployeeContributionForm employeeId={employee.id} />
           </CardHeader>
           <CardContent>
-            <Accordion type="single" collapsible className="w-full">
-              {employee.employee_observations.length > 0 ? (
-                employee.employee_observations.map((obs) => (
-                  <AccordionItem value={obs.id} key={obs.id}>
-                    <AccordionTrigger>
-                      <div className="flex justify-between items-center w-full pr-4">
-                        <span className="text-sm">Observação de {format(parseISO(obs.created_at), "dd/MM/yyyy")}</span>
-                        {obs.tag === "positive" ? (
-                          <div className="flex items-center gap-1.5 text-xs font-medium text-green-500">
-                            <ThumbsUp className="h-4 w-4" /> Positiva
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1.5 text-xs font-medium text-red-500">
-                            <ThumbsDown className="h-4 w-4" /> Negativa
-                          </div>
-                        )}
-                      </div>
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      <p className="text-sm text-muted-foreground p-2 bg-muted/50 rounded-md whitespace-pre-wrap">
-                        {obs.observation}
-                      </p>
-                    </AccordionContent>
-                  </AccordionItem>
-                ))
-              ) : (
-                <p className="text-sm text-muted-foreground text-center py-4">Nenhuma observação registrada.</p>
-              )}
-            </Accordion>
+             {employee.employee_contributions.length > 0 ? (
+                <div className="space-y-4 max-h-60 overflow-y-auto pr-2">
+                    {employee.employee_contributions.map((contrib: any) => (
+                        <div key={contrib.id} className="border-b pb-3 last:border-0 last:pb-0">
+                            <div className="flex justify-between items-start mb-1">
+                                <span className="font-medium text-sm">{contrib.category}</span>
+                                <span className="text-xs text-muted-foreground">{format(parseISO(contrib.date), 'dd/MM/yyyy')}</span>
+                            </div>
+                            <p className="text-sm text-muted-foreground">{contrib.description}</p>
+                            {contrib.value && contrib.value > 0 && (
+                                <p className="text-xs font-semibold text-green-600 mt-1">
+                                    Impacto: {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(contrib.value)}
+                                </p>
+                            )}
+                        </div>
+                    ))}
+                </div>
+             ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">Nenhuma contribuição registrada.</p>
+             )}
           </CardContent>
         </Card>
+        {/* ------------------------------------------- */}
       </div>
 
-      {/* --- CARD DE CLIENTES ASSOCIADOS --- */}
-      {/* Agora é renderizado se assignedClients tiver itens, o que só acontece se o cargo for um dos 4 mapeados */}
       {assignedClients.length > 0 && (
         <Card>
           <CardHeader>
@@ -292,75 +276,114 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
         </Card>
       )}
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Contratos do Colaborador</CardTitle>
-          <AddEmployeeContractForm employeeId={employee.id} />
-        </CardHeader>
-        <CardContent>
-          <ul className="space-y-3">
-            {employee.employee_contracts.length > 0 ? (
-              employee.employee_contracts.map((contract: any) => (
-                <li key={contract.id} className="flex items-center justify-between rounded-md border p-3">
-                  <div className="flex items-center gap-3">
+      {/* Grid: Observações | Contratos | Plano */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>Observações</CardTitle>
+            <AddEmployeeObservationForm employeeId={employee.id} />
+          </CardHeader>
+          <CardContent>
+            <Accordion type="single" collapsible className="w-full">
+              {employee.employee_observations.length > 0 ? (
+                employee.employee_observations.map((obs: any) => (
+                  <AccordionItem value={obs.id} key={obs.id}>
+                    <AccordionTrigger>
+                      <div className="flex justify-between items-center w-full pr-4">
+                        <span className="text-sm">{format(parseISO(obs.created_at), "dd/MM/yyyy")}</span>
+                        {obs.tag === "positive" ? (
+                          <div className="flex items-center gap-1.5 text-xs font-medium text-green-500">
+                            <ThumbsUp className="h-3 w-3" /> Positiva
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 text-xs font-medium text-red-500">
+                            <ThumbsDown className="h-3 w-3" /> Negativa
+                          </div>
+                        )}
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <p className="text-sm text-muted-foreground p-2 bg-muted/50 rounded-md whitespace-pre-wrap">
+                        {obs.observation}
+                      </p>
+                    </AccordionContent>
+                  </AccordionItem>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">Nenhuma observação.</p>
+              )}
+            </Accordion>
+          </CardContent>
+        </Card>
+
+        <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>Contratos</CardTitle>
+            <AddEmployeeContractForm employeeId={employee.id} />
+            </CardHeader>
+            <CardContent>
+            <ul className="space-y-3">
+                {employee.employee_contracts.length > 0 ? (
+                employee.employee_contracts.map((contract: any) => (
+                    <li key={contract.id} className="flex items-center justify-between rounded-md border p-3">
+                    <div className="flex items-center gap-3">
+                        <FileText className="h-5 w-5 text-muted-foreground" />
+                        <div className="overflow-hidden">
+                        <span className="font-medium block truncate w-32">{contract.name}</span>
+                        <p className="text-xs text-muted-foreground">
+                            {format(parseISO(contract.created_at), "dd/MM/yyyy")}
+                        </p>
+                        </div>
+                    </div>
+                    {contract.downloadUrl && (
+                        <a href={contract.downloadUrl} target="_blank" rel="noopener noreferrer">
+                        <Button variant="ghost" size="icon">
+                            <Download className="h-4 w-4" />
+                        </Button>
+                        </a>
+                    )}
+                    </li>
+                ))
+                ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">Nenhum contrato.</p>
+                )}
+            </ul>
+            </CardContent>
+        </Card>
+
+        <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>Plano de Carreira</CardTitle>
+            <AddCareerPlanForm employeeId={employee.id} />
+            </CardHeader>
+            <CardContent>
+            {employee.career_plan_url ? (
+                <div className="space-y-3">
+                <div className="flex items-center justify-between rounded-md border p-3">
+                    <div className="flex items-center gap-3">
                     <FileText className="h-5 w-5 text-muted-foreground" />
                     <div>
-                      <span className="font-medium">{contract.name}</span>
-                      <p className="text-xs text-muted-foreground">
-                        Adicionado em: {format(parseISO(contract.created_at), "dd/MM/yyyy")}
-                      </p>
+                        <span className="font-medium">Plano Atual</span>
+                        {employee.career_plan_expiration_date && (
+                        <p className="text-xs text-muted-foreground">
+                            Expira: {format(parseISO(employee.career_plan_expiration_date), "dd/MM/yyyy")}
+                        </p>
+                        )}
                     </div>
-                  </div>
-                  {contract.downloadUrl && (
-                    <a href={contract.downloadUrl} target="_blank" rel="noopener noreferrer">
-                      <Button variant="outline" size="sm">
-                        <Download className="mr-2 h-4 w-4" />
-                        Baixar
-                      </Button>
+                    </div>
+                    <a href={employee.career_plan_url} target="_blank" rel="noopener noreferrer">
+                    <Button variant="ghost" size="icon">
+                        <Download className="h-4 w-4" />
+                    </Button>
                     </a>
-                  )}
-                </li>
-              ))
-            ) : (
-              <p className="text-sm text-muted-foreground text-center py-4">Nenhum contrato adicionado.</p>
-            )}
-          </ul>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Plano de Carreira</CardTitle>
-          <AddCareerPlanForm employeeId={employee.id} />
-        </CardHeader>
-        <CardContent>
-          {employee.career_plan_url ? (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between rounded-md border p-3">
-                <div className="flex items-center gap-3">
-                  <FileText className="h-5 w-5 text-muted-foreground" />
-                  <div>
-                    <span className="font-medium">Plano de Carreira</span>
-                    {employee.career_plan_expiration_date && (
-                      <p className="text-xs text-muted-foreground">
-                        Data de expiração: {format(parseISO(employee.career_plan_expiration_date), "dd/MM/yyyy")}
-                      </p>
-                    )}
-                  </div>
                 </div>
-                <a href={employee.career_plan_url} target="_blank" rel="noopener noreferrer">
-                  <Button variant="outline" size="sm">
-                    <Download className="mr-2 h-4 w-4" />
-                    Baixar
-                  </Button>
-                </a>
-              </div>
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground text-center py-4">Nenhum plano de carreira adicionado.</p>
-          )}
-        </CardContent>
-      </Card>
+                </div>
+            ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">Nenhum plano.</p>
+            )}
+            </CardContent>
+        </Card>
+      </div>
 
       <Card>
         <CardHeader>
@@ -383,7 +406,6 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
                     )}
                   </p>
                 </div>
-                {/* BOTÃO DE PAGAMENTO REMOVIDO DAQUI */}
               </div>
             ) : (
               <p className="text-sm text-muted-foreground text-center">O dia de pagamento ainda não foi definido.</p>
@@ -400,7 +422,7 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
             </TableHeader>
             <TableBody>
               {employee.employee_payments.length > 0 ? (
-                employee.employee_payments.map((payment) => (
+                employee.employee_payments.map((payment: any) => (
                   <TableRow key={payment.id}>
                     <TableCell>
                       {format(parseISO(payment.payment_date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}

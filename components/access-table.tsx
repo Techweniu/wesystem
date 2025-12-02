@@ -14,16 +14,12 @@ import { toast } from "sonner";
 import { deleteAccess } from "@/app/dashboard/accesses/actions"; 
 import { AddEditAccessForm } from "@/components/add-edit-access-form"; 
 import type { PlatformAccess } from "@/app/dashboard/accesses/page"; 
-// Remove o 'useAuth'
-// import { useAuth } from "@/contexts/auth-context"; 
+import { useRole } from "@/app/dashboard/layout"; // --- ALTERAÇÃO
 
-// Props do componente
 interface AccessTableProps {
   accesses: PlatformAccess[];
-  // Remove 'userRole' das props
 }
 
-// Componente do botão de exclusão com confirmação
 function DeleteAccessButton({ accessId }: { accessId: string }) {
   const handleDelete = async () => {
     const formData = new FormData();
@@ -63,7 +59,6 @@ function DeleteAccessButton({ accessId }: { accessId: string }) {
   );
 }
 
-// Componente para exibir a senha/informação com botão de mostrar/ocultar
 function PasswordDisplay({ info }: { info: string | null }) {
     const [isVisible, setIsVisible] = useState(false);
 
@@ -96,11 +91,8 @@ function PasswordDisplay({ info }: { info: string | null }) {
     );
 }
 
-
-// Componente principal da tabela
 export function AccessTable({ accesses }: AccessTableProps) {
-  // Remove 'useAuth'
-  // const { userRole } = useAuth(); 
+  const userRole = useRole(); // --- ALTERAÇÃO
   const [editingAccessId, setEditingAccessId] = useState<string | null>(null);
 
   return (
@@ -113,7 +105,9 @@ export function AccessTable({ accesses }: AccessTableProps) {
             <TableHead>Senha/Informação</TableHead>
             <TableHead>Departamento/Cliente</TableHead>
             <TableHead>Observações</TableHead>
-            <TableHead className="text-right w-[100px]">Ações</TableHead>
+            {/* --- ALTERAÇÃO: Esconde coluna Ações se limitado --- */}
+            {userRole !== "limited" && <TableHead className="text-right w-[100px]">Ações</TableHead>}
+            {/* -------------------------------------------------- */}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -137,25 +131,29 @@ export function AccessTable({ accesses }: AccessTableProps) {
                 <TableCell className="text-xs text-muted-foreground max-w-xs truncate">
                     {access.notes || '-'}
                 </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex items-center justify-end gap-1">
-                    <AddEditAccessForm
-                        access={access}
-                        open={editingAccessId === access.id}
-                        onOpenChange={(isOpen) => setEditingAccessId(isOpen ? access.id : null)}
-                    >
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <Pencil className="h-4 w-4" />
-                        </Button>
-                    </AddEditAccessForm>
-                    <DeleteAccessButton accessId={access.id} />
-                  </div>
-                </TableCell>
+                {/* --- ALTERAÇÃO: Esconde botões se limitado --- */}
+                {userRole !== "limited" && (
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <AddEditAccessForm
+                          access={access}
+                          open={editingAccessId === access.id}
+                          onOpenChange={(isOpen) => setEditingAccessId(isOpen ? access.id : null)}
+                      >
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <Pencil className="h-4 w-4" />
+                          </Button>
+                      </AddEditAccessForm>
+                      <DeleteAccessButton accessId={access.id} />
+                    </div>
+                  </TableCell>
+                )}
+                {/* ------------------------------------------- */}
               </TableRow>
             ))
           ) : (
             <TableRow>
-              <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+              <TableCell colSpan={userRole === "limited" ? 5 : 6} className="h-24 text-center text-muted-foreground">
                 Nenhum acesso encontrado para esta categoria.
               </TableCell>
             </TableRow>

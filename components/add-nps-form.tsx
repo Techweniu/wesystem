@@ -19,7 +19,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { addNpsResponse } from "@/app/dashboard/clients/[id]/actions"
 import { toast } from "sonner"
 import { PlusCircle } from "lucide-react"
-import { useRouter } from "next/navigation" // IMPORTADO AQUI
+import { useRouter } from "next/navigation"
+import { useRole } from "@/app/dashboard/layout" // --- ALTERAÇÃO
 
 const npsCategories = [
   "Conteúdos e Roteiros", "Audiovisual", "Edição de Vídeos", "Design",
@@ -32,9 +33,14 @@ function SubmitButton() {
 }
 
 export function AddNpsForm({ clientId }: { clientId: string }) {
+  const userRole = useRole(); // --- ALTERAÇÃO
   const [open, setOpen] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
-  const router = useRouter(); // ADICIONADO AQUI
+  const router = useRouter();
+
+  // --- ALTERAÇÃO ---
+  if (userRole === "limited") return null;
+  // ----------------
 
   async function handleFormSubmit(formData: FormData) {
     formData.append('clientId', clientId);
@@ -46,7 +52,7 @@ export function AddNpsForm({ clientId }: { clientId: string }) {
       toast.success(result.success);
       setOpen(false);
       formRef.current?.reset();
-      router.refresh(); // ADICIONADO AQUI PARA FORÇAR A ATUALIZAÇÃO
+      router.refresh(); 
     }
   }
 
@@ -55,6 +61,7 @@ export function AddNpsForm({ clientId }: { clientId: string }) {
       <DialogTrigger asChild>
         <Button size="sm"><PlusCircle className="mr-2 h-4 w-4" />Adicionar NPS</Button>
       </DialogTrigger>
+      {/* ... conteúdo do dialog (omitido, sem alterações) ... */}
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Registrar Avaliação NPS</DialogTitle>

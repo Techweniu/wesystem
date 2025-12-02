@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect, useMemo } from "react" // Importa useMemo
+import { useState, useEffect, useMemo } from "react" 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { KeyRound, Building, Server, Palette, MicVocal, Contact, Globe, Search, X } from "lucide-react"
@@ -12,14 +12,12 @@ import { PlusCircle } from "lucide-react"
 import { AddEditAccessForm } from "@/components/add-edit-access-form"
 import { AccessTable } from "@/components/access-table"
 import type { PlatformAccess } from "./page"
-// Importa o hook 'useRole' do layout
 import { useRole } from "@/app/dashboard/layout"
 
 interface AccessesClientPageProps {
   initialAccesses: PlatformAccess[]
 }
 
-// Define a estrutura de um objeto de Aba
 type TabConfig = {
   value: string
   label: string
@@ -28,12 +26,10 @@ type TabConfig = {
 }
 
 export function AccessesClientPage({ initialAccesses }: AccessesClientPageProps) {
-  // Usa o hook para obter o papel do usuário
   const userRole = useRole()
   const [allAccesses, setAllAccesses] = useState<PlatformAccess[]>(initialAccesses)
   const [searchTerm, setSearchTerm] = useState("")
 
-  // Efeito para atualizar o estado interno se as props mudarem
   useEffect(() => {
     if (JSON.stringify(initialAccesses) !== JSON.stringify(allAccesses)) {
       setAllAccesses(initialAccesses)
@@ -53,7 +49,6 @@ export function AccessesClientPage({ initialAccesses }: AccessesClientPageProps)
     })
   }
 
-  // Calcula as listas e contagens (agora mostra tudo)
   const diretoriaAccesses = filterAccesses(allAccesses.filter((a) => a.department === "Diretoria"))
   const tecnologiaAccesses = filterAccesses(allAccesses.filter((a) => a.department === "Tecnologia"))
   const producaoAccesses = filterAccesses(allAccesses.filter((a) => a.department === "Produção"))
@@ -68,7 +63,6 @@ export function AccessesClientPage({ initialAccesses }: AccessesClientPageProps)
     ),
   )
 
-  // Define todas as abas possíveis
   const allTabs: TabConfig[] = [
     { value: "diretoria", label: "Diretoria", icon: Building, data: diretoriaAccesses },
     { value: "tecnologia", label: "Tec", icon: Server, data: tecnologiaAccesses },
@@ -78,28 +72,20 @@ export function AccessesClientPage({ initialAccesses }: AccessesClientPageProps)
     { value: "clientes", label: "Clientes", icon: Contact, data: clienteAccesses },
   ]
 
-  // Filtra as abas visíveis com base no 'userRole'
   const visibleTabs = useMemo(() => {
     if (userRole === "limited") {
-      // --- MODIFICAÇÃO AQUI ---
-      // Agora filtra diretoria, marketing E tecnologia
       return allTabs.filter(
         (tab) => tab.value !== "diretoria" && tab.value !== "marketing" && tab.value !== "tecnologia",
       )
-      // --- FIM DA MODIFICAÇÃO ---
     }
-    return allTabs // Admin vê tudo
-  }, [userRole, allAccesses, searchTerm]) // Recalcula se o papel, os dados ou o filtro mudarem
+    return allTabs 
+  }, [userRole, allAccesses, searchTerm]) 
 
-  // Determina qual aba deve ser a padrão
   const getDefaultTab = () => {
-    // Tenta encontrar a primeira aba visível que tenha dados
     const firstTabWithData = visibleTabs.find((tab) => tab.data.length > 0)
-    // Se encontrar, usa ela. Senão, usa a primeira aba visível da lista (ou 'producao' como fallback)
     return firstTabWithData ? firstTabWithData.value : visibleTabs[0]?.value || "producao"
   }
 
-  // Tela Principal (Tabs + Tabelas)
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -112,12 +98,16 @@ export function AccessesClientPage({ initialAccesses }: AccessesClientPageProps)
             <p className="text-muted-foreground">Gerencie logins e informações de acesso.</p>
           </div>
         </div>
-        <AddEditAccessForm>
-          <Button>
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Adicionar Acesso
-          </Button>
-        </AddEditAccessForm>
+        {/* --- ALTERAÇÃO: Esconder botão se limitado --- */}
+        {userRole !== "limited" && (
+          <AddEditAccessForm>
+            <Button>
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Adicionar Acesso
+            </Button>
+          </AddEditAccessForm>
+        )}
+        {/* --------------------------------------------- */}
       </div>
 
       <div className="relative">
@@ -150,7 +140,6 @@ export function AccessesClientPage({ initialAccesses }: AccessesClientPageProps)
         </Card>
       )}
 
-      {/* Estrutura das Abas (Usa 'visibleTabs') */}
       <Tabs defaultValue={getDefaultTab()} className="space-y-4">
         <TabsList className={`grid w-full grid-cols-${visibleTabs.length}`}>
           {visibleTabs.map((tab) => (
@@ -160,8 +149,6 @@ export function AccessesClientPage({ initialAccesses }: AccessesClientPageProps)
           ))}
         </TabsList>
 
-        {/* Conteúdo das Abas (Todos os 6 <TabsContent> permanecem, 
-            pois o usuário 'limited' nunca verá as abas filtradas para poder clicar nelas) */}
         <TabsContent value="diretoria">
           <Card>
             <CardHeader>

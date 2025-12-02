@@ -1,16 +1,17 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { useFormStatus } from "react-dom";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { toast } from "sonner";
-import { addEmployeeContribution } from "@/app/dashboard/team/actions";
-import { PlusCircle } from "lucide-react";
+import { useFormStatus } from "react-dom"
+import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { toast } from "sonner"
+import { addEmployeeContribution } from "@/app/dashboard/team/actions"
+import { PlusCircle } from "lucide-react"
+import { useRole } from "@/app/dashboard/layout" // --- ALTERAÇÃO
 
 interface AddEmployeeContributionFormProps {
   employeeId: string;
@@ -22,8 +23,13 @@ function SubmitButton() {
 }
 
 export function AddEmployeeContributionForm({ employeeId }: AddEmployeeContributionFormProps) {
+  const userRole = useRole() // --- ALTERAÇÃO
   const [open, setOpen] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
+
+  // --- ALTERAÇÃO ---
+  if (userRole === "limited") return null
+  // ----------------
 
   async function handleFormSubmit(formData: FormData) {
     formData.append('employeeId', employeeId);
@@ -46,6 +52,7 @@ export function AddEmployeeContributionForm({ employeeId }: AddEmployeeContribut
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-lg">
+        {/* ... conteúdo do modal (sem alteração) ... */}
         <DialogHeader>
           <DialogTitle>Registrar Nova Contribuição</DialogTitle>
           <DialogDescription>Adicione um benefício que o colaborador trouxe para a empresa.</DialogDescription>
@@ -53,7 +60,7 @@ export function AddEmployeeContributionForm({ employeeId }: AddEmployeeContribut
         <form ref={formRef} action={handleFormSubmit} className="space-y-4 pt-4">
           <div className="grid gap-2">
             <Label htmlFor="description">Descrição*</Label>
-            <Textarea id="description" name="description" required placeholder="Ex: Fechou contrato com a Empresa X, sugeriu nova ferramenta de gestão..." />
+            <Textarea id="description" name="description" required placeholder="Ex: Fechou contrato com a Empresa X..." />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-2">

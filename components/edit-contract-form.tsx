@@ -16,11 +16,11 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { updateContract } from "@/app/dashboard/clients/[id]/actions" // Vamos criar esta ação a seguir
+import { updateContract } from "@/app/dashboard/clients/[id]/actions" 
 import { toast } from "sonner"
 import { Pencil } from "lucide-react"
+import { useRole } from "@/app/dashboard/layout" // --- ALTERAÇÃO
 
-// Define o tipo para os dados do contrato que o formulário espera
 interface Contract {
   id: string;
   name: string;
@@ -44,10 +44,14 @@ function SubmitButton() {
 }
 
 export function EditContractForm({ contract }: EditContractFormProps) {
+  const userRole = useRole(); // --- ALTERAÇÃO
   const [open, setOpen] = useState(false)
   const formRef = useRef<HTMLFormElement>(null)
 
-  // Formata as datas para o formato yyyy-MM-dd que o input type="date" espera
+  // --- ALTERAÇÃO ---
+  if (userRole === "limited") return null;
+  // ----------------
+
   const formattedStartDate = contract.start_date ? new Date(contract.start_date).toISOString().split('T')[0] : '';
   const formattedEndDate = contract.end_date ? new Date(contract.end_date).toISOString().split('T')[0] : '';
 
@@ -73,6 +77,7 @@ export function EditContractForm({ contract }: EditContractFormProps) {
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
+        {/* ... conteúdo do form (omitido, sem alterações) ... */}
         <DialogHeader>
           <DialogTitle>Editar Contrato</DialogTitle>
           <DialogDescription>

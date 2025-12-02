@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { updateServiceStatus } from "@/app/dashboard/clients/[id]/actions"
 import { toast } from "sonner"
 import { useRouter } from 'next/navigation'
+import { useRole } from "@/app/dashboard/layout" // --- ALTERAÇÃO
 
 type Service = {
   id: string;
@@ -18,7 +19,6 @@ type Service = {
   status: 'pending' | 'completed' | 'cancelled';
 }
 
-// Mapeia os status para cores e textos
 const statusConfig = {
   completed: { label: "Concluído", variant: "default" as const },
   pending: { label: "Pendente", variant: "secondary" as const },
@@ -26,6 +26,7 @@ const statusConfig = {
 }
 
 export function ServiceStatusChanger({ service }: { service: Service }) {
+  const userRole = useRole(); // --- ALTERAÇÃO
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -41,10 +42,20 @@ export function ServiceStatusChanger({ service }: { service: Service }) {
         toast.error("Erro ao atualizar status", { description: result.error });
       } else {
         toast.success(result.success);
-        router.refresh(); // Força a atualização da UI
+        router.refresh();
       }
     });
   }
+
+  // --- ALTERAÇÃO: Se limitado, retorna apenas o Badge estático ---
+  if (userRole === "limited") {
+    return (
+      <Badge variant={statusConfig[service.status].variant}>
+        {statusConfig[service.status].label}
+      </Badge>
+    );
+  }
+  // -------------------------------------------------------------
 
   return (
     <DropdownMenu>

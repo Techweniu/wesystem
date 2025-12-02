@@ -29,9 +29,10 @@ import {
 import { saveEmployee } from "@/app/dashboard/team/actions"
 import { toast } from "sonner"
 import { format } from "date-fns"
-// --- ALTERAÇÃO: Importar as constantes ---
 import { ROLES, DEPARTMENTS } from "@/lib/constants"
-// ----------------------------------------
+// --- ALTERAÇÃO: Importar useRole ---
+import { useRole } from "@/app/dashboard/layout"
+// ----------------------------------
 
 interface Employee {
   id: string
@@ -70,8 +71,13 @@ export function EditEmployeeForm({
   open: controlledOpen,
   onOpenChange: setControlledOpen,
 }: EditEmployeeFormProps) {
+  const userRole = useRole(); // --- ALTERAÇÃO
   const [internalOpen, setInternalOpen] = useState(false)
   const formRef = useRef<HTMLFormElement>(null)
+
+  // --- ALTERAÇÃO: Bloqueia renderização se limitado ---
+  if (userRole === "limited") return null;
+  // --------------------------------------------------
 
   const isEditing = !!employee
   const open = controlledOpen ?? internalOpen
@@ -97,12 +103,14 @@ export function EditEmployeeForm({
     <Dialog open={open} onOpenChange={setOpen}>
       {children && <DialogTrigger asChild>{children}</DialogTrigger>}
       <DialogContent className="sm:max-w-[600px]">
+        {/* ... conteúdo do cabeçalho ... */}
         <DialogHeader>
           <DialogTitle>{isEditing ? "Editar Colaborador" : "Adicionar Novo Colaborador"}</DialogTitle>
           <DialogDescription>Preencha os detalhes abaixo.</DialogDescription>
         </DialogHeader>
         <form ref={formRef} action={handleFormSubmit} className="space-y-4 max-h-[80vh] overflow-y-auto pr-6">
           {employee && <input type="hidden" name="id" value={employee.id} />}
+          {/* ... campos do form (Nome, Email, Cargo, etc - sem alterações) ... */}
           <div className="grid gap-2">
             <Label htmlFor="name">Nome*</Label>
             <Input id="name" name="name" defaultValue={employee?.name} required />
@@ -113,7 +121,6 @@ export function EditEmployeeForm({
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            {/* Campo Cargo (Select - usando constante) */}
             <div className="grid gap-2">
               <Label htmlFor="role">Cargo*</Label>
               <Select name="role" defaultValue={employee?.role} required>
@@ -123,19 +130,13 @@ export function EditEmployeeForm({
                 <SelectContent>
                   <SelectGroup>
                     <SelectLabel>Cargos Disponíveis</SelectLabel>
-                    {/* --- ALTERAÇÃO: Map na constante ROLES --- */}
                     {ROLES.map((role) => (
-                      <SelectItem key={role} value={role}>
-                        {role}
-                      </SelectItem>
+                      <SelectItem key={role} value={role}>{role}</SelectItem>
                     ))}
-                    {/* ------------------------------------------ */}
                   </SelectGroup>
                 </SelectContent>
               </Select>
             </div>
-            
-            {/* Campo Departamento (Select - usando constante) */}
             <div className="grid gap-2">
               <Label htmlFor="department">Departamento</Label>
               <Select name="department" defaultValue={defaultDepartmentValue}>
@@ -146,13 +147,9 @@ export function EditEmployeeForm({
                   <SelectGroup>
                     <SelectLabel>Departamentos</SelectLabel>
                     <SelectItem value="none">Nenhum</SelectItem>
-                    {/* --- ALTERAÇÃO: Map na constante DEPARTMENTS --- */}
                     {DEPARTMENTS.map((dept) => (
-                      <SelectItem key={dept} value={dept}>
-                        {dept}
-                      </SelectItem>
+                      <SelectItem key={dept} value={dept}>{dept}</SelectItem>
                     ))}
-                    {/* ----------------------------------------------- */}
                   </SelectGroup>
                 </SelectContent>
               </Select>
@@ -162,44 +159,22 @@ export function EditEmployeeForm({
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-2">
               <Label htmlFor="salary">Salário (R$)</Label>
-              <Input
-                id="salary"
-                name="salary"
-                type="number"
-                step="0.01"
-                min="0"
-                defaultValue={employee?.salary || ""}
-              />
+              <Input id="salary" name="salary" type="number" step="0.01" min="0" defaultValue={employee?.salary || ""} />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="payment_day">Dia do Pagamento</Label>
-              <Input
-                id="payment_day"
-                name="payment_day"
-                type="number"
-                min="1"
-                max="31"
-                defaultValue={employee?.payment_day || ""}
-              />
+              <Input id="payment_day" name="payment_day" type="number" min="1" max="31" defaultValue={employee?.payment_day || ""} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-2">
               <Label htmlFor="hire_date">Data de Contratação*</Label>
-              <Input
-                id="hire_date"
-                name="hire_date"
-                type="date"
-                defaultValue={employee ? format(new Date(employee.hire_date), "yyyy-MM-dd") : ""}
-                required
-              />
+              <Input id="hire_date" name="hire_date" type="date" defaultValue={employee ? format(new Date(employee.hire_date), "yyyy-MM-dd") : ""} required />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="status">Status*</Label>
               <Select name="status" defaultValue={employee?.status || "active"} required>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="active">Ativo</SelectItem>
                   <SelectItem value="inactive">Inativo</SelectItem>
@@ -210,27 +185,17 @@ export function EditEmployeeForm({
           <div className="grid gap-2">
             <Label htmlFor="manager_id">Gestor Direto</Label>
             <Select name="manager_id" defaultValue={employee?.manager_id || "null"}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione um gestor" />
-              </SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="Selecione um gestor" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="null">Nenhum (Liderança)</SelectItem>
-                {allEmployees
-                  .filter((e) => e.id !== employee?.id)
-                  .map((pos) => (
-                    <SelectItem key={pos.id} value={pos.id}>
-                      {pos.name}
-                    </SelectItem>
-                  ))}
+                {allEmployees.filter((e) => e.id !== employee?.id).map((pos) => (
+                    <SelectItem key={pos.id} value={pos.id}>{pos.name}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
           <DialogFooter className="pt-4">
-            <DialogClose asChild>
-              <Button type="button" variant="outline">
-                Cancelar
-              </Button>
-            </DialogClose>
+            <DialogClose asChild><Button type="button" variant="outline">Cancelar</Button></DialogClose>
             <SubmitButton isEditing={isEditing} />
           </DialogFooter>
         </form>
