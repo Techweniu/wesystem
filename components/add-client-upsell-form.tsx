@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ServicesMultiSelect } from "@/components/services-multi-select"
 import { addClientUpsell } from "@/app/dashboard/commercial/actions"
 import { toast } from "sonner"
+import { useRole } from "@/app/dashboard/layout" // --- ALTERAÇÃO
 
 interface AddClientUpsellFormProps {
   clientId: string
@@ -18,7 +19,12 @@ interface AddClientUpsellFormProps {
 }
 
 export function AddClientUpsellForm({ clientId, onSuccess }: AddClientUpsellFormProps) {
+  const userRole = useRole() // --- ALTERAÇÃO
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // --- ALTERAÇÃO: Se limitado, não renderiza ---
+  if (userRole === "limited") return null;
+  // -------------------------------------------
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()

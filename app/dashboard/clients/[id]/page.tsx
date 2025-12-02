@@ -1,4 +1,3 @@
-// Caminho: wesystem10/app/dashboard/clients/[id]/page.tsx
 import { createClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -18,7 +17,7 @@ import {
   ThumbsDown,
   BlendIcon as ClientIcon,
   Video,
-  Film, // Ícone de Editor
+  Film, 
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AddServiceForm } from "@/components/add-service-form"
@@ -34,6 +33,7 @@ import { Button } from "@/components/ui/button"
 import { ServiceStatusChanger } from "@/components/service-status-changer"
 import { Separator } from "@/components/ui/separator"
 import { ClientContactsManager } from "@/components/client-contacts-manager"
+import { ClientUpsellsSection } from "@/components/client-upsells-section" 
 import Link from "next/link"
 import {
   Breadcrumb,
@@ -63,9 +63,7 @@ interface NpsResponse {
   category_scores: NpsCategoryScores | null
   observations: string | null
 }
-type ClientDetails = Awaited<ReturnType<typeof getClientDetails>>
 
-// Função getClientDetails - ATUALIZADA
 async function getClientDetails(id: string) {
   const supabase = await createClient()
   const { data: clientData, error: clientError } = await supabase
@@ -79,15 +77,17 @@ async function getClientDetails(id: string) {
       one_time_services(*),
       nps_responses(*),
       client_contacts(*),
+      client_upsells(*),
       assigned_assessor:assigned_assessor_id ( id, name ),
       assigned_videomaker:assigned_videomaker_id ( id, name ),
       assigned_relationship_manager:assigned_relationship_manager_id ( id, name ),
       assigned_editor:assigned_editor_id ( id, name ) 
-    `) // ADICIONADO assigned_editor
+    `) 
     .eq("id", id)
     .order("created_at", { foreignTable: "contracts", ascending: false })
     .order("response_date", { foreignTable: "nps_responses", ascending: false })
     .order("date", { foreignTable: "one_time_services", ascending: false })
+    .order("created_at", { foreignTable: "client_upsells", ascending: false })
     .maybeSingle()
 
   if (clientError || !clientData) {
@@ -99,7 +99,7 @@ async function getClientDetails(id: string) {
   if (clientData.contracts) {
     for (const contract of clientData.contracts) {
       if (contract.storage_path) {
-        const { data: urlData } = await supabase.storage.from("contracts").createSignedUrl(contract.storage_path, 3600) // URL válida por 1 hora
+        const { data: urlData } = await supabase.storage.from("contracts").createSignedUrl(contract.storage_path, 3600) 
         ;(contract as any).downloadUrl = urlData?.signedUrl
       }
 
@@ -109,17 +109,15 @@ async function getClientDetails(id: string) {
         .eq("contract_id", contract.id)
         .order("service_name")
 
-      // Only set deliverables if the query succeeded (table exists)
       if (!deliverablesError) {
         ;(contract as any).deliverables = deliverables || []
       } else {
-        // Table doesn't exist yet - migration not run
         ;(contract as any).deliverables = []
       }
     }
   }
 
-  // Busca potenciais assessores, videomakers, editores e gestores de relacionamento
+  // Busca potenciais funcionários para os cargos
   const { data: potentialAssessors } = await supabase
     .from("employees")
     .select("id, name")
@@ -138,7 +136,7 @@ async function getClientDetails(id: string) {
     .eq("status", "active")
     .eq("role", "Gestor de Relacionamento")
     .order("name")
-  const { data: potentialEditors } = await supabase // ADICIONADO
+  const { data: potentialEditors } = await supabase
     .from("employees")
     .select("id, name")
     .eq("status", "active")
@@ -150,53 +148,50 @@ async function getClientDetails(id: string) {
     potentialAssessors: potentialAssessors || [],
     potentialVideomakers: potentialVideomakers || [],
     potentialManagers: potentialManagers || [],
-    potentialEditors: potentialEditors || [], // ADICIONADO
+    potentialEditors: potentialEditors || [],
   }
 }
-// --- FIM DA ATUALIZAÇÃO ---
 
-// Funções auxiliares isContractVigent e getNpsBadgeVariant
+// Funções auxiliares
 const isContractVigent = (contract: { start_date: string | null; end_date: string | null }) => {
   const today = new Date()
-  // --- CORREÇÃO AQUI ---
-  // A lógica !isPast(...) estava errada. Deve ser isPast(...)
   const hasStarted = contract.start_date
-    ? isPast(parseISO(contract.start_date)) || // <-- CORRIGIDO DE !isPast PARA isPast
+    ? isPast(parseISO(contract.start_date)) ||
       format(parseISO(contract.start_date), "yyyy-MM-dd") === format(today, "yyyy-MM-dd")
     : true
-  // --- FIM DA CORREÇÃO ---
   const hasNotEnded = contract.end_date ? !isPast(parseISO(contract.end_date)) : true
   return hasStarted && hasNotEnded
 }
 
 const getNpsBadgeVariant = (nps: number | undefined): "destructive" | "secondary" | "default" | "outline" => {
   if (nps === undefined) return "outline"
-  if (nps <= 7) return "destructive" // Ajustado para 0-7
+  if (nps <= 7) return "destructive" 
   if (nps === 8) return "secondary"
   return "default"
 }
 
-// Componente da Página
 export default async function ClientDetailPage({ params }: { params: { id: string } }) {
   const { id } = params
   const clientData = await getClientDetails(id)
 
   if (!clientData) {
     notFound()
-  } // Se getClientDetails retornou null, mostra 404
-  const { potentialAssessors, potentialVideomakers, potentialManagers, potentialEditors, ...client } = clientData // ADICIONADO potentialEditors
+  } 
+  
+  const { potentialAssessors, potentialVideomakers, potentialManagers, potentialEditors, ...client } = clientData
 
   const today = new Date()
 
-  // Cálculos de Receita, NPS, Valor Gerado, Tempo de Parceria
+  // Cálculos Financeiros
   const monthlyRevenue =
     client.contracts
-      ?.filter((c) => c.status === "active" && isContractVigent(c)) // A função corrigida é usada aqui
+      ?.filter((c) => c.status === "active" && isContractVigent(c)) 
       .reduce((sum, c) => sum + Number(c.valor_mensal), 0) || 0
+  
   const completedServices = client.one_time_services?.filter((s: any) => s.status === "completed") || []
   const totalServicesRevenue = completedServices.reduce((sum, s: any) => sum + Number(s.value), 0) || 0
   
-  // --- LÓGICA DE NPS ATUALIZADA ---
+  // Cálculos de NPS
   const npsScores = client.nps_responses?.map((n: any) => n.score) || []
   const avgNps = npsScores.length > 0 ? npsScores.reduce((a: number, b: number) => a + b, 0) / npsScores.length : 0
   const latestNpsResponse = client.nps_responses?.[0] as NpsResponse | undefined
@@ -205,17 +200,13 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
   let worstNpsCategories: { category: string; score: number }[] = []
   if (latestNpsResponse?.category_scores) {
     worstNpsCategories = Object.entries(latestNpsResponse.category_scores)
-      // Mapeia para o formato de objeto, garantindo que score seja número
       .map(([category, score]) => ({ category: category.replace(/_/g, " "), score: Number(score) }))
-      // Filtra scores que não são números (caso JSONB venha nulo ou inválido)
       .filter((item) => !isNaN(item.score))
-      // Ordena pelas menores notas (score ascendente)
       .sort((a, b) => a.score - b.score)
-      // Pega as 3 piores
       .slice(0, 3)
   }
-  // --- FIM DA LÓGICA DE NPS ATUALIZADA ---
 
+  // Cálculo de Valor Gerado e Tempo de Parceria
   let generatedValue = 0
   client.contracts?.forEach((contract) => {
     if (contract.start_date && contract.valor_mensal && contract.valor_mensal > 0) {
@@ -226,13 +217,11 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
   })
   generatedValue += totalServicesRevenue
 
-  // --- LÓGICA ATUALIZADA PARA TEMPO DE PARCERIA E PRÓXIMO TÉRMINO ---
-  let firstContractDate = client.created_at // Fallback é a data de criação do cliente
+  let firstContractDate = client.created_at 
   let furthestEndDate: string | null = null
 
   const allContracts = client.contracts || []
   
-  // 1. Encontrar a data de início mais antiga de TODOS os contratos
   const contractsWithStartDate = allContracts.filter((c) => c.start_date)
   if (contractsWithStartDate.length > 0) {
     const earliestStartDate = contractsWithStartDate.reduce((earliest, current) =>
@@ -240,13 +229,10 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
     ).start_date
     
     if (earliestStartDate) {
-      // Compara a data do contrato mais antigo com a data de criação do cliente
-      // e pega a que for mais antiga
       firstContractDate = parseISO(earliestStartDate) < parseISO(firstContractDate) ? earliestStartDate : firstContractDate
     }
   }
 
-  // 2. Encontrar a data de término mais distante de TODOS os contratos
   const contractsWithEndDate = allContracts.filter((c) => c.end_date)
   if (contractsWithEndDate.length > 0) {
     furthestEndDate = contractsWithEndDate.reduce((furthest, current) =>
@@ -257,11 +243,9 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
   const partnershipTime = firstContractDate
     ? formatDistanceToNowStrict(parseISO(firstContractDate), { locale: ptBR })
     : "-"
-  // --- FIM DA ATUALIZAÇÃO ---
 
   return (
     <div className="space-y-6">
-      {/* Breadcrumb */}
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem>
@@ -276,7 +260,6 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
         </BreadcrumbList>
       </Breadcrumb>
 
-      {/* Cabeçalho com Nome e Botão Editar */}
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">{client.name}</h1>
@@ -287,13 +270,11 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
           assessors={potentialAssessors}
           videomakers={potentialVideomakers}
           relationshipManagers={potentialManagers}
-          editors={potentialEditors} // ADICIONADO
+          editors={potentialEditors} 
         />
       </div>
 
-      {/* Grid de Cards Resumo (LOCAL DA MODIFICAÇÃO) */}
       <div className="flex flex-col gap-6">
-        {/* --- GRID MODIFICADO PARA INCLUIR O NOVO CARD --- */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <Card>
             <CardHeader className="pb-2">
@@ -340,7 +321,6 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
             </CardContent>
           </Card>
 
-          {/* === CARD DE NPS === */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
@@ -350,16 +330,13 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
             <CardContent className="space-y-3">
               <div className="flex items-center justify-between">
                 <div className="text-2xl font-bold">
-                  {/* Mostra a média com 1 casa decimal */}
                   {avgNps.toFixed(1)}
                 </div>
-                {/* Mostra o total de avaliações */}
                 <Badge variant={getNpsBadgeVariant(Math.round(avgNps))}>
                   {npsScores.length} {npsScores.length === 1 ? "Avaliação" : "Avaliações"}
                 </Badge>
               </div>
               
-              {/* Seção de Piores Categorias (do último NPS) */}
               {latestNpsResponse && (
                 <>
                   <Separator />
@@ -387,12 +364,8 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
               )}
             </CardContent>
           </Card>
-          {/* === FIM DO CARD DE NPS === */}
-
         </div>
-        {/* --- FIM DO GRID MODIFICADO --- */}
 
-        {/* Card Tráfego Pago */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
@@ -415,7 +388,6 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
           </CardContent>
         </Card>
 
-        {/* Card Responsáveis Atribuídos - ATUALIZADO */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
@@ -423,7 +395,6 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
             </CardTitle>
             <CardDescription>Equipe principal alocada para este cliente.</CardDescription>
           </CardHeader>
-          {/* Grid ATUALIZADO para 2x2 (lg:grid-cols-4) */}
           <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
             <div className="flex flex-col space-y-1">
               <Label className="text-muted-foreground flex items-center gap-1">
@@ -447,7 +418,6 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
               </Label>
               <p>{client.assigned_videomaker?.name ?? <span className="text-muted-foreground italic">Nenhum</span>}</p>
             </div>
-            {/* Bloco do Editor ADICIONADO */}
             <div className="flex flex-col space-y-1">
               <Label className="text-muted-foreground flex items-center gap-1">
                 <Film className="h-4 w-4" /> Editor
@@ -456,9 +426,7 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
             </div>
           </CardContent>
         </Card>
-        {/* --- FIM DA ATUALIZAÇÃO --- */}
 
-        {/* Grid: Infos Cliente | Notas */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
@@ -524,7 +492,6 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
           </Card>
         </div>
 
-        {/* Grid: Contatos | Contratos | Histórico */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <ClientContactsManager clientId={client.id} contacts={client.client_contacts || []} />
           <Card>
@@ -575,7 +542,6 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
             </CardContent>
           </Card>
           
-          {/* CARD HISTÓRICO E VALOR (COM LÓGICA ATUALIZADA) */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -605,11 +571,12 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
               </div>
             </CardContent>
           </Card>
-          {/* FIM DO CARD ATUALIZADO */}
-
         </div>
 
-        {/* Card Dashboard Resultados */}
+        {/* --- NOVA SEÇÃO: OPORTUNIDADES DE UPSELL --- */}
+        <ClientUpsellsSection clientId={client.id} upsells={client.client_upsells || []} />
+        {/* ------------------------------------------- */}
+
         <Card>
           <CardHeader>
             <CardTitle>Dashboard de Resultados</CardTitle>
@@ -628,7 +595,6 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
           </CardContent>
         </Card>
 
-        {/* Abas Serviços e NPS */}
         <Tabs defaultValue="services" className="space-y-4">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="services">Serviços Pontuais</TabsTrigger>

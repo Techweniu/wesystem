@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { useFormStatus } from "react-dom"
 import { Button } from "@/components/ui/button"
 import {
@@ -23,6 +23,7 @@ import { saveAccess } from "@/app/dashboard/accesses/actions"
 import { toast } from "sonner"
 import { PlusCircle } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { createClient } from "@/lib/supabase/client" // Import necessário para buscar clientes
 
 function SubmitButton() {
   const { pending } = useFormStatus()
@@ -55,8 +56,8 @@ interface AddEditAccessFormProps {
 
 export function AddEditAccessForm({
   access,
-  clientId,
-  clientName,
+  clientId: propClientId, // Renomeado para evitar conflito
+  clientName: propClientName,
   children,
   open: controlledOpen,
   onOpenChange: controlledOnOpenChange,
@@ -64,6 +65,11 @@ export function AddEditAccessForm({
   const [internalOpen, setInternalOpen] = useState(false)
   const formRef = useRef<HTMLFormElement>(null)
   const router = useRouter()
+  
+  // Estados para controle do departamento e clientes
+  const [selectedDepartment, setSelectedDepartment] = useState<string>(access?.department || "Geral")
+  const [clients, setClients] = useState<{id: string, name: string}[]>([])
+  const [isLoadingClients, setIsLoadingClients] = useState(false)
 
   const isControlled = controlledOpen !== undefined
   const open = isControlled ? controlledOpen : internalOpen
@@ -71,11 +77,40 @@ export function AddEditAccessForm({
 
   const isEditing = !!access?.id
 
+  // Busca clientes se o departamento for "Cliente" e não tivermos um clientId fixo
+  useEffect(() => {
+    if (selectedDepartment === "Cliente" && !propClientId && open) {
+      const fetchClients = async () => {
+        setIsLoadingClients(true)
+        const supabase = createClient()
+        const { data } = await supabase
+          .from("clients")
+          .select("id, name")
+          .eq("status", "active")
+          .order("name")
+        
+        if (data) setClients(data)
+        setIsLoadingClients(false)
+      }
+      fetchClients()
+    }
+  }, [selectedDepartment, propClientId, open])
+
   async function handleFormSubmit(formData: FormData) {
-    if (clientId) {
-      formData.append("client_id", clientId)
-      formData.append("client_name", clientName || "")
+    // Se veio via props (página de detalhes do cliente), força os dados
+    if (propClientId) {
+      formData.append("client_id", propClientId)
+      formData.append("client_name", propClientName || "")
       formData.append("department", "Cliente")
+    }
+
+    // Se selecionou um cliente no dropdown, precisamos pegar o nome dele também
+    if (!propClientId && selectedDepartment === "Cliente") {
+        const selectedClientId = formData.get("client_id") as string
+        const selectedClient = clients.find(c => c.id === selectedClientId)
+        if (selectedClient) {
+            formData.append("client_name", selectedClient.name)
+        }
     }
 
     if (access?.id) {
@@ -145,10 +180,16 @@ export function AddEditAccessForm({
             />
           </div>
 
-          {!clientId && (
+          {/* Se não estivermos na página de um cliente específico, mostra o seletor de departamento */}
+          {!propClientId && (
             <div className="grid gap-2">
               <Label htmlFor="department">Departamento*</Label>
-              <Select name="department" defaultValue={access?.department || "Geral"} required>
+              <Select 
+                name="department" 
+                defaultValue={access?.department || "Geral"} 
+                onValueChange={setSelectedDepartment} // Atualiza estado para mostrar/esconder seletor de cliente
+                required
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -162,6 +203,23 @@ export function AddEditAccessForm({
                 </SelectContent>
               </Select>
             </div>
+          )}
+
+          {/* Seletor de Cliente Condicional (Só aparece se Departamento for Cliente e não houver propClientId) */}
+          {!propClientId && selectedDepartment === "Cliente" && (
+             <div className="grid gap-2 animate-in fade-in zoom-in-95 duration-200">
+                <Label htmlFor="client_id">Vincular ao Cliente*</Label>
+                <Select name="client_id" defaultValue={access?.client_id || ""} required>
+                    <SelectTrigger disabled={isLoadingClients}>
+                        <SelectValue placeholder={isLoadingClients ? "Carregando..." : "Selecione o cliente"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {clients.map(client => (
+                            <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+             </div>
           )}
 
           <div className="grid gap-2">

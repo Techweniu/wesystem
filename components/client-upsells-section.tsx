@@ -19,6 +19,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { useState } from "react"
+import { useRole } from "@/app/dashboard/layout" // --- ALTERAÇÃO
 
 interface Upsell {
   id: string
@@ -33,14 +34,8 @@ interface ClientUpsellsSectionProps {
   upsells: Upsell[]
 }
 
-const statusLabels = {
-  identified: "Identificado",
-  negotiating: "Em Negociação",
-  closed: "Fechado",
-  lost: "Perdido",
-}
-
 export function ClientUpsellsSection({ clientId, upsells }: ClientUpsellsSectionProps) {
+  const userRole = useRole() // --- ALTERAÇÃO
   const [open, setOpen] = useState(false)
 
   async function handleStatusChange(upsellId: string, newStatus: string) {
@@ -70,18 +65,23 @@ export function ClientUpsellsSection({ clientId, upsells }: ClientUpsellsSection
           <TrendingUp className="h-5 w-5" />
           Oportunidades de Upsell
         </CardTitle>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm">Adicionar Oportunidade</Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Adicionar Oportunidade de Upsell</DialogTitle>
-              <DialogDescription>Registre uma nova oportunidade de venda</DialogDescription>
-            </DialogHeader>
-            <AddClientUpsellForm clientId={clientId} onSuccess={() => setOpen(false)} />
-          </DialogContent>
-        </Dialog>
+        
+        {/* --- ALTERAÇÃO: Esconde botão se limitado --- */}
+        {userRole !== "limited" && (
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm">Adicionar Oportunidade</Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Adicionar Oportunidade de Upsell</DialogTitle>
+                <DialogDescription>Registre uma nova oportunidade de venda</DialogDescription>
+              </DialogHeader>
+              <AddClientUpsellForm clientId={clientId} onSuccess={() => setOpen(false)} />
+            </DialogContent>
+          </Dialog>
+        )}
+        {/* ------------------------------------------- */}
       </CardHeader>
       <CardContent>
         {upsells.length === 0 ? (
@@ -109,9 +109,14 @@ export function ClientUpsellsSection({ clientId, upsells }: ClientUpsellsSection
                       <p className="text-sm text-muted-foreground">Serviços não especificados</p>
                     )}
                   </div>
-                  <Button variant="ghost" size="icon" onClick={() => handleDelete(upsell.id)} className="h-8 w-8">
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  
+                  {/* --- ALTERAÇÃO: Esconde botão de deletar se limitado --- */}
+                  {userRole !== "limited" && (
+                    <Button variant="ghost" size="icon" onClick={() => handleDelete(upsell.id)} className="h-8 w-8">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                  {/* --------------------------------------------------- */}
                 </div>
 
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -121,7 +126,13 @@ export function ClientUpsellsSection({ clientId, upsells }: ClientUpsellsSection
 
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-muted-foreground">Status:</span>
-                  <Select value={upsell.status} onValueChange={(value) => handleStatusChange(upsell.id, value)}>
+                  <Select 
+                    value={upsell.status} 
+                    onValueChange={(value) => handleStatusChange(upsell.id, value)}
+                    // --- ALTERAÇÃO: Desabilita se limitado ---
+                    disabled={userRole === "limited"}
+                    // ---------------------------------------
+                  >
                     <SelectTrigger className="w-[180px] h-8">
                       <SelectValue />
                     </SelectTrigger>
