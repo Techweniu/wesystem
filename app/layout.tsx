@@ -2,7 +2,7 @@ import type React from "react"
 import type { Metadata } from "next"
 import localFont from "next/font/local"
 import "./globals.css"
-import { Toaster } from "sonner"
+import { Toaster } from "@/components/ui/sonner" // <-- Importando Toaster do componente customizado ao invés de diretamente do sonner
 import { ThemeProvider } from "@/components/theme-provider" // <-- Importe o ThemeProvider
 
 // Carregamento das fontes locais (como no seu arquivo original)
@@ -33,11 +33,7 @@ export default function RootLayout({
     <html lang="pt-BR" className={`${gate.variable} ${poppins.variable}`} suppressHydrationWarning>
       <body className="font-sans antialiased">
         {/* Envolvemos o children com o ThemeProvider que estava no 'undefined' */}
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="dark"
-          enableSystem
-        >
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
           {children}
           <Toaster position="top-right" richColors />
         </ThemeProvider>

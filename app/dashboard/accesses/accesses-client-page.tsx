@@ -1,56 +1,38 @@
 "use client" // Necessário para gerenciar estado e interações
 
-import { useState, useEffect } from "react"
+import type React from "react"
+
+import { useState, useEffect, useMemo } from "react" // Importa useMemo
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import {
-  AlertTriangle,
-  KeyRound,
-  Building,
-  UsersIcon,
-  Lock,
-  Unlock,
-  Server,
-  Palette,
-  MicVocal,
-  Contact,
-  Globe,
-  Search,
-  X,
-} from "lucide-react"
+import { KeyRound, Building, Server, Palette, MicVocal, Contact, Globe, Search, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogClose,
-} from "@/components/ui/dialog"
-import { Label } from "@/components/ui/label"
 import { PlusCircle } from "lucide-react"
 import { AddEditAccessForm } from "@/components/add-edit-access-form"
 import { AccessTable } from "@/components/access-table"
 import type { PlatformAccess } from "./page"
-// Remove o 'useAuth'
-// import { useAuth } from "@/contexts/auth-context" 
+// Importa o hook 'useRole' do layout
+import { useRole } from "@/app/dashboard/layout"
 
 interface AccessesClientPageProps {
   initialAccesses: PlatformAccess[]
-  // Remove 'userRole' das props
+}
+
+// Define a estrutura de um objeto de Aba
+type TabConfig = {
+  value: string
+  label: string
+  icon: React.ElementType
+  data: PlatformAccess[]
 }
 
 export function AccessesClientPage({ initialAccesses }: AccessesClientPageProps) {
-  // Remove 'useAuth'
-  // const { userRole } = useAuth() 
+  // Usa o hook para obter o papel do usuário
+  const userRole = useRole()
   const [allAccesses, setAllAccesses] = useState<PlatformAccess[]>(initialAccesses)
   const [searchTerm, setSearchTerm] = useState("")
 
-  // Remove a lógica de senha
-  // const [viewMode, setViewMode] = useState(...)
-  
   // Efeito para atualizar o estado interno se as props mudarem
   useEffect(() => {
     if (JSON.stringify(initialAccesses) !== JSON.stringify(allAccesses)) {
@@ -86,18 +68,36 @@ export function AccessesClientPage({ initialAccesses }: AccessesClientPageProps)
     ),
   )
 
+  // Define todas as abas possíveis
+  const allTabs: TabConfig[] = [
+    { value: "diretoria", label: "Diretoria", icon: Building, data: diretoriaAccesses },
+    { value: "tecnologia", label: "Tec", icon: Server, data: tecnologiaAccesses },
+    { value: "producao", label: "Prod", icon: Palette, data: producaoAccesses },
+    { value: "marketing", label: "Mkt", icon: MicVocal, data: marketingAccesses },
+    { value: "geral", label: "Geral", icon: Globe, data: geralAccesses },
+    { value: "clientes", label: "Clientes", icon: Contact, data: clienteAccesses },
+  ]
+
+  // Filtra as abas visíveis com base no 'userRole'
+  const visibleTabs = useMemo(() => {
+    if (userRole === "limited") {
+      // --- MODIFICAÇÃO AQUI ---
+      // Agora filtra diretoria, marketing E tecnologia
+      return allTabs.filter(
+        (tab) => tab.value !== "diretoria" && tab.value !== "marketing" && tab.value !== "tecnologia",
+      )
+      // --- FIM DA MODIFICAÇÃO ---
+    }
+    return allTabs // Admin vê tudo
+  }, [userRole, allAccesses, searchTerm]) // Recalcula se o papel, os dados ou o filtro mudarem
+
   // Determina qual aba deve ser a padrão
   const getDefaultTab = () => {
-    if (tecnologiaAccesses.length > 0) return "tecnologia"
-    if (producaoAccesses.length > 0) return "producao"
-    if (marketingAccesses.length > 0) return "marketing"
-    if (geralAccesses.length > 0) return "geral"
-    if (clienteAccesses.length > 0) return "clientes"
-    if (diretoriaAccesses.length > 0) return "diretoria"
-    return "tecnologia" // Fallback
+    // Tenta encontrar a primeira aba visível que tenha dados
+    const firstTabWithData = visibleTabs.find((tab) => tab.data.length > 0)
+    // Se encontrar, usa ela. Senão, usa a primeira aba visível da lista (ou 'producao' como fallback)
+    return firstTabWithData ? firstTabWithData.value : visibleTabs[0]?.value || "producao"
   }
-
-  // Remove a lógica de 'viewMode' e 'passwordDialog'
 
   // Tela Principal (Tabs + Tabelas)
   return (
@@ -140,46 +140,28 @@ export function AccessesClientPage({ initialAccesses }: AccessesClientPageProps)
         )}
       </div>
 
-      {searchTerm &&
-        diretoriaAccesses.length === 0 &&
-        tecnologiaAccesses.length === 0 &&
-        producaoAccesses.length === 0 &&
-        marketingAccesses.length === 0 &&
-        geralAccesses.length === 0 &&
-        clienteAccesses.length === 0 && (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-10">
-              <Search className="h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-lg font-medium">Nenhum resultado encontrado</p>
-              <p className="text-sm text-muted-foreground">Tente pesquisar com outros termos</p>
-            </CardContent>
-          </Card>
-        )}
+      {searchTerm && visibleTabs.every((tab) => tab.data.length === 0) && (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-10">
+            <Search className="h-12 w-12 text-muted-foreground mb-4" />
+            <p className="text-lg font-medium">Nenhum resultado encontrado</p>
+            <p className="text-sm text-muted-foreground">Tente pesquisar com outros termos</p>
+          </CardContent>
+        </Card>
+      )}
 
-      {/* Estrutura das Abas (Mostra todas as 6 abas) */}
+      {/* Estrutura das Abas (Usa 'visibleTabs') */}
       <Tabs defaultValue={getDefaultTab()} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-6">
-          <TabsTrigger value="diretoria">
-            <Building className="mr-2 h-4 w-4" /> Diretoria ({diretoriaAccesses.length})
-          </TabsTrigger>
-          <TabsTrigger value="tecnologia">
-            <Server className="mr-2 h-4 w-4" /> Tec ({tecnologiaAccesses.length})
-          </TabsTrigger>
-          <TabsTrigger value="producao">
-            <Palette className="mr-2 h-4 w-4" /> Prod ({producaoAccesses.length})
-          </TabsTrigger>
-          <TabsTrigger value="marketing">
-            <MicVocal className="mr-2 h-4 w-4" /> Mkt ({marketingAccesses.length})
-          </TabsTrigger>
-          <TabsTrigger value="geral">
-            <Globe className="mr-2 h-4 w-4" /> Geral ({geralAccesses.length})
-          </TabsTrigger>
-          <TabsTrigger value="clientes">
-            <Contact className="mr-2 h-4 w-4" /> Clientes ({clienteAccesses.length})
-          </TabsTrigger>
+        <TabsList className={`grid w-full grid-cols-${visibleTabs.length}`}>
+          {visibleTabs.map((tab) => (
+            <TabsTrigger value={tab.value} key={tab.value}>
+              <tab.icon className="mr-2 h-4 w-4" /> {tab.label} ({tab.data.length})
+            </TabsTrigger>
+          ))}
         </TabsList>
 
-        {/* Conteúdo das Abas */}
+        {/* Conteúdo das Abas (Todos os 6 <TabsContent> permanecem, 
+            pois o usuário 'limited' nunca verá as abas filtradas para poder clicar nelas) */}
         <TabsContent value="diretoria">
           <Card>
             <CardHeader>
@@ -246,3 +228,5 @@ export function AccessesClientPage({ initialAccesses }: AccessesClientPageProps)
     </div>
   )
 }
+
+export default AccessesClientPage

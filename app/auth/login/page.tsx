@@ -9,8 +9,9 @@ import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { toast } from "sonner"
 
-// A senha mestra original
+// Senhas para os dois níveis de acesso
 const MASTER_PASSWORD = "491hrinh19283"
+const LIMITED_PASSWORD = "123"
 
 export default function LoginPage() {
   const [password, setPassword] = useState("")
@@ -21,10 +22,14 @@ export default function LoginPage() {
     e.preventDefault()
     setIsLoading(true)
 
-    // A lógica de senha única original
+    // Verifica a senha e define o "userRole" correspondente
     if (password === MASTER_PASSWORD) {
-      localStorage.setItem("isAuthenticated", "true") // <-- Volta a usar 'isAuthenticated'
-      toast.success("Login realizado com sucesso!")
+      localStorage.setItem("userRole", "admin") // Papel de Admin
+      toast.success("Login (Admin) realizado com sucesso!")
+      router.push("/dashboard")
+    } else if (password === LIMITED_PASSWORD) {
+      localStorage.setItem("userRole", "limited") // Papel Limitado
+      toast.success("Login (Limitado) realizado com sucesso!")
       router.push("/dashboard")
     } else {
       toast.error("Senha incorreta. Tente novamente.")

@@ -1,172 +1,190 @@
-"use client";
+"use client"
 
-import { useState, useRef, useEffect } from "react";
-import { useFormStatus } from "react-dom";
-import { Button } from "@/components/ui/button";
+import type React from "react"
+
+import { useState, useRef } from "react"
+import { useFormStatus } from "react-dom"
+import { Button } from "@/components/ui/button"
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { saveAccess } from "@/app/dashboard/accesses/actions"; 
-import { toast } from "sonner";
-import type { PlatformAccess } from "@/app/dashboard/accesses/page"; 
-import { useRouter } from 'next/navigation'; 
-// Remove o 'useAuth'
-// import { useAuth } from "@/contexts/auth-context"; 
-import { PlusCircle, Pencil } from "lucide-react"; 
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogClose,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
+import { saveAccess } from "@/app/dashboard/accesses/actions"
+import { toast } from "sonner"
+import { PlusCircle } from "lucide-react"
+import { useRouter } from "next/navigation"
 
-// Props do componente
-interface AddEditAccessFormProps {
-  access?: PlatformAccess; 
-  children: React.ReactNode; 
-  open?: boolean; 
-  onOpenChange?: (open: boolean) => void; 
-}
-
-// Botão de submit com estado de loading
-function SubmitButton({ isEditing }: { isEditing: boolean }) {
-  const { pending } = useFormStatus();
+function SubmitButton() {
+  const { pending } = useFormStatus()
   return (
     <Button type="submit" disabled={pending}>
-      {pending ? "Salvando..." : isEditing ? "Salvar Alterações" : "Adicionar Acesso"}
+      {pending ? "Salvando..." : "Salvar Acesso"}
     </Button>
-  );
+  )
 }
 
-// Lista de departamentos (completa)
-const departmentOptions = [
-  { value: "Geral", label: "Nenhum / Geral" },
-  { value: "Diretoria", label: "Diretoria" },
-  { value: "Tecnologia", label: "Tecnologia" },
-  { value: "Produção", label: "Produção" },
-  { value: "Marketing", label: "Marketing" },
-  { value: "Cliente", label: "Cliente" },
-]
+interface AccessFormData {
+  id?: string
+  platform_name: string
+  username?: string | null
+  password_info?: string | null
+  department?: string | null
+  client_name?: string | null
+  client_id?: string | null
+  notes?: string | null
+}
 
-// Componente principal do formulário
-export function AddEditAccessForm({ access, children, open: controlledOpen, onOpenChange: setControlledOpen }: AddEditAccessFormProps) {
-  // Remove 'useAuth'
-  // const { userRole } = useAuth(); 
-  const [internalOpen, setInternalOpen] = useState(false);
-  const formRef = useRef<HTMLFormElement>(null);
-  const [department, setDepartment] = useState(access?.department || 'Geral');
-  const router = useRouter(); 
+interface AddEditAccessFormProps {
+  access?: AccessFormData
+  clientId?: string
+  clientName?: string
+  children?: React.ReactNode
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+}
 
-  const isEditing = !!access;
-  const open = controlledOpen ?? internalOpen;
-  const setOpen = setControlledOpen ?? setInternalOpen;
+export function AddEditAccessForm({
+  access,
+  clientId,
+  clientName,
+  children,
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
+}: AddEditAccessFormProps) {
+  const [internalOpen, setInternalOpen] = useState(false)
+  const formRef = useRef<HTMLFormElement>(null)
+  const router = useRouter()
 
-  // Mostra todas as opções
-  const visibleDepartmentOptions = departmentOptions;
+  const isControlled = controlledOpen !== undefined
+  const open = isControlled ? controlledOpen : internalOpen
+  const setOpen = isControlled ? controlledOnOpenChange || (() => {}) : setInternalOpen
 
-  // Reseta o formulário e estado quando o dialog é aberto
-  useEffect(() => {
-    if (open && !isEditing) {
-        formRef.current?.reset();
-        setDepartment('Geral'); 
-    } else if (open && isEditing) {
-        setDepartment(access?.department || 'Geral');
-    }
-  }, [open, isEditing, access]);
+  const isEditing = !!access?.id
 
-
-  // Função chamada ao submeter o formulário
   async function handleFormSubmit(formData: FormData) {
-    if (isEditing) {
-      formData.append('id', access.id);
-    }
-    if (!formData.has('department')) {
-        formData.set('department', department);
+    if (clientId) {
+      formData.append("client_id", clientId)
+      formData.append("client_name", clientName || "")
+      formData.append("department", "Cliente")
     }
 
-    const result = await saveAccess(formData); 
+    if (access?.id) {
+      formData.append("id", access.id)
+    }
+
+    const result = await saveAccess(formData)
 
     if (result.error) {
-      toast.error(`Erro ao ${isEditing ? 'atualizar' : 'adicionar'} acesso`, {
+      toast.error("Erro ao salvar acesso.", {
         description: result.error,
-      });
+      })
     } else {
-      toast.success(result.success);
-      setOpen(false); 
-      router.refresh(); 
+      toast.success(result.success)
+      setOpen(false)
+      formRef.current?.reset()
+      router.refresh()
     }
   }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent className="sm:max-w-[550px]"> 
+      <DialogTrigger asChild>
+        {children || (
+          <Button size="sm">
+            <PlusCircle className="mr-2 h-4 w-4" />
+            Adicionar Acesso
+          </Button>
+        )}
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>{isEditing ? 'Editar Acesso' : 'Adicionar Novo Acesso'}</DialogTitle>
+          <DialogTitle>{isEditing ? "Editar Acesso" : "Adicionar Acesso"}</DialogTitle>
           <DialogDescription>
-            Preencha as informações da plataforma. Lembre-se de não colocar senhas críticas diretamente.
+            {isEditing ? "Atualize as informações do acesso à plataforma." : "Adicione um novo acesso à plataforma."}
           </DialogDescription>
         </DialogHeader>
-        <form ref={formRef} action={handleFormSubmit} className="space-y-4">
-          {isEditing && <input type="hidden" name="id" value={access.id} />}
+        <form ref={formRef} action={handleFormSubmit} className="space-y-4 py-4">
+          <div className="grid gap-2">
+            <Label htmlFor="platform_name">Nome da Plataforma*</Label>
+            <Input
+              id="platform_name"
+              name="platform_name"
+              placeholder="Ex: Google Ads, Facebook Business"
+              defaultValue={access?.platform_name}
+              required
+            />
+          </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="username">Usuário/Email</Label>
+            <Input
+              id="username"
+              name="username"
+              placeholder="Ex: usuario@empresa.com"
+              defaultValue={access?.username || ""}
+            />
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="password_info">Senha/Informação de Acesso</Label>
+            <Input
+              id="password_info"
+              name="password_info"
+              placeholder="Ex: senha123 ou 'Autenticação Google'"
+              defaultValue={access?.password_info || ""}
+            />
+          </div>
+
+          {!clientId && (
             <div className="grid gap-2">
-                <Label htmlFor="platform_name">Plataforma*</Label>
-                <Input id="platform_name" name="platform_name" defaultValue={access?.platform_name} required placeholder="Ex: Google Workspace" />
+              <Label htmlFor="department">Departamento*</Label>
+              <Select name="department" defaultValue={access?.department || "Geral"} required>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Geral">Geral</SelectItem>
+                  <SelectItem value="Diretoria">Diretoria</SelectItem>
+                  <SelectItem value="Tecnologia">Tecnologia</SelectItem>
+                  <SelectItem value="Produção">Produção</SelectItem>
+                  <SelectItem value="Marketing">Marketing</SelectItem>
+                  <SelectItem value="Cliente">Cliente</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-             <div className="grid gap-2">
-                <Label htmlFor="client_name">Nome do Cliente (se aplicável)</Label>
-                <Input id="client_name" name="client_name" defaultValue={access?.client_name || ''} placeholder="Nome do Cliente" />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="grid gap-2">
-                <Label htmlFor="username">Usuário/E-mail</Label>
-                <Input id="username" name="username" defaultValue={access?.username || ''} placeholder="Ex: contato@empresa.com" />
-            </div>
-             <div className="grid gap-2">
-                <Label htmlFor="password_info">Senha / Informação</Label>
-                <Input id="password_info" name="password_info" defaultValue={access?.password_info || ''} placeholder="Dica, Autenticação 2 Fatores, etc."/>
-            </div>
-          </div>
-
-           <div className="grid grid-cols-2 gap-4">
-             <div className="grid gap-2">
-                <Label htmlFor="department">Departamento</Label>
-                <Select name="department" value={department} onValueChange={setDepartment}>
-                    <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                    <SelectContent>
-                      {/* Mostra todas as opções */}
-                      {visibleDepartmentOptions.map(opt => (
-                        <SelectItem key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                </Select>
-             </div>
-             {department === 'Cliente' && (
-                <div className="grid gap-2">
-                    <Label htmlFor="client_name">Nome do Cliente</Label>
-                    <Input id="client_name" name="client_name" defaultValue={access?.client_name || ''} placeholder="Nome do Cliente" />
-                </div>
-             )}
-          </div>
-
+          )}
 
           <div className="grid gap-2">
             <Label htmlFor="notes">Observações</Label>
-            <Textarea id="notes" name="notes" defaultValue={access?.notes || ''} placeholder="Qualquer informação adicional relevante..." rows={3} />
+            <Textarea
+              id="notes"
+              name="notes"
+              placeholder="Notas adicionais sobre este acesso..."
+              defaultValue={access?.notes || ""}
+              rows={3}
+            />
           </div>
 
           <DialogFooter>
             <DialogClose asChild>
-              <Button type="button" variant="outline">Cancelar</Button>
+              <Button type="button" variant="outline">
+                Cancelar
+              </Button>
             </DialogClose>
-            <SubmitButton isEditing={isEditing} />
+            <SubmitButton />
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
-  );
+  )
 }

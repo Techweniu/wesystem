@@ -3,17 +3,17 @@
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { randomUUID } from "crypto"; // <-- LINHA REINSERIDA
 
 // Schema de validação para os dados do formulário
 const accessSchema = z.object({
-  id: z.string().uuid().optional().or(z.literal('')), // Para edição futura
+  id: z.string().uuid().optional().or(z.literal('')), 
   platform_name: z.string().min(1, "O nome da plataforma é obrigatório."),
   username: z.string().optional().nullable(),
   password_info: z.string().optional().nullable(),
-  // CORREÇÃO: Removido .nullable() daqui, pois 'Geral' é o valor para nulo/vazio
-  department: z.enum(['Diretoria', 'Tecnologia', 'Produção', 'Marketing', 'Cliente', 'Geral']),
-  client_name: z.string().optional().nullable(), // Adicionado
+  // O departamento pode vir preenchido ou ser inferido
+  department: z.enum(['Diretoria', 'Tecnologia', 'Produção', 'Marketing', 'Cliente', 'Geral']).optional(),
+  client_name: z.string().optional().nullable(),
+  client_id: z.string().uuid().optional().nullable(), // NOVO CAMPO
   notes: z.string().optional().nullable(),
 });
 
@@ -21,11 +21,14 @@ const accessSchema = z.object({
 export async function saveAccess(formData: FormData) {
   const rawData = Object.fromEntries(formData);
 
-  // Se o departamento não foi enviado (ou veio vazio), define como 'Geral' antes de validar
-  if (!rawData.department || rawData.department === "") {
+  // Se veio um client_id, forçamos o departamento para 'Cliente'
+  if (rawData.client_id && rawData.client_id !== "null") {
+      rawData.department = "Cliente";
+  }
+  // Se o departamento não foi enviado e não é cliente específico, define como 'Geral'
+  else if (!rawData.department || rawData.department === "") {
       rawData.department = "Geral";
   }
-
 
   const validatedFields = accessSchema.safeParse(rawData);
 
@@ -37,14 +40,16 @@ export async function saveAccess(formData: FormData) {
 
   const { id, ...accessData } = validatedFields.data;
 
-  // Ajusta o departamento para null se 'Geral' for selecionado antes de salvar no DB
-  // Limpa client_name se o departamento não for 'Cliente'
+  // Ajusta os dados finais
   const dataToSave = {
     ...accessData,
+    // Se for Geral, grava null no banco (se seu DB usa null para Geral), senão grava a string
     department: accessData.department === "Geral" ? null : accessData.department,
-    client_name: accessData.department === "Cliente" ? (accessData.client_name === "" ? null : accessData.client_name) : null, // Limpa se não for Cliente
+    // Se tiver client_id, garante que client_name também seja salvo (opcional, mas bom para visualização rápida)
+    // Se não for departamento Cliente, limpa os dados de cliente
+    client_name: accessData.department === "Cliente" ? accessData.client_name : null, 
+    client_id: accessData.department === "Cliente" ? accessData.client_id : null,
   };
-
 
   const supabaseAdmin = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -55,14 +60,13 @@ export async function saveAccess(formData: FormData) {
   let successMessage = "";
 
   if (id) {
-    // Atualizar (implementação futura)
+    // Atualizar
      const { error: updateError } = await supabaseAdmin
        .from("platform_access")
        .update(dataToSave)
        .eq("id", id);
      error = updateError;
      successMessage = "Acesso atualizado com sucesso!";
-    // return { error: "Funcionalidade de edição ainda não implementada." }; // Placeholder
   } else {
     // Inserir novo acesso
     const { error: insertError } = await supabaseAdmin.from("platform_access").insert(dataToSave);
@@ -75,7 +79,12 @@ export async function saveAccess(formData: FormData) {
     return { error: `Ocorreu um erro no banco de dados: ${error.message}` };
   }
 
-  revalidatePath("/dashboard/accesses"); // Atualiza a página de acessos
+  revalidatePath("/dashboard/accesses");
+  // Se tiver client_id, revalida a página específica do cliente também
+  if (dataToSave.client_id) {
+      revalidatePath(`/dashboard/clients/${dataToSave.client_id}`);
+  }
+  
   return { success: successMessage };
 }
 
@@ -99,6 +108,13 @@ export async function deleteAccess(formData: FormData) {
         process.env.SUPABASE_SERVICE_KEY!
     );
 
+    // Primeiro buscamos o acesso para saber se precisamos revalidar alguma página de cliente
+    const { data: accessToDelete } = await supabaseAdmin
+        .from("platform_access")
+        .select("client_id")
+        .eq("id", accessId)
+        .single();
+
     const { error } = await supabaseAdmin
         .from("platform_access")
         .delete()
@@ -110,5 +126,9 @@ export async function deleteAccess(formData: FormData) {
     }
 
     revalidatePath("/dashboard/accesses");
+    if (accessToDelete?.client_id) {
+        revalidatePath(`/dashboard/clients/${accessToDelete.client_id}`);
+    }
+    
     return { success: "Acesso excluído com sucesso!" };
 }

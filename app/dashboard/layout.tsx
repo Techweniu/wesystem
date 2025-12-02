@@ -3,7 +3,7 @@
 
 import type React from "react"
 import { DashboardHeader } from "@/components/dashboard-header"
-import { useEffect, useState } from "react"
+import { useEffect, useState, createContext, useContext } from "react" // <-- Importa Context
 import { useRouter } from "next/navigation"
 import {
   Sidebar,
@@ -25,51 +25,59 @@ const FAKE_USER = {
   created_at: "",
 }
 
+// 1. Define o tipo de Papel
+type UserRole = "admin" | "limited" | null
+
+// 2. Cria o Contexto do Papel
+export const RoleContext = createContext<UserRole>(null)
+// 3. Cria um hook customizado para facilitar o uso
+export const useRole = () => useContext(RoleContext)
+
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
+  // 4. Armazena o 'userRole' no estado
+  const [userRole, setUserRole] = useState<UserRole>(null)
   const router = useRouter()
 
   useEffect(() => {
-    // Volta a verificar o 'isAuthenticated'
-    const authStatus = localStorage.getItem("isAuthenticated")
-    if (authStatus === "true") {
-      setIsAuthenticated(true)
+    // 5. Verifica o 'userRole' no localStorage
+    const role = localStorage.getItem("userRole")
+    if (role === "admin" || role === "limited") {
+      setUserRole(role)
     } else {
       router.push("/auth/login")
     }
   }, [router])
 
-  if (isAuthenticated === null) {
+  // 6. Mostra loading enquanto verifica o papel
+  if (userRole === null) {
     return <div className="flex h-screen w-full items-center justify-center">Carregando sistema...</div>
   }
 
-  if (!isAuthenticated) {
-    return null
-  }
-
-  // SidebarProvider wraps the entire layout structure
+  // 7. Fornece o 'userRole' para todos os componentes filhos
   return (
-    <SidebarProvider>
-      <Sidebar collapsible="icon">
-        <SidebarContent>
-          {/* DashboardSidebarContent (agora sem props) */}
-          <DashboardSidebarContent />
-        </SidebarContent>
-        <SidebarRail />
-      </Sidebar>
-      <SidebarInset> {/* Container for Header and Main */}
-        <DashboardHeader user={FAKE_USER} />
-        <main className={cn(
-          "flex-1 overflow-y-auto p-6", // Existing classes
-          "overflow-x-hidden" // Prevents main content from scrolling horizontally
-        )}>
-          {children} {/* Page content */}
-        </main>
-      </SidebarInset>
-    </SidebarProvider>
+    <RoleContext.Provider value={userRole}>
+      <SidebarProvider>
+        <Sidebar collapsible="icon">
+          <SidebarContent>
+            {/* 8. Passa o 'userRole' como prop para a Sidebar */}
+            <DashboardSidebarContent userRole={userRole} />
+          </SidebarContent>
+          <SidebarRail />
+        </Sidebar>
+        <SidebarInset> {/* Container for Header and Main */}
+          <DashboardHeader user={FAKE_USER} />
+          <main className={cn(
+            "flex-1 overflow-y-auto p-6", // Existing classes
+            "overflow-x-hidden" // Prevents main content from scrolling horizontally
+          )}>
+            {children} {/* O {children} (páginas) receberá o 'userRole' via Context */}
+          </main>
+        </SidebarInset>
+      </SidebarProvider>
+    </RoleContext.Provider>
   )
 }

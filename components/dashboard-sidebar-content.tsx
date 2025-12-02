@@ -35,14 +35,46 @@ type Client = {
   name: string
 }
 
-// Não recebe mais 'userRole'
-export function DashboardSidebarContent() {
+type UserRole = "admin" | "limited" | null
+
+// Lista completa de navegação
+const allNavigation = [
+  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { name: "Clientes", href: "/dashboard/clients", icon: Users },
+  { name: "Financeiro", href: "/dashboard/financial", icon: DollarSign },
+  { name: "Comercial", href: "/dashboard/commercial", icon: Target },
+  { name: "Equipe", href: "/dashboard/team", icon: UserCircle },
+  { name: "Organograma", href: "/dashboard/org-chart", icon: Network },
+  { name: "Acessos", href: "/dashboard/accesses", icon: KeyRound },
+  { name: "Assistente IA", href: "/dashboard/chat", icon: Sparkles },
+]
+
+// Lista de nomes de links permitidos para o papel 'limited'
+const limitedAccessNav = ["Clientes", "Organograma", "Acessos"]
+
+// Recebe 'userRole' como prop
+export function DashboardSidebarContent({ userRole }: { userRole: UserRole }) {
   const pathname = usePathname()
   const [clients, setClients] = useState<Client[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const { toggleSidebar } = useSidebar()
 
+  // Filtra a navegação com base no 'userRole'
+  const navigation =
+    userRole === "admin"
+      ? allNavigation
+      : allNavigation.filter((item) => limitedAccessNav.includes(item.name))
+
+  // Verifica se o menu "Clientes" deve ser exibido
+  const showClients = navigation.some((item) => item.name === "Clientes")
+
   useEffect(() => {
+    // Só busca os clientes se o menu "Clientes" estiver visível
+    if (!showClients) {
+      setIsLoading(false)
+      return
+    }
+
     const supabase = createClient()
     const fetchClients = async () => {
       setIsLoading(true)
@@ -58,7 +90,7 @@ export function DashboardSidebarContent() {
     }
 
     fetchClients()
-  }, [])
+  }, [showClients]) // Re-executa se 'showClients' mudar
 
   return (
     <>
@@ -72,109 +104,66 @@ export function DashboardSidebarContent() {
 
         <SidebarSeparator className="my-1" />
 
-        <SidebarMenuItem>
-          <SidebarMenuButton asChild isActive={pathname === "/dashboard"} tooltip="Dashboard">
-            <Link href="/dashboard">
-              <LayoutDashboard />
-              <span>Dashboard</span>
-            </Link>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
+        {/* Mapeia a lista de navegação filtrada */}
+        {navigation.map((item) => {
+          // Lógica especial para o item "Clientes" (Collapsible)
+          if (item.name === "Clientes") {
+            return (
+              <Collapsible key={item.name}>
+                <SidebarMenuItem>
+                  <div className="flex w-full items-center justify-between">
+                    <SidebarMenuButton
+                      asChild
+                      isActive={pathname.startsWith(item.href)}
+                      tooltip={item.name}
+                      className="flex-1"
+                    >
+                      <Link href={item.href}>
+                        <item.icon />
+                        <span>{item.name}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                    <CollapsibleTrigger asChild>
+                      <Button variant="ghost" size="icon" className="group size-8 shrink-0" disabled={isLoading}>
+                        <ChevronDown className="transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                      </Button>
+                    </CollapsibleTrigger>
+                  </div>
+                  <CollapsibleContent>
+                    <SidebarMenuSub>
+                      {isLoading ? (
+                        <>
+                          <SidebarMenuSkeleton />
+                          <SidebarMenuSkeleton />
+                        </>
+                      ) : (
+                        clients.map((client) => (
+                          <SidebarMenuSubItem key={client.id}>
+                            <SidebarMenuSubButton asChild isActive={pathname === `/dashboard/clients/${client.id}`}>
+                              <Link href={`/dashboard/clients/${client.id}`}>{client.name}</Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        ))
+                      )}
+                    </SidebarMenuSub>
+                  </CollapsibleContent>
+                </SidebarMenuItem>
+              </Collapsible>
+            )
+          }
 
-        <Collapsible>
-          <SidebarMenuItem>
-            <div className="flex w-full items-center justify-between">
-              <SidebarMenuButton
-                asChild
-                isActive={pathname.startsWith("/dashboard/clients")}
-                tooltip="Clientes"
-                className="flex-1"
-              >
-                <Link href="/dashboard/clients">
-                  <Users />
-                  <span>Clientes</span>
+          // Renderização padrão para os outros itens
+          return (
+            <SidebarMenuItem key={item.name}>
+              <SidebarMenuButton asChild isActive={pathname === item.href} tooltip={item.name}>
+                <Link href={item.href}>
+                  <item.icon />
+                  <span>{item.name}</span>
                 </Link>
               </SidebarMenuButton>
-              <CollapsibleTrigger asChild>
-                <Button variant="ghost" size="icon" className="group size-8 shrink-0" disabled={isLoading}>
-                  <ChevronDown className="transition-transform duration-200 group-data-[state=open]:rotate-180" />
-                </Button>
-              </CollapsibleTrigger>
-            </div>
-            <CollapsibleContent>
-              <SidebarMenuSub>
-                {isLoading ? (
-                  <>
-                    <SidebarMenuSkeleton />
-                    <SidebarMenuSkeleton />
-                  </>
-                ) : (
-                  clients.map((client) => (
-                    <SidebarMenuSubItem key={client.id}>
-                      <SidebarMenuSubButton asChild isActive={pathname === `/dashboard/clients/${client.id}`}>
-                        <Link href={`/dashboard/clients/${client.id}`}>{client.name}</Link>
-                      </SidebarMenuSubButton>
-                    </SidebarMenuSubItem>
-                  ))
-                )}
-              </SidebarMenuSub>
-            </CollapsibleContent>
-          </SidebarMenuItem>
-        </Collapsible>
-
-        <SidebarMenuItem>
-          <SidebarMenuButton asChild isActive={pathname === "/dashboard/financial"} tooltip="Financeiro">
-            <Link href="/dashboard/financial">
-              <DollarSign />
-              <span>Financeiro</span>
-            </Link>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
-
-        <SidebarMenuItem>
-          <SidebarMenuButton asChild isActive={pathname === "/dashboard/commercial"} tooltip="Comercial">
-            <Link href="/dashboard/commercial">
-              <Target />
-              <span>Comercial</span>
-            </Link>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
-
-        <SidebarMenuItem>
-          <SidebarMenuButton asChild isActive={pathname === "/dashboard/team"} tooltip="Equipe">
-            <Link href="/dashboard/team">
-              <UserCircle />
-              <span>Equipe</span>
-            </Link>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
-
-        <SidebarMenuItem>
-          <SidebarMenuButton asChild isActive={pathname === "/dashboard/org-chart"} tooltip="Organograma">
-            <Link href="/dashboard/org-chart">
-              <Network />
-              <span>Organograma</span>
-            </Link>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
-
-        <SidebarMenuItem>
-          <SidebarMenuButton asChild isActive={pathname.startsWith("/dashboard/accesses")} tooltip="Acessos">
-            <Link href="/dashboard/accesses">
-              <KeyRound />
-              <span>Acessos</span>
-            </Link>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
-
-        <SidebarMenuItem>
-          <SidebarMenuButton asChild isActive={pathname === "/dashboard/chat"} tooltip="Assistente IA">
-            <Link href="/dashboard/chat">
-              <Sparkles />
-              <span>Assistente IA</span>
-            </Link>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
+            </SidebarMenuItem>
+          )
+        })}
       </SidebarMenu>
     </>
   )
