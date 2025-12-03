@@ -1,6 +1,6 @@
 "use client"
 
-import { Bell, LogOut, Settings, User } from "lucide-react"
+import { LogOut, Settings, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -12,14 +12,16 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useRouter } from "next/navigation"
-import { ThemeToggle } from "@/components/theme-provider"
+// import { ThemeToggle } from "@/components/theme-provider" // Removido conforme solicitado
 import { logoutAction } from "@/app/auth/login/actions"
 
 export function DashboardHeader({ user }: { user: any }) {
   const router = useRouter()
 
   const handleSignOut = async () => {
+    // Limpa o armazenamento local se houver (para controle de UI)
     localStorage.removeItem("userRole")
+    // Chama a server action para limpar o cookie e redirecionar
     await logoutAction()
   }
 
@@ -29,18 +31,22 @@ export function DashboardHeader({ user }: { user: any }) {
         <h2 className="text-lg font-semibold md:text-xl">Visão Geral</h2>
       </div>
       <div className="flex items-center gap-4">
-        <ThemeToggle />
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="h-5 w-5" />
-          <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-600" />
-          <span className="sr-only">Notificações</span>
+        {/* Botão Sair Explícito */}
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 gap-2"
+          onClick={handleSignOut}
+        >
+          <LogOut className="h-4 w-4" />
+          Sair
         </Button>
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="rounded-full">
               <Avatar className="h-8 w-8">
                 <AvatarImage src="/placeholder-user.jpg" alt="Avatar" />
-                {/* AQUI: Garantimos que renderiza uma string, não o objeto user */}
                 <AvatarFallback>AD</AvatarFallback> 
               </Avatar>
               <span className="sr-only">Menu do usuário</span>
@@ -58,6 +64,7 @@ export function DashboardHeader({ user }: { user: any }) {
               Configurações
             </DropdownMenuItem>
             <DropdownMenuSeparator />
+            {/* Mantivemos a opção no menu também por conveniência */}
             <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={handleSignOut}>
               <LogOut className="mr-2 h-4 w-4" />
               Sair
