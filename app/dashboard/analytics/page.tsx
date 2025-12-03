@@ -5,11 +5,11 @@ import { TeamAllocationChart } from "@/components/team-allocation-chart"
 import { ProfitabilityChart } from "@/components/profitability-chart"
 import { NpsScoreSummaryTable } from "@/components/nps-score-summary-table"
 import { BarChart3, TrendingUp, Users, AlertTriangle } from "lucide-react"
-import { parseISO, isPast, format, differenceInDays } from "date-fns"
+import { parseISO, isPast, format } from "date-fns"
 
 export const dynamic = "force-dynamic"
 
-// Função auxiliar para verificar vigência do contrato (REPLICADO DA PÁGINA DE CLIENTES)
+// Função auxiliar para verificar vigência do contrato
 const isContractVigent = (contract: { start_date: string | null; end_date: string | null }) => {
   const today = new Date()
   const hasStarted = contract.start_date
@@ -23,9 +23,9 @@ const isContractVigent = (contract: { start_date: string | null; end_date: strin
 async function getAnalyticsData() {
   const supabase = await createClient()
 
-  // 1. Buscar Clientes ATIVOS com Contratos e NPS
-  // IMPORTANTE: Adicionado .order() para garantir que o NPS[0] seja o mais recente, igual à página de clientes
-  const { data: clients, error } = await supabase
+  // 1. Buscar TODOS os Clientes (com contratos e NPS)
+  // Removemos o filtro .eq("status", "active") do banco para filtrar no código e garantir dados
+  const { data: clientsData, error } = await supabase
     .from("clients")
     .select(`
       id, 
@@ -38,12 +38,14 @@ async function getAnalyticsData() {
       assigned_relationship_manager_id,
       assigned_editor_id
     `)
-    .eq("status", "active")
-    .order("response_date", { foreignTable: "nps_responses", ascending: false })
+    .order("name")
 
   if (error) {
     console.error("Erro ao buscar dados de analytics:", error)
   }
+
+  // Filtrar clientes válidos (Ativos ou Prospects com dados)
+  const clients = clientsData?.filter(c => c.status === 'active' || c.status === 'prospect') || []
 
   // 2. Buscar Funcionários e Salários
   const { data: employees } = await supabase
@@ -51,6 +53,7 @@ async function getAnalyticsData() {
     .select("id, name, role, salary, status")
     .eq("status", "active")
 
+  // Inicializa estruturas de retorno vazias
   if (!clients || !employees) return { 
     clients: [], 
     employees: [], 
@@ -67,6 +70,9 @@ async function getAnalyticsData() {
   const employeeLoad: Record<string, number> = {}
   
   clients.forEach(client => {
+    // Só conta carga se o cliente estiver ativo
+    if (client.status !== 'active') return
+
     const roles = [
       client.assigned_assessor_id,
       client.assigned_videomaker_id,
@@ -80,7 +86,6 @@ async function getAnalyticsData() {
 
   // B. Cálculo de Lucratividade
   const profitabilityData = clients.map(client => {
-    // Cálculo de Receita usando isContractVigent (IGUAL CLIENTES)
     const revenue = client.contracts
       ?.filter(c => c.status === 'active' && isContractVigent(c))
       .reduce((sum, c) => sum + Number(c.valor_mensal), 0) || 0
@@ -95,6 +100,7 @@ async function getAnalyticsData() {
 
     assignedIds.forEach(empId => {
       const emp = employees.find(e => e.id === empId)
+      // Carga mínima de 1 para evitar divisão por zero
       const load = employeeLoad[empId] || 1
       if (emp && emp.salary) {
         cost += (emp.salary / load)
@@ -110,17 +116,21 @@ async function getAnalyticsData() {
     }
   }).sort((a, b) => a.profit - b.profit)
 
-  // C. Preparar dados NPS
+  // C. Preparar dados NPS e Resumo
   const npsSummary = { detractors: 0, passives: 0, promoters: 0 }
   
   const clientsWithNps = clients.map(client => {
-    // MRR do cliente (calculado igual acima)
     const activeContractValue = client.contracts
       ?.filter(c => c.status === 'active' && isContractVigent(c))
       .reduce((sum, c) => sum + Number(c.valor_mensal), 0) || 0
       
-    // Pega o NPS mais recente (confiando no ORDER BY da query do Supabase)
-    const latestNps = client.nps_responses?.[0]?.score
+    // Ordenação robusta de datas em JavaScript
+    const responses = client.nps_responses || []
+    const latestResponse = responses.sort((a, b) => 
+      new Date(b.response_date).getTime() - new Date(a.response_date).getTime()
+    )[0]
+
+    const latestNps = latestResponse?.score
 
     // Calcula resumo (apenas se houver nota válida)
     if (typeof latestNps === 'number') {
@@ -137,8 +147,8 @@ async function getAnalyticsData() {
     }
   })
 
-  // D. Dados para o Gráfico de Quadrantes (Matriz Valor x Satisfação)
-  // Filtra clientes que têm NPS (Receita pode ser 0)
+  // D. Dados para o Gráfico de Quadrantes
+  // Filtra clientes que têm NPS (Nota pode ser 0, então checamos typeof)
   const npsChartData = clientsWithNps
     .filter(d => typeof d.latestNps === 'number')
     .map(d => ({ 
@@ -147,7 +157,7 @@ async function getAnalyticsData() {
       revenue: d.revenue 
     }))
 
-  // E. Dados para Lista de Ranqueamento
+  // E. Lista de Ranqueamento (Piores notas primeiro)
   const rankedClients = clientsWithNps
     .filter(c => typeof c.latestNps === 'number')
     .sort((a, b) => (a.latestNps as number) - (b.latestNps as number))
@@ -249,8 +259,8 @@ export default async function AnalyticsPage() {
              ) : (
                <div className="flex h-[300px] items-center justify-center text-muted-foreground border border-dashed rounded-lg text-center p-4">
                  <p className="text-sm">
-                   Insuficiente dados para gerar a matriz.<br/>
-                   Necessário ter clientes com <strong>NPS respondido</strong>.
+                   Aguardando dados de NPS.<br/>
+                   <span className="text-xs">Certifique-se de que os clientes têm avaliações de NPS registradas.</span>
                  </p>
                </div>
              )}
