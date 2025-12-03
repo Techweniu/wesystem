@@ -1,32 +1,32 @@
-// sistema/app/dashboard/financial/actions.ts
-"use server" // Indica que são Server Actions
+"use server"
 
-import { createAdminClient } from "@/lib/supabase/server" // Helper para criar cliente Supabase Admin no servidor
-import { revalidatePath } from "next/cache" // Função para limpar o cache de rotas específicas
-import { z } from "zod" // Biblioteca para validação de schemas
+import { createClient as createAdminClient } from "@supabase/supabase-js"
+import { revalidatePath } from "next/cache"
+import { z } from "zod"
+import { createClient } from "@/lib/supabase/server"
+import { cookies } from "next/headers" // --- IMPORTANTE
 
-// --- Ações de Custo Existentes (Mantê-las) ---
-// Schema para validar dados de custo
+// --- FUNÇÃO AUXILIAR DE SEGURANÇA ---
+function checkAdminPermission() {
+  const role = cookies().get("user_role")?.value
+  if (role !== "admin") {
+    throw new Error("Acesso negado: Você não tem permissão para realizar esta operação financeira.")
+  }
+}
+// ------------------------------------
+
 const costSchema = z.object({
   description: z.string().min(1, "Descrição é obrigatória"),
-  value: z.coerce.number().positive("Valor deve ser positivo"), // Use coerce para converter string para número
+  value: z.coerce.number().positive("Valor deve ser positivo"),
   category: z.string().min(1, "Categoria é obrigatória"),
-  date: z.string().min(1, "Data é obrigatória"), // Validação de formato de data pode ser adicionada
-  is_recurring: z.preprocess((val) => val === "true", z.boolean()).default(false), // Processa strings 'true'/'false' para booleano
+  date: z.string().min(1, "Data é obrigatória"),
+  is_recurring: z.preprocess((val) => val === "true", z.boolean()).default(false),
 })
 
-// --- AÇÃO addCost ATUALIZADA ---
-// Função para adicionar um novo custo
+// --- AÇÃO addCost ---
 export async function addCost(formData: FormData) {
   try {
-    // --- LÓGICA DE ARQUIVO REMOVIDA ---
-    // const proofFile = formData.get("proof_file") as File
-    // if (!proofFile || proofFile.size === 0) {
-    //   return { success: false, error: "Comprovante de pagamento é obrigatório." }
-    // }
-    // if (proofFile.size > 10 * 1024 * 1024) {
-    //   return { success: false, error: "O arquivo deve ter no máximo 10MB." }
-    // }
+    checkAdminPermission() // <--- PROTEÇÃO
 
     const rawData = {
       description: formData.get("description"),
@@ -39,27 +39,18 @@ export async function addCost(formData: FormData) {
     const validated = costSchema.safeParse(rawData)
 
     if (!validated.success) {
-      console.error("Erro validação addCost:", validated.error.flatten().fieldErrors)
       const firstError = Object.values(validated.error.flatten().fieldErrors)[0]?.[0]
       return { success: false, error: firstError || "Dados inválidos." }
     }
 
-    const supabaseAdmin = createAdminClient()
+    const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
-    // --- LÓGICA DE STORAGE REMOVIDA ---
-    // const fileExtension = proofFile.name.split(".").pop()
-    // const fileName = ...
-    // const filePath = ...
-    // const { error: uploadError } = await supabaseAdmin.storage...
-    // const { data: urlData } = supabaseAdmin.storage...
-
-    // --- LÓGICA DE INSERT ATUALIZADA ---
     const { error } = await supabaseAdmin.from("costs").insert([
       {
         ...validated.data,
-        status: "pending", // Define explicitamente como pendente
-        paid_date: null, // Garante que a data de pagamento é nula
-        proof_url: null, // Garante que a URL é nula
+        status: "pending",
+        paid_date: null,
+        proof_url: null,
       },
     ])
 
@@ -69,106 +60,85 @@ export async function addCost(formData: FormData) {
     return { success: true, message: "Custo adicionado com sucesso!" }
   } catch (error) {
     console.error("Erro ao adicionar custo:", error)
-    return { success: false, error: error instanceof Error ? error.message : "Erro ao adicionar custo" }
+    return { success: false, error: error instanceof Error ? error.message : "Erro desconhecido" }
   }
 }
 
-// Função para atualizar um custo existente
+// --- AÇÃO updateCost ---
 export async function updateCost(id: string, formData: FormData) {
   try {
-    // Extrai os dados do FormData
+    checkAdminPermission() // <--- PROTEÇÃO
+
     const rawData = {
       description: formData.get("description"),
-      value: formData.get("value"), // Mantém como string para coerce
+      value: formData.get("value"),
       category: formData.get("category"),
       date: formData.get("date"),
-      is_recurring: formData.get("is_recurring"), // Mantém como string para preprocess
+      is_recurring: formData.get("is_recurring"),
     }
 
-    const validated = costSchema.safeParse(rawData) // Valida os dados
+    const validated = costSchema.safeParse(rawData)
 
-    // Verifica falha na validação
     if (!validated.success) {
-      console.error("Erro validação updateCost:", validated.error.flatten().fieldErrors)
       const firstError = Object.values(validated.error.flatten().fieldErrors)[0]?.[0]
       return { success: false, error: firstError || "Dados inválidos." }
     }
 
-    const supabaseAdmin =
-      createAdminClient(
-        // process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        // process.env.SUPABASE_SERVICE_ROLE_KEY!
-      )
+    const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
-    // Atualiza o custo no banco onde o ID corresponde
     const { error } = await supabaseAdmin.from("costs").update(validated.data).eq("id", id)
 
-    if (error) throw error // Lança erro se a atualização falhar
+    if (error) throw error
 
-    revalidatePath("/dashboard/financial") // Limpa cache
-    return { success: true, message: "Custo atualizado com sucesso!" } // Retorna sucesso
+    revalidatePath("/dashboard/financial")
+    return { success: true, message: "Custo atualizado com sucesso!" }
   } catch (error) {
-    console.error("Erro ao atualizar custo:", error)
-    return { success: false, error: error instanceof Error ? error.message : "Erro ao atualizar custo" }
+    return { success: false, error: error instanceof Error ? error.message : "Erro desconhecido" }
   }
 }
 
-// Função para deletar um custo
+// --- AÇÃO deleteCost ---
 export async function deleteCost(id: string) {
   try {
-    // Validação simples do ID (verifica se é uma string não vazia)
-    if (!id || typeof id !== "string") {
-      return { success: false, error: "ID inválido fornecido." }
-    }
+    checkAdminPermission() // <--- PROTEÇÃO
 
-    const supabaseAdmin =
-      createAdminClient(
-        // process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        // process.env.SUPABASE_SERVICE_ROLE_KEY!
-      )
+    if (!id) return { success: false, error: "ID inválido." }
 
-    // Deleta o custo do banco onde o ID corresponde
+    const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+
     const { error } = await supabaseAdmin.from("costs").delete().eq("id", id)
 
-    if (error) throw error // Lança erro se a deleção falhar
+    if (error) throw error
 
-    revalidatePath("/dashboard/financial") // Limpa cache
-    return { success: true, message: "Custo deletado com sucesso!" } // Adiciona mensagem de sucesso
+    revalidatePath("/dashboard/financial")
+    return { success: true, message: "Custo deletado com sucesso!" }
   } catch (error) {
-    console.error("Erro ao deletar custo:", error)
-    return { success: false, error: error instanceof Error ? error.message : "Erro ao deletar custo" }
+    return { success: false, error: error instanceof Error ? error.message : "Erro desconhecido" }
   }
 }
 
-// --- Fim das Ações de Custo Existentes ---
-
-// --- Ação para Marcar Pagamento do Cliente ---
+// --- AÇÃO markClientPaymentAsPaid ---
 const clientPaymentSchema = z.object({
   clientId: z.string().uuid("ID do cliente inválido."),
-  amount: z.coerce.number().positive("O valor do pagamento deve ser positivo."),
+  amount: z.coerce.number().positive("O valor deve ser positivo."),
 })
 
 export async function markClientPaymentAsPaid(formData: FormData) {
-  const proofFile = formData.get("proof_file") as File
-  if (!proofFile || proofFile.size === 0) {
-    return { error: "Comprovante de recebimento é obrigatório." }
-  }
-
-  if (proofFile.size > 10 * 1024 * 1024) {
-    return { error: "O arquivo deve ter no máximo 10MB." }
-  }
-
-  const validatedFields = clientPaymentSchema.safeParse(Object.fromEntries(formData))
-
-  if (!validatedFields.success) {
-    const firstError = Object.values(validatedFields.error.flatten().fieldErrors)[0]?.[0]
-    return { error: firstError || "Dados inválidos para registrar o pagamento." }
-  }
-
-  const { clientId, amount } = validatedFields.data
-
   try {
-    const supabaseAdmin = createAdminClient()
+    checkAdminPermission() // <--- PROTEÇÃO
+
+    const proofFile = formData.get("proof_file") as File
+    if (!proofFile || proofFile.size === 0) {
+      return { error: "Comprovante é obrigatório." }
+    }
+
+    const validatedFields = clientPaymentSchema.safeParse(Object.fromEntries(formData))
+    if (!validatedFields.success) {
+      return { error: "Dados inválidos." }
+    }
+
+    const { clientId, amount } = validatedFields.data
+    const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
     const fileExtension = proofFile.name.split(".").pop()
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExtension}`
@@ -179,10 +149,7 @@ export async function markClientPaymentAsPaid(formData: FormData) {
       upsert: false,
     })
 
-    if (uploadError) {
-      console.error("Erro ao fazer upload:", uploadError)
-      return { error: "Erro ao fazer upload do comprovante." }
-    }
+    if (uploadError) return { error: "Erro no upload do comprovante." }
 
     const { data: urlData } = supabaseAdmin.storage.from("financial-proofs").getPublicUrl(filePath)
 
@@ -193,99 +160,79 @@ export async function markClientPaymentAsPaid(formData: FormData) {
       proof_url: urlData.publicUrl,
     })
 
-    if (error) {
-      console.error("Erro Supabase (Client Payment):", error)
-      return { error: `Erro ao registrar pagamento do cliente: ${error.message}` }
-    }
+    if (error) return { error: error.message }
 
     revalidatePath("/dashboard/financial")
-    return { success: "Pagamento do cliente registrado com sucesso!" }
-  } catch (error) {
-    console.error("Erro ao processar pagamento:", error)
-    return { error: "Erro ao processar pagamento." }
+    revalidatePath(`/dashboard/clients/${clientId}`)
+    return { success: "Pagamento registrado!" }
+  } catch (e: any) {
+    return { error: e.message }
   }
 }
 
-// --- Ação para Reverter Pagamento do Cliente ---
+// --- AÇÃO undoClientPayment ---
 const undoClientPaymentSchema = z.object({
-  clientId: z.string().uuid("ID do cliente inválido."),
+  clientId: z.string().uuid(),
 })
 
 export async function undoClientPayment(formData: FormData) {
-  const validatedFields = undoClientPaymentSchema.safeParse(Object.fromEntries(formData))
+  try {
+    checkAdminPermission() // <--- PROTEÇÃO
 
-  if (!validatedFields.success) {
-    const firstError = Object.values(validatedFields.error.flatten().fieldErrors)[0]?.[0]
-    return { error: firstError || "Dados inválidos para reverter o pagamento." }
+    const validatedFields = undoClientPaymentSchema.safeParse(Object.fromEntries(formData))
+    if (!validatedFields.success) return { error: "ID inválido." }
+
+    const { clientId } = validatedFields.data
+    const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+
+    const startOfMonth = new Date()
+    startOfMonth.setDate(1)
+    startOfMonth.setHours(0, 0, 0, 0)
+
+    const { data: recentPayment } = await supabaseAdmin
+      .from("client_payments")
+      .select("id")
+      .eq("client_id", clientId)
+      .gte("payment_date", startOfMonth.toISOString())
+      .order("payment_date", { ascending: false })
+      .limit(1)
+      .single()
+
+    if (!recentPayment) return { error: "Nenhum pagamento encontrado neste mês." }
+
+    const { error } = await supabaseAdmin.from("client_payments").delete().eq("id", recentPayment.id)
+    if (error) return { error: error.message }
+
+    revalidatePath("/dashboard/financial")
+    revalidatePath(`/dashboard/clients/${clientId}`)
+    return { success: "Pagamento revertido!" }
+  } catch (e: any) {
+    return { error: e.message }
   }
-
-  const { clientId } = validatedFields.data
-
-  const supabaseAdmin = createAdminClient()
-
-  const startOfMonth = new Date()
-  startOfMonth.setDate(1)
-  startOfMonth.setHours(0, 0, 0, 0)
-
-  const { data: recentPayment, error: fetchError } = await supabaseAdmin
-    .from("client_payments")
-    .select("id")
-    .eq("client_id", clientId)
-    .gte("payment_date", startOfMonth.toISOString())
-    .order("payment_date", { ascending: false })
-    .limit(1)
-    .single()
-
-  if (fetchError || !recentPayment) {
-    return { error: "Nenhum pagamento encontrado para reverter neste mês." }
-  }
-
-  const { error: deleteError } = await supabaseAdmin.from("client_payments").delete().eq("id", recentPayment.id)
-
-  if (deleteError) {
-    console.error("Erro ao reverter pagamento:", deleteError)
-    return { error: `Erro ao reverter pagamento: ${deleteError.message}` }
-  }
-
-  revalidatePath("/dashboard/financial")
-  return { success: "Pagamento revertido com sucesso!" }
 }
 
-// --- AÇÃO markCostAsPaid ATUALIZADA ---
-// --- Ação para Marcar Pagamento de Custo ---
+// --- AÇÃO markCostAsPaid ---
 const costPaymentSchema = z.object({
-  costId: z.string().uuid("ID do custo inválido."),
-  amount: z.coerce.number().positive("O valor do pagamento deve ser positivo."),
+  costId: z.string().uuid(),
+  amount: z.coerce.number().positive(),
 })
 
 export async function markCostAsPaid(formData: FormData) {
-  const validatedFields = costPaymentSchema.safeParse(Object.fromEntries(formData))
-
-  if (!validatedFields.success) {
-    const firstError = Object.values(validatedFields.error.flatten().fieldErrors)[0]?.[0]
-    return { error: firstError || "Dados inválidos para registrar o pagamento." }
-  }
-
-  const { costId } = validatedFields.data
-
-  const supabaseAdmin = createAdminClient()
-
-  const { data: cost, error: costError } = await supabaseAdmin.from("costs").select("*").eq("id", costId).single()
-
-  if (costError || !cost) {
-    return { error: "Custo não encontrado." }
-  }
-
-  const proofFile = formData.get("proof_file") as File
-  if (!proofFile || proofFile.size === 0) {
-    return { error: "Comprovante de pagamento é obrigatório." }
-  }
-
-  if (proofFile.size > 10 * 1024 * 1024) {
-    return { error: "O arquivo deve ter no máximo 10MB." }
-  }
-
   try {
+    checkAdminPermission() // <--- PROTEÇÃO
+
+    const validatedFields = costPaymentSchema.safeParse(Object.fromEntries(formData))
+    if (!validatedFields.success) return { error: "Dados inválidos." }
+
+    const { costId } = validatedFields.data
+    const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+
+    const { data: cost } = await supabaseAdmin.from("costs").select("*").eq("id", costId).single()
+    if (!cost) return { error: "Custo não encontrado." }
+
+    const proofFile = formData.get("proof_file") as File
+    if (!proofFile || proofFile.size === 0) return { error: "Comprovante obrigatório." }
+
     const fileExtension = proofFile.name.split(".").pop()
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExtension}`
     const filePath = `cost-payments/${fileName}`
@@ -294,124 +241,95 @@ export async function markCostAsPaid(formData: FormData) {
       contentType: proofFile.type,
       upsert: false,
     })
+    if (uploadError) return { error: "Erro no upload." }
 
-    if (uploadError) {
-      console.error("Erro ao fazer upload:", uploadError)
-      return { error: "Erro ao fazer upload do comprovante." }
-    }
-
-    // --- LÓGICA DE UPLOAD ATUALIZADA ---
     const { data: urlData } = supabaseAdmin.storage.from("financial-proofs").getPublicUrl(filePath)
 
     const { error: paymentError } = await supabaseAdmin
       .from("costs")
       .update({
         paid_date: new Date().toISOString().split("T")[0],
-        status: "paid", // Define o status como pago
-        proof_url: urlData.publicUrl, // Salva a URL do comprovante
+        status: "paid",
+        proof_url: urlData.publicUrl,
       })
       .eq("id", costId)
-    // --- FIM DA ATUALIZAÇÃO ---
 
-    if (paymentError) {
-      console.error("Erro ao registrar pagamento:", paymentError)
-      return { error: `Erro ao registrar pagamento: ${paymentError.message}` }
-    }
+    if (paymentError) return { error: paymentError.message }
 
     if (cost.is_recurring) {
       const nextDate = new Date(cost.date)
       nextDate.setMonth(nextDate.getMonth() + 1)
 
-      const { error: newCostError } = await supabaseAdmin.from("costs").insert({
+      await supabaseAdmin.from("costs").insert({
         description: cost.description,
         value: cost.value,
         category: cost.category,
         date: nextDate.toISOString().split("T")[0],
         is_recurring: true,
         paid_date: null,
-        status: "pending", // Custo futuro nasce como pendente
+        status: "pending",
         proof_url: null,
       })
-
-      if (newCostError) {
-        console.error("Erro ao criar próxima ocorrência:", newCostError)
-      }
     }
 
     revalidatePath("/dashboard/financial")
-    return { success: "Pagamento registrado com sucesso!" }
-  } catch (error) {
-    console.error("Erro ao processar pagamento:", error)
-    return { error: "Erro ao processar pagamento." }
+    return { success: "Pagamento registrado!" }
+  } catch (e: any) {
+    return { error: e.message }
   }
 }
 
-// --- Ação para Reverter Pagamento de Custo ---
+// --- AÇÃO undoCostPayment ---
 const undoCostPaymentSchema = z.object({
-  costId: z.string().uuid("ID do custo inválido."),
+  costId: z.string().uuid(),
 })
 
 export async function undoCostPayment(formData: FormData) {
-  const validatedFields = undoCostPaymentSchema.safeParse(Object.fromEntries(formData))
+  try {
+    checkAdminPermission() // <--- PROTEÇÃO
 
-  if (!validatedFields.success) {
-    const firstError = Object.values(validatedFields.error.flatten().fieldErrors)[0]?.[0]
-    return { error: firstError || "Dados inválidos para reverter o pagamento." }
+    const validatedFields = undoCostPaymentSchema.safeParse(Object.fromEntries(formData))
+    if (!validatedFields.success) return { error: "ID inválido." }
+
+    const { costId } = validatedFields.data
+    const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+
+    const { error } = await supabaseAdmin
+      .from("costs")
+      .update({ 
+        paid_date: null,
+        status: 'pending',
+        proof_url: null
+      })
+      .eq("id", costId)
+
+    if (error) return { error: error.message }
+
+    revalidatePath("/dashboard/financial")
+    return { success: "Pagamento revertido!" }
+  } catch (e: any) {
+    return { error: e.message }
   }
-
-  const { costId } = validatedFields.data
-
-  const supabaseAdmin = createAdminClient()
-  
-  // TODO: Idealmente, deveríamos deletar o comprovante do Storage aqui
-  // (Omitido por simplicidade, mas é uma melhoria recomendada)
-
-  // Atualiza o status para pendente e remove a data de pagamento e comprovante
-  const { error: updateError } = await supabaseAdmin
-    .from("costs")
-    .update({ 
-      paid_date: null,
-      status: 'pending',
-      proof_url: null
-    })
-    .eq("id", costId)
-
-  if (updateError) {
-    console.error("Erro ao reverter pagamento:", updateError)
-    return { error: `Erro ao reverter pagamento: ${updateError.message}` }
-  }
-
-  revalidatePath("/dashboard/financial")
-  return { success: "Pagamento revertido com sucesso!" }
 }
 
-// --- Ação para Marcar Pagamento de Funcionário ---
+// --- AÇÃO markPaymentAsPaid (Funcionários) ---
 const paymentSchema = z.object({
   employeeId: z.string().uuid(),
-  amount: z.coerce.number().positive("O valor do pagamento deve ser positivo."),
+  amount: z.coerce.number().positive(),
 })
 
 export async function markPaymentAsPaid(formData: FormData) {
-  const proofFile = formData.get("proof_file") as File
-  if (!proofFile || proofFile.size === 0) {
-    return { error: "Comprovante de pagamento é obrigatório." }
-  }
-
-  if (proofFile.size > 10 * 1024 * 1024) {
-    return { error: "O arquivo deve ter no máximo 10MB." }
-  }
-
-  const validatedFields = paymentSchema.safeParse(Object.fromEntries(formData))
-
-  if (!validatedFields.success) {
-    const firstError = Object.values(validatedFields.error.flatten().fieldErrors)[0]?.[0]
-    return { error: firstError || "Dados inválidos para registrar o pagamento." }
-  }
-
-  const { employeeId, amount } = validatedFields.data
-
   try {
-    const supabaseAdmin = createAdminClient()
+    checkAdminPermission() // <--- PROTEÇÃO
+
+    const proofFile = formData.get("proof_file") as File
+    if (!proofFile || proofFile.size === 0) return { error: "Comprovante obrigatório." }
+
+    const validatedFields = paymentSchema.safeParse(Object.fromEntries(formData))
+    if (!validatedFields.success) return { error: "Dados inválidos." }
+
+    const { employeeId, amount } = validatedFields.data
+    const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
     const fileExtension = proofFile.name.split(".").pop()
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExtension}`
@@ -421,11 +339,7 @@ export async function markPaymentAsPaid(formData: FormData) {
       contentType: proofFile.type,
       upsert: false,
     })
-
-    if (uploadError) {
-      console.error("Erro ao fazer upload:", uploadError)
-      return { error: "Erro ao fazer upload do comprovante." }
-    }
+    if (uploadError) return { error: "Erro no upload." }
 
     const { data: urlData } = supabaseAdmin.storage.from("financial-proofs").getPublicUrl(filePath)
 
@@ -436,187 +350,139 @@ export async function markPaymentAsPaid(formData: FormData) {
       proof_url: urlData.publicUrl,
     })
 
-    if (error) {
-      console.error("Erro Supabase (Pagamento):", error)
-      return { error: `Erro ao registrar pagamento: ${error.message}` }
-    }
+    if (error) return { error: error.message }
 
-    // ===================================
-    // --- CORREÇÃO APLICADA AQUI ---
-    // ===================================
-    revalidatePath("/dashboard/financial") // <-- Adicionada esta linha
+    revalidatePath("/dashboard/financial")
     revalidatePath("/dashboard/team")
-    revalidatePath(`/dashboard/team/${employeeId}`)
-    return { success: "Pagamento registrado com sucesso!" }
-  } catch (error) {
-    console.error("Erro ao processar pagamento:", error)
-    return { error: "Erro ao processar pagamento." }
+    return { success: "Pagamento registrado!" }
+  } catch (e: any) {
+    return { error: e.message }
   }
 }
 
-// --- AÇÃO PARA REVERTER PAGAMENTO (MOVIDA DE team/actions.ts) ---
+// --- AÇÃO undoEmployeePayment ---
 const undoPaymentSchema = z.object({
-  employeeId: z.string().uuid("ID do funcionário inválido."),
+  employeeId: z.string().uuid(),
 })
 
 export async function undoEmployeePayment(formData: FormData) {
-  const validatedFields = undoPaymentSchema.safeParse(Object.fromEntries(formData))
+  try {
+    checkAdminPermission() // <--- PROTEÇÃO
 
-  if (!validatedFields.success) {
-    const firstError = Object.values(validatedFields.error.flatten().fieldErrors)[0]?.[0]
-    return { error: firstError || "Dados inválidos para reverter o pagamento." }
+    const validatedFields = undoPaymentSchema.safeParse(Object.fromEntries(formData))
+    if (!validatedFields.success) return { error: "ID inválido." }
+
+    const { employeeId } = validatedFields.data
+    const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+
+    const startOfMonth = new Date()
+    startOfMonth.setDate(1)
+    startOfMonth.setHours(0, 0, 0, 0)
+
+    const { data: recentPayment } = await supabaseAdmin
+      .from("employee_payments")
+      .select("id")
+      .eq("employee_id", employeeId)
+      .gte("payment_date", startOfMonth.toISOString())
+      .order("payment_date", { ascending: false })
+      .limit(1)
+      .single()
+
+    if (!recentPayment) return { error: "Nenhum pagamento encontrado neste mês." }
+
+    const { error } = await supabaseAdmin.from("employee_payments").delete().eq("id", recentPayment.id)
+    if (error) return { error: error.message }
+
+    revalidatePath("/dashboard/financial")
+    revalidatePath("/dashboard/team")
+    return { success: "Pagamento revertido!" }
+  } catch (e: any) {
+    return { error: e.message }
   }
-
-  const { employeeId } = validatedFields.data
-
-  const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-
-  const startOfMonth = new Date()
-  startOfMonth.setDate(1)
-  startOfMonth.setHours(0, 0, 0, 0)
-
-  const { data: recentPayment, error: fetchError } = await supabaseAdmin
-    .from("employee_payments")
-    .select("id")
-    .eq("employee_id", employeeId)
-    .gte("payment_date", startOfMonth.toISOString())
-    .order("payment_date", { ascending: false })
-    .limit(1)
-    .single()
-
-  if (fetchError || !recentPayment) {
-    return { error: "Nenhum pagamento encontrado para reverter neste mês." }
-  }
-  
-  // TODO: Idealmente, deveríamos deletar o comprovante do Storage aqui
-
-  const { error: deleteError } = await supabaseAdmin.from("employee_payments").delete().eq("id", recentPayment.id)
-
-  if (deleteError) {
-    console.error("Erro ao reverter pagamento:", deleteError)
-    return { error: `Erro ao reverter pagamento: ${deleteError.message}` }
-  }
-
-  revalidatePath("/dashboard/financial")
-  revalidatePath("/dashboard/team")
-  revalidatePath(`/dashboard/team/${employeeId}`)
-  return { success: "Pagamento revertido com sucesso!" }
 }
 
-// ==========================================================
-// --- NOVAS AÇÕES PARA SERVIÇOS PONTUAIS ---
-// ==========================================================
-
-// Schema para marcar recebimento de serviço pontual
+// --- AÇÃO markServiceAsReceived ---
 const servicePaymentSchema = z.object({
-  serviceId: z.string().uuid("ID do serviço inválido."),
-  clientId: z.string().uuid("ID do cliente inválido."),
-  amount: z.coerce.number().positive("O valor deve ser positivo."),
+  serviceId: z.string().uuid(),
+  clientId: z.string().uuid(),
+  amount: z.coerce.number().positive(),
 })
 
-// Ação para marcar um serviço pontual como RECEBIDO
 export async function markServiceAsReceived(formData: FormData) {
-  const proofFile = formData.get("proof_file") as File
-  if (!proofFile || proofFile.size === 0) {
-    return { error: "Comprovante de recebimento é obrigatório." }
-  }
-  if (proofFile.size > 10 * 1024 * 1024) {
-    return { error: "O arquivo deve ter no máximo 10MB." }
-  }
-
-  const validatedFields = servicePaymentSchema.safeParse(Object.fromEntries(formData))
-  if (!validatedFields.success) {
-    const firstError = Object.values(validatedFields.error.flatten().fieldErrors)[0]?.[0]
-    return { error: firstError || "Dados inválidos." }
-  }
-
-  const { serviceId, clientId, amount } = validatedFields.data
-
   try {
-    const supabaseAdmin = createAdminClient()
+    checkAdminPermission() // <--- PROTEÇÃO
 
-    // 1. Upload do comprovante
+    const proofFile = formData.get("proof_file") as File
+    if (!proofFile || proofFile.size === 0) return { error: "Comprovante obrigatório." }
+
+    const validatedFields = servicePaymentSchema.safeParse(Object.fromEntries(formData))
+    if (!validatedFields.success) return { error: "Dados inválidos." }
+
+    const { serviceId, clientId } = validatedFields.data
+    const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+
     const fileExtension = proofFile.name.split(".").pop()
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExtension}`
-    const filePath = `service-payments/${fileName}` // Pasta dedicada
+    const filePath = `service-payments/${fileName}`
 
     const { error: uploadError } = await supabaseAdmin.storage.from("financial-proofs").upload(filePath, proofFile, {
       contentType: proofFile.type,
       upsert: false,
     })
-
-    if (uploadError) {
-      console.error("Erro ao fazer upload (serviço):", uploadError)
-      return { error: "Erro ao fazer upload do comprovante." }
-    }
+    if (uploadError) return { error: "Erro no upload." }
 
     const { data: urlData } = supabaseAdmin.storage.from("financial-proofs").getPublicUrl(filePath)
 
-    // 2. Atualiza a tabela one_time_services
     const { error: updateError } = await supabaseAdmin
       .from("one_time_services")
       .update({
         received_date: new Date().toISOString().split("T")[0],
         payment_proof_url: urlData.publicUrl,
-        status: "completed", // Define o status como 'completed' ao receber
+        status: "completed",
       })
       .eq("id", serviceId)
 
-    if (updateError) {
-      console.error("Erro Supabase (markServiceAsReceived):", updateError)
-      // Tenta deletar o arquivo órfão se a atualização do DB falhar
-      await supabaseAdmin.storage.from("financial-proofs").remove([filePath])
-      return { error: `Erro ao registrar recebimento: ${updateError.message}` }
-    }
+    if (updateError) return { error: updateError.message }
 
-    // Revalida ambas as páginas
     revalidatePath("/dashboard/financial")
     revalidatePath(`/dashboard/clients/${clientId}`)
-    return { success: "Recebimento do serviço registrado com sucesso!" }
-  } catch (error) {
-    console.error("Erro ao processar recebimento:", error)
-    return { error: "Erro ao processar recebimento." }
+    return { success: "Recebimento registrado!" }
+  } catch (e: any) {
+    return { error: e.message }
   }
 }
 
-// Schema para reverter recebimento de serviço pontual
+// --- AÇÃO undoServiceReceipt ---
 const undoServiceReceiptSchema = z.object({
-  serviceId: z.string().uuid("ID do serviço inválido."),
-  clientId: z.string().uuid("ID do cliente inválido."),
+  serviceId: z.string().uuid(),
+  clientId: z.string().uuid(),
 })
 
-// Ação para reverter o recebimento de um serviço pontual
 export async function undoServiceReceipt(formData: FormData) {
-  const validatedFields = undoServiceReceiptSchema.safeParse(Object.fromEntries(formData))
-  if (!validatedFields.success) {
-    const firstError = Object.values(validatedFields.error.flatten().fieldErrors)[0]?.[0]
-    return { error: firstError || "Dados inválidos." }
+  try {
+    checkAdminPermission() // <--- PROTEÇÃO
+
+    const validatedFields = undoServiceReceiptSchema.safeParse(Object.fromEntries(formData))
+    if (!validatedFields.success) return { error: "Dados inválidos." }
+
+    const { serviceId, clientId } = validatedFields.data
+    const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+
+    const { error: updateError } = await supabaseAdmin
+      .from("one_time_services")
+      .update({
+        received_date: null,
+        payment_proof_url: null,
+        status: "pending",
+      })
+      .eq("id", serviceId)
+
+    if (updateError) return { error: updateError.message }
+
+    revalidatePath("/dashboard/financial")
+    revalidatePath(`/dashboard/clients/${clientId}`)
+    return { success: "Recebimento revertido!" }
+  } catch (e: any) {
+    return { error: e.message }
   }
-
-  const { serviceId, clientId } = validatedFields.data
-
-  const supabaseAdmin = createAdminClient()
-
-  // TODO: Idealmente, deveríamos deletar o comprovante do Storage aqui
-  // (Omitido por simplicidade, mas é uma melhoria recomendada)
-
-  // 2. Atualiza a tabela one_time_services
-  const { error: updateError } = await supabaseAdmin
-    .from("one_time_services")
-    .update({
-      received_date: null,
-      payment_proof_url: null,
-      status: "pending", // Reverte o status para 'pending'
-    })
-    .eq("id", serviceId)
-
-  if (updateError) {
-    console.error("Erro Supabase (undoServiceReceipt):", updateError)
-    return { error: `Erro ao reverter recebimento: ${updateError.message}` }
-  }
-
-  // Revalida ambas as páginas
-  revalidatePath("/dashboard/financial")
-  revalidatePath(`/dashboard/clients/${clientId}`)
-  return { success: "Recebimento do serviço revertido!" }
 }

@@ -2,19 +2,13 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Check, Undo2, Loader2 } from "lucide-react"
 import { markCostAsPaid, undoCostPayment } from "@/app/dashboard/financial/actions"
 import { toast } from "sonner"
+import { useRole } from "@/app/dashboard/layout" // --- ALTERAÇÃO
 
 interface MarkCostPaymentButtonProps {
   costId: string
@@ -23,16 +17,24 @@ interface MarkCostPaymentButtonProps {
 }
 
 export function MarkCostPaymentButton({ costId, amount, isPaid }: MarkCostPaymentButtonProps) {
+  const userRole = useRole(); // --- ALTERAÇÃO
   const [isLoading, setIsLoading] = useState(false)
   const [showDialog, setShowDialog] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+
+  // --- ALTERAÇÃO: Se limitado, mostra apenas status texto ---
+  if (userRole === "limited") {
+    return isPaid 
+      ? <span className="text-sm text-green-600 font-medium">Pago</span>
+      : <span className="text-sm text-muted-foreground">Pendente</span>;
+  }
+  // ---------------------------------------------------------
 
   async function handleMarkAsPaid() {
     if (!selectedFile) {
       toast.error("Por favor, anexe o comprovante de pagamento")
       return
     }
-
     setIsLoading(true)
     const formData = new FormData()
     formData.append("costId", costId)
@@ -40,31 +42,19 @@ export function MarkCostPaymentButton({ costId, amount, isPaid }: MarkCostPaymen
     formData.append("proof_file", selectedFile)
 
     const result = await markCostAsPaid(formData)
-
-    if (result.error) {
-      toast.error(result.error)
-    } else {
-      toast.success(result.success || "Pagamento registrado!")
-      setShowDialog(false)
-      setSelectedFile(null)
-    }
+    if (result.error) toast.error(result.error)
+    else { toast.success(result.success || "Pagamento registrado!"); setShowDialog(false); setSelectedFile(null) }
     setIsLoading(false)
   }
 
   async function handleUndo() {
     if (!confirm("Tem certeza que deseja reverter este pagamento?")) return
-
     setIsLoading(true)
     const formData = new FormData()
     formData.append("costId", costId)
-
     const result = await undoCostPayment(formData)
-
-    if (result.error) {
-      toast.error(result.error)
-    } else {
-      toast.success(result.success || "Pagamento revertido!")
-    }
+    if (result.error) toast.error(result.error)
+    else toast.success(result.success || "Pagamento revertido!")
     setIsLoading(false)
   }
 
@@ -81,50 +71,24 @@ export function MarkCostPaymentButton({ costId, amount, isPaid }: MarkCostPaymen
 
   return (
     <>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => setShowDialog(true)}
-        disabled={isLoading}
-        className="gap-2 bg-transparent"
-      >
-        <Check className="h-4 w-4" />
-        Marcar como Pago
+      <Button variant="outline" size="sm" onClick={() => setShowDialog(true)} disabled={isLoading} className="gap-2 bg-transparent">
+        <Check className="h-4 w-4" /> Marcar como Pago
       </Button>
-
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Confirmar Pagamento</DialogTitle>
-            <DialogDescription>
-              Anexe o comprovante de pagamento de{" "}
-              {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(amount)}
-            </DialogDescription>
+            <DialogDescription>Anexe o comprovante de pagamento de {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(amount)}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="proof_file">Comprovante de Pagamento *</Label>
-              <Input
-                id="proof_file"
-                type="file"
-                accept=".pdf,.jpg,.jpeg,.png"
-                onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-                required
-                className="cursor-pointer"
-              />
-              {selectedFile && (
-                <p className="text-sm text-muted-foreground">Arquivo selecionado: {selectedFile.name}</p>
-              )}
-              <p className="text-xs text-muted-foreground">Formatos aceitos: PDF, JPG, PNG (máx. 10MB)</p>
+              <Input id="proof_file" type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} required className="cursor-pointer" />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDialog(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleMarkAsPaid} disabled={isLoading || !selectedFile}>
-              {isLoading ? "Registrando..." : "Confirmar Pagamento"}
-            </Button>
+            <Button variant="outline" onClick={() => setShowDialog(false)}>Cancelar</Button>
+            <Button onClick={handleMarkAsPaid} disabled={isLoading || !selectedFile}>{isLoading ? "Registrando..." : "Confirmar Pagamento"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

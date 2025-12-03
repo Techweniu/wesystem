@@ -22,15 +22,23 @@ export default function LoginPage() {
     e.preventDefault()
     setIsLoading(true)
 
-    // Verifica a senha e define o "userRole" correspondente
+    // Função auxiliar para definir cookie (válido por 7 dias)
+    const setCookie = (name: string, value: string) => {
+      const date = new Date();
+      date.setTime(date.getTime() + (7 * 24 * 60 * 60 * 1000));
+      const expires = "expires=" + date.toUTCString();
+      document.cookie = name + "=" + value + ";" + expires + ";path=/";
+    }
+
     if (password === MASTER_PASSWORD) {
-      localStorage.setItem("userRole", "admin") // Papel de Admin
+      localStorage.setItem("userRole", "admin")
+      setCookie("user_role", "admin") // --- NOVO: Grava Cookie para o Server Action ler
       toast.success("Login (Diretoria) realizado com sucesso!")
       router.push("/dashboard")
     } else if (password === LIMITED_PASSWORD) {
-      localStorage.setItem("userRole", "limited") // Papel Limitado
+      localStorage.setItem("userRole", "limited")
+      setCookie("user_role", "limited") // --- NOVO: Grava Cookie
       toast.success("Login realizado com sucesso!")
-      // Redireciona direto para a área de acessos, que é a "home" deste perfil
       router.push("/dashboard/accesses")
     } else {
       toast.error("Chave de acesso incorreta.")
