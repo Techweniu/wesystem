@@ -7,31 +7,40 @@ import { Separator } from "@/components/ui/separator"
 import Link from "next/link"
 
 export interface NpsSummaryData {
-  detractors: number;
-  passives: number;
-  promoters: number;
+  detractors: number
+  passives: number
+  promoters: number
 }
 
 // O tipo para os clientes ranqueados
 interface RankedClient {
-    id: string;
-    name: string;
-    latestNps?: number;
+  id: string
+  name: string
+  latestNps?: number
 }
 
 interface NpsScoreSummaryTableProps {
-  data: NpsSummaryData;
-  rankedClients: RankedClient[]; // Nova prop
+  data: NpsSummaryData
+  rankedClients: RankedClient[]
 }
 
-export function NpsScoreSummaryTable({ data, rankedClients }: NpsScoreSummaryTableProps) {
+export function NpsScoreSummaryTable({
+  data = { detractors: 0, passives: 0, promoters: 0 },
+  rankedClients,
+}: NpsScoreSummaryTableProps) {
+  const safeData = {
+    detractors: data?.detractors ?? 0,
+    passives: data?.passives ?? 0,
+    promoters: data?.promoters ?? 0,
+  }
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>Resumo de NPS por Faixa</CardTitle>
       </CardHeader>
       <CardContent>
-        {/* Tabela de Resumo (sem alterações funcionais) */}
+        {/* Tabela de Resumo */}
         <Table>
           <TableHeader>
             <TableRow>
@@ -42,50 +51,66 @@ export function NpsScoreSummaryTable({ data, rankedClients }: NpsScoreSummaryTab
           <TableBody>
             <TableRow>
               <TableCell className="font-medium">Detratores (0-7)</TableCell>
-              <TableCell className="text-right"><Badge variant="destructive">{data.detractors}</Badge></TableCell>
+              <TableCell className="text-right">
+                <Badge variant="destructive">{safeData.detractors}</Badge>
+              </TableCell>
             </TableRow>
             <TableRow>
               <TableCell className="font-medium">Neutros (8)</TableCell>
-              <TableCell className="text-right"><Badge variant="secondary">{data.passives}</Badge></TableCell>
+              <TableCell className="text-right">
+                <Badge variant="secondary">{safeData.passives}</Badge>
+              </TableCell>
             </TableRow>
             <TableRow>
               <TableCell className="font-medium">Promotores (9-10)</TableCell>
-              <TableCell className="text-right"><Badge>{data.promoters}</Badge></TableCell>
+              <TableCell className="text-right">
+                <Badge>{safeData.promoters}</Badge>
+              </TableCell>
             </TableRow>
           </TableBody>
         </Table>
 
         <Separator className="my-4" />
 
-        {/* --- NOVA LISTA RANQUEADA ADICIONADA AQUI --- */}
+        {/* Lista Ranqueada */}
         <div>
-            <h4 className="mb-2 text-sm font-medium">Clientes que Precisam de Atenção</h4>
-            <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead>Cliente</TableHead>
-                        <TableHead className="text-right">Último NPS</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {rankedClients.length > 0 ? (
-                        rankedClients.slice(0, 3).map(client => ( // Mostra os 3 piores
-                            <TableRow key={client.id}>
-                                <TableCell className="font-medium">
-                                    <Link href={`/dashboard/clients/${client.id}`} className="hover:underline">{client.name}</Link>
-                                </TableCell>
-                                <TableCell className="text-right">
-                                    <Badge variant={client.latestNps! <= 7 ? 'destructive' : client.latestNps === 8 ? 'secondary' : 'default'}>{client.latestNps}</Badge>
-                                </TableCell>
-                            </TableRow>
-                        ))
-                    ) : (
-                        <TableRow>
-                            <TableCell colSpan={2} className="h-24 text-center text-muted-foreground">Nenhuma avaliação encontrada.</TableCell>
-                        </TableRow>
-                    )}
-                </TableBody>
-            </Table>
+          <h4 className="mb-2 text-sm font-medium">Clientes que Precisam de Atenção</h4>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Cliente</TableHead>
+                <TableHead className="text-right">Último NPS</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rankedClients && rankedClients.length > 0 ? (
+                rankedClients.slice(0, 3).map((client) => (
+                  <TableRow key={client.id}>
+                    <TableCell className="font-medium">
+                      <Link href={`/dashboard/clients/${client.id}`} className="hover:underline">
+                        {client.name}
+                      </Link>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Badge
+                        variant={
+                          client.latestNps! <= 7 ? "destructive" : client.latestNps === 8 ? "secondary" : "default"
+                        }
+                      >
+                        {client.latestNps}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={2} className="h-24 text-center text-muted-foreground">
+                    Nenhuma avaliação encontrada.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
         </div>
       </CardContent>
     </Card>
