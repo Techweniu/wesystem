@@ -17,7 +17,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { EditEmployeeForm } from "@/components/edit-employee-form"
 import { AddEmployeeObservationForm } from "@/components/add-employee-observation-form"
 import { AddEmployeeContractForm } from "@/components/add-employee-contract-form"
-import { AddEmployeeContributionForm } from "@/components/add-employee-contribution-form" // --- ALTERAÇÃO: Importado
+import { AddEmployeeContributionForm } from "@/components/add-employee-contribution-form"
 import { Separator } from "@/components/ui/separator"
 import { AddCareerPlanForm } from "@/components/add-career-plan-form"
 import {
@@ -32,14 +32,22 @@ import {
   FileText,
   BlendIcon as ClientIcon,
   Lightbulb,
+  Star, // Importado ícone de estrela
 } from "lucide-react"
 import { differenceInDays, parseISO, format, formatDistanceToNowStrict } from "date-fns"
 import { ptBR } from "date-fns/locale"
 
+// Função auxiliar para definir a cor do badge de NPS
+const getNpsBadgeVariant = (nps: number | null): "destructive" | "secondary" | "default" | "outline" => {
+  if (nps === null) return "outline"
+  if (nps <= 7) return "destructive"
+  if (nps === 8) return "secondary"
+  return "default"
+}
+
 async function getEmployeeDetails(id: string) {
   const supabase = await createClient()
 
-  // --- ALTERAÇÃO: Adicionado employee_contributions ao select ---
   const { data: employeeData, error: employeeError } = await supabase
     .from("employees")
     .select(`*,
@@ -53,9 +61,8 @@ async function getEmployeeDetails(id: string) {
     .order("created_at", { foreignTable: "employee_observations", ascending: false })
     .order("payment_date", { foreignTable: "employee_payments", ascending: false })
     .order("created_at", { foreignTable: "employee_contracts", ascending: false })
-    .order("date", { foreignTable: "employee_contributions", ascending: false }) // Ordena contribuições
+    .order("date", { foreignTable: "employee_contributions", ascending: false })
     .maybeSingle()
-  // -------------------------------------------------------------
 
   if (employeeError) {
     console.error("Erro ao buscar detalhes do colaborador:", employeeError)
@@ -64,7 +71,9 @@ async function getEmployeeDetails(id: string) {
     return null
   }
 
-  let assignedClients: { id: string; name: string }[] = []
+  // Definição do tipo para os clientes com NPS
+  type ClientWithNps = { id: string; name: string; npsAverage: number | null }
+  let assignedClients: ClientWithNps[] = []
   
   const roleToColumnMap: { [key: string]: string } = {
     "Assessor": "assigned_assessor_id",
@@ -76,14 +85,29 @@ async function getEmployeeDetails(id: string) {
   const columnToFilter = roleToColumnMap[employeeData.role];
 
   if (columnToFilter) {
+    // Agora buscamos também as respostas de NPS dos clientes
     const { data: clientsData } = await supabase
       .from("clients")
-      .select("id, name")
+      .select("id, name, nps_responses(score)")
       .eq(columnToFilter, id)
       .eq("status", "active")
       .order("name")
 
-    assignedClients = clientsData || []
+    if (clientsData) {
+      // Processa a média de NPS para cada cliente
+      assignedClients = clientsData.map((client: any) => {
+        const scores = client.nps_responses?.map((r: any) => r.score) || []
+        const average = scores.length > 0 
+          ? scores.reduce((a: number, b: number) => a + b, 0) / scores.length 
+          : null
+        
+        return {
+          id: client.id,
+          name: client.name,
+          npsAverage: average
+        }
+      })
+    }
   }
 
   if (employeeData.employee_contracts) {
@@ -112,6 +136,12 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
   }
 
   const { assignedClients, ...employee } = employeeDetails
+
+  // Cálculo do NPS Médio do Colaborador (Média das médias dos clientes)
+  const validNpsClients = assignedClients.filter(c => c.npsAverage !== null)
+  const employeeNpsAverage = validNpsClients.length > 0
+    ? validNpsClients.reduce((acc, curr) => acc + (curr.npsAverage || 0), 0) / validNpsClients.length
+    : null
 
   const today = new Date()
   const hireDate = parseISO(employee.hire_date)
@@ -156,7 +186,8 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
         </EditEmployeeForm>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      {/* Grid de KPIs do Colaborador */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Status</CardTitle>
@@ -183,6 +214,28 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{timeSinceHired}</div>
+          </CardContent>
+        </Card>
+        {/* Novo Card de NPS do Colaborador */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">NPS Médio (Clientes)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-2">
+              <div className="text-2xl font-bold">
+                {employeeNpsAverage !== null ? employeeNpsAverage.toFixed(1) : "-"}
+              </div>
+              {employeeNpsAverage !== null && (
+                <Badge variant={getNpsBadgeVariant(employeeNpsAverage)} className="h-6">
+                  <Star className="h-3 w-3 mr-1 fill-current" />
+                  {employeeNpsAverage.toFixed(1)}
+                </Badge>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Baseado em {validNpsClients.length} clientes avaliados
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -220,7 +273,6 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
           </CardContent>
         </Card>
         
-        {/* --- NOVO CARD: CONTRIBUIÇÕES E ENTREGAS --- */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2">
@@ -251,7 +303,6 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
              )}
           </CardContent>
         </Card>
-        {/* ------------------------------------------- */}
       </div>
 
       {assignedClients.length > 0 && (
@@ -265,10 +316,20 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
           <CardContent>
             <ul className="space-y-2">
               {assignedClients.map((client) => (
-                <li key={client.id} className="text-sm">
-                  <Link href={`/dashboard/clients/${client.id}`} className="text-primary hover:underline">
+                <li key={client.id} className="flex items-center justify-between text-sm p-2 hover:bg-muted/50 rounded-md transition-colors">
+                  <Link href={`/dashboard/clients/${client.id}`} className="text-primary hover:underline font-medium">
                     {client.name}
                   </Link>
+                  
+                  {/* Badge de NPS do Cliente */}
+                  {client.npsAverage !== null ? (
+                    <Badge variant={getNpsBadgeVariant(client.npsAverage)} className="ml-2 gap-1" title="NPS Médio do Cliente">
+                      <Star className="h-3 w-3 fill-current" />
+                      {client.npsAverage.toFixed(1)}
+                    </Badge>
+                  ) : (
+                    <span className="text-xs text-muted-foreground italic">Sem NPS</span>
+                  )}
                 </li>
               ))}
             </ul>

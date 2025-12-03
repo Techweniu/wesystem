@@ -1,162 +1,248 @@
 import { createClient } from "@/lib/supabase/server"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { notFound } from "next/navigation"
+import {
+  Mail,
+  Phone,
+  Download,
+  FileText,
+  Building,
+  MapPin,
+  AlertTriangle,
+  Star,
+  History,
+  BarChart2,
+  ThumbsDown,
+  BlendIcon as ClientIcon,
+  Video,
+  Film, 
+} from "lucide-react"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { AddServiceForm } from "@/components/add-service-form"
+import { AddNpsForm } from "@/components/add-nps-form"
+import { AddContractForm } from "@/components/add-contract-form"
+import { EditContractForm } from "@/components/edit-contract-form"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
+import { format, parseISO, differenceInDays, isPast, formatDistanceToNowStrict } from "date-fns"
+import { ptBR } from "date-fns/locale"
+import { EditClientInfoForm } from "@/components/edit-client-info-form"
+import { EditClientNotesForm } from "@/components/edit-client-notes-form"
+import { Button } from "@/components/ui/button"
+import { ServiceStatusChanger } from "@/components/service-status-changer"
+import { Separator } from "@/components/ui/separator"
+import { ClientContactsManager } from "@/components/client-contacts-manager"
+import { ClientUpsellsSection } from "@/components/client-upsells-section" 
 import Link from "next/link"
 import {
   Breadcrumb,
   BreadcrumbItem,
-  BreadcrumbLink,
   BreadcrumbList,
-  BreadcrumbPage,
+  BreadcrumbLink,
   BreadcrumbSeparator,
+  BreadcrumbPage,
 } from "@/components/ui/breadcrumb"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
-import { EditEmployeeForm } from "@/components/edit-employee-form"
-import { AddEmployeeObservationForm } from "@/components/add-employee-observation-form"
-import { AddEmployeeContractForm } from "@/components/add-employee-contract-form"
-import { AddEmployeeContributionForm } from "@/components/add-employee-contribution-form"
-import { Separator } from "@/components/ui/separator"
-import { AddCareerPlanForm } from "@/components/add-career-plan-form"
-import {
-  User,
-  Mail,
-  Calendar,
-  TrendingUp,
-  Briefcase,
-  ThumbsUp,
-  ThumbsDown,
-  Download,
-  FileText,
-  BlendIcon as ClientIcon,
-  Lightbulb,
-  Star, // Importado ícone de estrela
-} from "lucide-react"
-import { differenceInDays, parseISO, format, formatDistanceToNowStrict } from "date-fns"
-import { ptBR } from "date-fns/locale"
+import { Label } from "@/components/ui/label"
+import { ContractServiceBadges } from "@/components/contract-service-badges"
 
-// Função auxiliar para definir a cor do badge de NPS
-const getNpsBadgeVariant = (nps: number | null): "destructive" | "secondary" | "default" | "outline" => {
-  if (nps === null) return "outline"
-  if (nps <= 7) return "destructive"
-  if (nps === 8) return "secondary"
-  return "default"
+const LOOKER_STUDIO_URL =
+  "https://lookerstudio.google.com/embed/reporting/dd2d13f5-60b6-4926-ba5d-afe9db7dbcd1/page/jCyaF"
+
+// Interfaces
+interface NpsCategoryScores {
+  [key: string]: number
+}
+interface NpsResponse {
+  id: string
+  client_id: string
+  score: number
+  comment: string | null
+  response_date: string
+  created_at: string
+  category_scores: NpsCategoryScores | null
+  observations: string | null
 }
 
-async function getEmployeeDetails(id: string) {
+async function getClientDetails(id: string) {
   const supabase = await createClient()
-
-  const { data: employeeData, error: employeeError } = await supabase
-    .from("employees")
-    .select(`*,
-      manager:manager_id ( name ),
-      employee_payments ( * ),
-      employee_observations ( * ),
-      employee_contracts ( * ),
-      employee_contributions ( * ) 
-    `)
+  const { data: clientData, error: clientError } = await supabase
+    .from("clients")
+    .select(`
+      *,
+      has_traffic_service,
+      ad_account_organized,
+      ads_running,
+      contracts(*),
+      one_time_services(*),
+      nps_responses(*),
+      client_contacts(*),
+      client_upsells(*),
+      assigned_assessor:assigned_assessor_id ( id, name ),
+      assigned_videomaker:assigned_videomaker_id ( id, name ),
+      assigned_relationship_manager:assigned_relationship_manager_id ( id, name ),
+      assigned_editor:assigned_editor_id ( id, name ) 
+    `) 
     .eq("id", id)
-    .order("created_at", { foreignTable: "employee_observations", ascending: false })
-    .order("payment_date", { foreignTable: "employee_payments", ascending: false })
-    .order("created_at", { foreignTable: "employee_contracts", ascending: false })
-    .order("date", { foreignTable: "employee_contributions", ascending: false })
+    .order("created_at", { foreignTable: "contracts", ascending: false })
+    .order("response_date", { foreignTable: "nps_responses", ascending: false })
+    .order("date", { foreignTable: "one_time_services", ascending: false })
+    .order("created_at", { foreignTable: "client_upsells", ascending: false })
     .maybeSingle()
 
-  if (employeeError) {
-    console.error("Erro ao buscar detalhes do colaborador:", employeeError)
-  }
-  if (!employeeData) {
+  if (clientError || !clientData) {
+    console.error("Erro ao buscar detalhes do cliente:", clientError)
     return null
   }
 
-  // Definição do tipo para os clientes com NPS
-  type ClientWithNps = { id: string; name: string; npsAverage: number | null }
-  let assignedClients: ClientWithNps[] = []
-  
-  const roleToColumnMap: { [key: string]: string } = {
-    "Assessor": "assigned_assessor_id",
-    "Videomaker": "assigned_videomaker_id",
-    "Gestor de Relacionamento": "assigned_relationship_manager_id",
-    "Editor": "assigned_editor_id"
-  };
-
-  const columnToFilter = roleToColumnMap[employeeData.role];
-
-  if (columnToFilter) {
-    // Agora buscamos também as respostas de NPS dos clientes
-    const { data: clientsData } = await supabase
-      .from("clients")
-      .select("id, name, nps_responses(score)")
-      .eq(columnToFilter, id)
-      .eq("status", "active")
-      .order("name")
-
-    if (clientsData) {
-      // Processa a média de NPS para cada cliente
-      assignedClients = clientsData.map((client: any) => {
-        const scores = client.nps_responses?.map((r: any) => r.score) || []
-        const average = scores.length > 0 
-          ? scores.reduce((a: number, b: number) => a + b, 0) / scores.length 
-          : null
-        
-        return {
-          id: client.id,
-          name: client.name,
-          npsAverage: average
-        }
-      })
-    }
-  }
-
-  if (employeeData.employee_contracts) {
-    for (const contract of employeeData.employee_contracts) {
+  // Gera URLs de download para contratos
+  if (clientData.contracts) {
+    for (const contract of clientData.contracts) {
       if (contract.storage_path) {
-        const { data } = await supabase.storage.from("employee_contracts").createSignedUrl(contract.storage_path, 3600)
-        ;(contract as any).downloadUrl = data?.signedUrl
+        const { data: urlData } = await supabase.storage.from("contracts").createSignedUrl(contract.storage_path, 3600) 
+        ;(contract as any).downloadUrl = urlData?.signedUrl
+      }
+
+      const { data: deliverables, error: deliverablesError } = await supabase
+        .from("contract_deliverables")
+        .select("*")
+        .eq("contract_id", contract.id)
+        .order("service_name")
+
+      if (!deliverablesError) {
+        ;(contract as any).deliverables = deliverables || []
+      } else {
+        ;(contract as any).deliverables = []
       }
     }
   }
 
-  return { ...employeeData, assignedClients }
-}
+  // Busca potenciais funcionários para os cargos
+  const { data: potentialAssessors } = await supabase
+    .from("employees")
+    .select("id, name")
+    .eq("status", "active")
+    .eq("role", "Assessor")
+    .order("name")
+  const { data: potentialVideomakers } = await supabase
+    .from("employees")
+    .select("id, name")
+    .eq("status", "active")
+    .eq("role", "Videomaker")
+    .order("name")
+  const { data: potentialManagers } = await supabase
+    .from("employees")
+    .select("id, name")
+    .eq("status", "active")
+    .eq("role", "Gestor de Relacionamento")
+    .order("name")
+  const { data: potentialEditors } = await supabase
+    .from("employees")
+    .select("id, name")
+    .eq("status", "active")
+    .eq("role", "Editor")
+    .order("name")
 
-async function getAllEmployees() {
-  const supabase = await createClient()
-  const { data } = await supabase.from("employees").select("id, name, role").order("name")
-  return data || []
-}
-
-export default async function EmployeeDetailPage({ params }: { params: { id: string } }) {
-  const [employeeDetails, allEmployees] = await Promise.all([getEmployeeDetails(params.id), getAllEmployees()])
-
-  if (!employeeDetails) {
-    notFound()
+  return {
+    ...clientData,
+    potentialAssessors: potentialAssessors || [],
+    potentialVideomakers: potentialVideomakers || [],
+    potentialManagers: potentialManagers || [],
+    potentialEditors: potentialEditors || [],
   }
+}
 
-  const { assignedClients, ...employee } = employeeDetails
+// Funções auxiliares
+const isContractVigent = (contract: { start_date: string | null; end_date: string | null }) => {
+  const today = new Date()
+  const hasStarted = contract.start_date
+    ? isPast(parseISO(contract.start_date)) ||
+      format(parseISO(contract.start_date), "yyyy-MM-dd") === format(today, "yyyy-MM-dd")
+    : true
+  const hasNotEnded = contract.end_date ? !isPast(parseISO(contract.end_date)) : true
+  return hasStarted && hasNotEnded
+}
 
-  // Cálculo do NPS Médio do Colaborador (Média das médias dos clientes)
-  const validNpsClients = assignedClients.filter(c => c.npsAverage !== null)
-  const employeeNpsAverage = validNpsClients.length > 0
-    ? validNpsClients.reduce((acc, curr) => acc + (curr.npsAverage || 0), 0) / validNpsClients.length
-    : null
+const getNpsBadgeVariant = (nps: number | undefined): "destructive" | "secondary" | "default" | "outline" => {
+  if (nps === undefined) return "outline"
+  if (nps <= 7) return "destructive" 
+  if (nps === 8) return "secondary"
+  return "default"
+}
+
+export default async function ClientDetailPage({ params }: { params: { id: string } }) {
+  const { id } = params
+  const clientData = await getClientDetails(id)
+
+  if (!clientData) {
+    notFound()
+  } 
+  
+  const { potentialAssessors, potentialVideomakers, potentialManagers, potentialEditors, ...client } = clientData
 
   const today = new Date()
-  const hireDate = parseISO(employee.hire_date)
-  const currentMonth = today.getMonth()
-  const currentYear = today.getFullYear()
+
+  // Cálculos Financeiros
+  const monthlyRevenue =
+    client.contracts
+      ?.filter((c) => c.status === "active" && isContractVigent(c)) 
+      .reduce((sum, c) => sum + Number(c.valor_mensal), 0) || 0
   
-  let nextPaymentDateFormatted = null
-  if (employee.payment_day) {
-    const nextPaymentDate = new Date(currentYear, currentMonth, employee.payment_day)
-    if (today.getTime() > nextPaymentDate.getTime()) {
-      nextPaymentDate.setMonth(nextPaymentDate.getMonth() + 1)
-    }
-    nextPaymentDateFormatted = format(nextPaymentDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
+  const completedServices = client.one_time_services?.filter((s: any) => s.status === "completed") || []
+  const totalServicesRevenue = completedServices.reduce((sum, s: any) => sum + Number(s.value), 0) || 0
+  
+  // Cálculos de NPS
+  const npsScores = client.nps_responses?.map((n: any) => n.score) || []
+  const avgNps = npsScores.length > 0 ? npsScores.reduce((a: number, b: number) => a + b, 0) / npsScores.length : 0
+  const latestNpsResponse = client.nps_responses?.[0] as NpsResponse | undefined
+  const latestNpsScore = latestNpsResponse?.score
+  
+  let worstNpsCategories: { category: string; score: number }[] = []
+  if (latestNpsResponse?.category_scores) {
+    worstNpsCategories = Object.entries(latestNpsResponse.category_scores)
+      .map(([category, score]) => ({ category: category.replace(/_/g, " "), score: Number(score) }))
+      .filter((item) => !isNaN(item.score))
+      .sort((a, b) => a.score - b.score)
+      .slice(0, 3)
   }
-  const timeSinceHired = formatDistanceToNowStrict(hireDate, { locale: ptBR, addSuffix: false })
+
+  // Cálculo de Valor Gerado e Tempo de Parceria
+  let generatedValue = 0
+  client.contracts?.forEach((contract) => {
+    if (contract.start_date && contract.valor_mensal && contract.valor_mensal > 0) {
+      const startDate = parseISO(contract.start_date)
+      const daysPassed = Math.max(0, differenceInDays(today, startDate) + 1)
+      generatedValue += (contract.valor_mensal / 30.44) * daysPassed
+    }
+  })
+  generatedValue += totalServicesRevenue
+
+  let firstContractDate = client.created_at 
+  let furthestEndDate: string | null = null
+
+  const allContracts = client.contracts || []
+  
+  const contractsWithStartDate = allContracts.filter((c) => c.start_date)
+  if (contractsWithStartDate.length > 0) {
+    const earliestStartDate = contractsWithStartDate.reduce((earliest, current) =>
+      parseISO(current.start_date!) < parseISO(earliest.start_date!) ? current : earliest,
+    ).start_date
+    
+    if (earliestStartDate) {
+      firstContractDate = parseISO(earliestStartDate) < parseISO(firstContractDate) ? earliestStartDate : firstContractDate
+    }
+  }
+
+  const contractsWithEndDate = allContracts.filter((c) => c.end_date)
+  if (contractsWithEndDate.length > 0) {
+    furthestEndDate = contractsWithEndDate.reduce((furthest, current) =>
+      parseISO(current.end_date!) > parseISO(furthest.end_date!) ? current : furthest,
+    ).end_date
+  }
+  
+  const partnershipTime = firstContractDate
+    ? formatDistanceToNowStrict(parseISO(firstContractDate), { locale: ptBR })
+    : "-"
 
   return (
     <div className="space-y-6">
@@ -164,346 +250,471 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
         <BreadcrumbList>
           <BreadcrumbItem>
             <BreadcrumbLink asChild>
-              <Link href="/dashboard/team">Equipe</Link>
+              <Link href="/dashboard/clients">Clientes</Link>
             </BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>
-            <BreadcrumbPage>{employee.name}</BreadcrumbPage>
+            <BreadcrumbPage>{client.name}</BreadcrumbPage>
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
 
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">{employee.name}</h1>
-          <p className="text-muted-foreground">{employee.role}</p>
+          <h1 className="text-3xl font-bold tracking-tight">{client.name}</h1>
+          <p className="text-muted-foreground">Central de Informações do Cliente</p>
         </div>
-        <EditEmployeeForm employee={employee} allEmployees={allEmployees}>
-          <Button variant="outline" size="sm">
-            Editar
-          </Button>
-        </EditEmployeeForm>
+        <EditClientInfoForm
+          client={client}
+          assessors={potentialAssessors}
+          videomakers={potentialVideomakers}
+          relationshipManagers={potentialManagers}
+          editors={potentialEditors} 
+        />
       </div>
 
-      {/* Grid de KPIs do Colaborador */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Status</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Badge variant={employee.status === "active" ? "default" : "outline"}>
-              {employee.status === "active" ? "Ativo" : "Inativo"}
-            </Badge>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Custo Mensal (Salário)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(employee.salary || 0)}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Tempo de Casa</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{timeSinceHired}</div>
-          </CardContent>
-        </Card>
-        {/* Novo Card de NPS do Colaborador */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">NPS Médio (Clientes)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Status</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Badge variant={client.status === "active" ? "default" : "outline"}>
+                {client.status === "active" ? "Ativo" : client.status === "prospect" ? "Prospect" : "Inativo"}
+              </Badge>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Saúde</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Badge
+                variant={
+                  client.health_status === "red"
+                    ? "destructive"
+                    : client.health_status === "yellow"
+                      ? "secondary"
+                      : "default"
+                }
+              >
+                {client.health_status === "red"
+                  ? "🔴 Crítico"
+                  : client.health_status === "yellow"
+                    ? "🟡 Atenção"
+                    : "🟢 Bom"}
+              </Badge>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <BarChart2 className="h-5 w-5 text-blue-500" /> MRR
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
               <div className="text-2xl font-bold">
-                {employeeNpsAverage !== null ? employeeNpsAverage.toFixed(1) : "-"}
+                {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(monthlyRevenue)}
               </div>
-              {employeeNpsAverage !== null && (
-                <Badge variant={getNpsBadgeVariant(employeeNpsAverage)} className="h-6">
-                  <Star className="h-3 w-3 mr-1 fill-current" />
-                  {employeeNpsAverage.toFixed(1)}
-                </Badge>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Baseado em {validNpsClients.length} clientes avaliados
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+            </CardContent>
+          </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <User className="h-5 w-5" /> Informações Gerais
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <div className="flex items-center gap-2">
-              <Briefcase className="h-4 w-4 text-muted-foreground" />
-              <p>Cargo: {employee.role}</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-muted-foreground" />
-              <p>Contratação: {format(hireDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Mail className="h-4 w-4 text-muted-foreground" />
-              <p>Email: {employee.email}</p>
-            </div>
-            {employee.department && (
-              <div className="flex items-center gap-2">
-                <ClientIcon className="h-4 w-4 text-muted-foreground" />
-                <p>Departamento: {employee.department}</p>
-              </div>
-            )}
-            <div className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              <p>Gestor Direto: {employee.manager?.name || "Nenhum"}</p>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-                <Lightbulb className="h-5 w-5" /> Contribuições
-            </CardTitle>
-            <AddEmployeeContributionForm employeeId={employee.id} />
-          </CardHeader>
-          <CardContent>
-             {employee.employee_contributions.length > 0 ? (
-                <div className="space-y-4 max-h-60 overflow-y-auto pr-2">
-                    {employee.employee_contributions.map((contrib: any) => (
-                        <div key={contrib.id} className="border-b pb-3 last:border-0 last:pb-0">
-                            <div className="flex justify-between items-start mb-1">
-                                <span className="font-medium text-sm">{contrib.category}</span>
-                                <span className="text-xs text-muted-foreground">{format(parseISO(contrib.date), 'dd/MM/yyyy')}</span>
-                            </div>
-                            <p className="text-sm text-muted-foreground">{contrib.description}</p>
-                            {contrib.value && contrib.value > 0 && (
-                                <p className="text-xs font-semibold text-green-600 mt-1">
-                                    Impacto: {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(contrib.value)}
-                                </p>
-                            )}
-                        </div>
-                    ))}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Star className="h-5 w-5 text-yellow-500" /> NPS Médio
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="text-2xl font-bold">
+                  {avgNps.toFixed(1)}
                 </div>
-             ) : (
-                <p className="text-sm text-muted-foreground text-center py-4">Nenhuma contribuição registrada.</p>
-             )}
-          </CardContent>
-        </Card>
-      </div>
+                <Badge variant={getNpsBadgeVariant(Math.round(avgNps))}>
+                  {npsScores.length} {npsScores.length === 1 ? "Avaliação" : "Avaliações"}
+                </Badge>
+              </div>
+              
+              {latestNpsResponse && (
+                <>
+                  <Separator />
+                  <div>
+                    <h4 className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
+                      <ThumbsDown className="h-3 w-3" />
+                      Piores Categorias (Última Avaliação)
+                    </h4>
+                    {worstNpsCategories.length > 0 ? (
+                      <ul className="space-y-1">
+                        {worstNpsCategories.map((item) => (
+                          <li key={item.category} className="flex justify-between items-center text-xs">
+                            <span className="text-muted-foreground truncate" title={item.category}>{item.category}</span>
+                            <Badge variant={getNpsBadgeVariant(item.score)} className="text-xs">
+                              {item.score}
+                            </Badge>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-xs text-muted-foreground italic">Nenhuma categoria pontuada na última avaliação.</p>
+                    )}
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </div>
 
-      {assignedClients.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ClientIcon className="h-5 w-5" />
-              Clientes Atribuídos ({assignedClients.length})
+            <CardTitle className="flex items-center gap-2 text-base">
+              <BarChart2 className="h-5 w-5 text-blue-500" /> Status do Tráfego Pago
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <ul className="space-y-2">
-              {assignedClients.map((client) => (
-                <li key={client.id} className="flex items-center justify-between text-sm p-2 hover:bg-muted/50 rounded-md transition-colors">
-                  <Link href={`/dashboard/clients/${client.id}`} className="text-primary hover:underline font-medium">
-                    {client.name}
-                  </Link>
-                  
-                  {/* Badge de NPS do Cliente */}
-                  {client.npsAverage !== null ? (
-                    <Badge variant={getNpsBadgeVariant(client.npsAverage)} className="ml-2 gap-1" title="NPS Médio do Cliente">
-                      <Star className="h-3 w-3 fill-current" />
-                      {client.npsAverage.toFixed(1)}
-                    </Badge>
-                  ) : (
-                    <span className="text-xs text-muted-foreground italic">Sem NPS</span>
-                  )}
-                </li>
-              ))}
-            </ul>
+          <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+            <div className="flex flex-col space-y-1">
+              <Label className="text-muted-foreground">Possui Tráfego?</Label>
+              <p>{client.has_traffic_service ? "Sim" : "Não"}</p>
+            </div>
+            <div className="flex flex-col space-y-1">
+              <Label className="text-muted-foreground">Conta Organizada?</Label>
+              <p>{client.ad_account_organized ? "Sim" : "Não"}</p>
+            </div>
+            <div className="flex flex-col space-y-1">
+              <Label className="text-muted-foreground">Anúncios Rodando?</Label>
+              <p>{client.ads_running ? "Sim" : "Não"}</p>
+            </div>
           </CardContent>
         </Card>
-      )}
 
-      {/* Grid: Observações | Contratos | Plano */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Observações</CardTitle>
-            <AddEmployeeObservationForm employeeId={employee.id} />
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <ClientIcon className="h-5 w-5 text-indigo-500" /> Responsáveis Atribuídos
+            </CardTitle>
+            <CardDescription>Equipe principal alocada para este cliente.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+            <div className="flex flex-col space-y-1">
+              <Label className="text-muted-foreground flex items-center gap-1">
+                <ClientIcon className="h-4 w-4" /> Assessor
+              </Label>
+              <p>{client.assigned_assessor?.name ?? <span className="text-muted-foreground italic">Nenhum</span>}</p>
+            </div>
+            <div className="flex flex-col space-y-1">
+              <Label className="text-muted-foreground flex items-center gap-1">
+                <ClientIcon className="h-4 w-4" /> Gestor de Relacionamento
+              </Label>
+              <p>
+                {client.assigned_relationship_manager?.name ?? (
+                  <span className="text-muted-foreground italic">Nenhum</span>
+                )}
+              </p>
+            </div>
+            <div className="flex flex-col space-y-1">
+              <Label className="text-muted-foreground flex items-center gap-1">
+                <Video className="h-4 w-4" /> Videomaker
+              </Label>
+              <p>{client.assigned_videomaker?.name ?? <span className="text-muted-foreground italic">Nenhum</span>}</p>
+            </div>
+            <div className="flex flex-col space-y-1">
+              <Label className="text-muted-foreground flex items-center gap-1">
+                <Film className="h-4 w-4" /> Editor
+              </Label>
+              <p>{client.assigned_editor?.name ?? <span className="text-muted-foreground italic">Nenhum</span>}</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Building className="h-5 w-5" /> Informações do Cliente
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              {client.cnpj && (
+                <div className="flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                  <p>CNPJ: {client.cnpj}</p>
+                </div>
+              )}
+              {client.address && (
+                <div className="flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-muted-foreground" />
+                  <p>Endereço: {client.address}</p>
+                </div>
+              )}
+              {client.contact_email && (
+                <div className="flex items-center gap-2">
+                  <Mail className="h-4 w-4 text-muted-foreground" />
+                  <p>Email: {client.contact_email}</p>
+                </div>
+              )}
+              {client.contact_phone && (
+                <div className="flex items-center gap-2">
+                  <Phone className="h-4 w-4 text-muted-foreground" />
+                  <p>Telefone: {client.contact_phone}</p>
+                </div>
+              )}
+              {client.credit_risk && (
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+                  <p>Risco de Crédito: {client.credit_risk}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Star className="h-5 w-5" /> Notas e Objetivos
+              </CardTitle>
+              <EditClientNotesForm client={client} />
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm">
+              <div>
+                <Label className="text-muted-foreground">Nota do Cliente</Label>
+                <p className="whitespace-pre-wrap">
+                  {client.client_notes || <span className="italic">Nenhuma nota.</span>}
+                </p>
+              </div>
+              <Separator />
+              <div>
+                <Label className="text-muted-foreground">Objetivos com a Parceria</Label>
+                <p className="whitespace-pre-wrap">
+                  {client.objectives || <span className="italic">Nenhum objetivo.</span>}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <ClientContactsManager clientId={client.id} contacts={client.client_contacts || []} />
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" /> Contratos
+              </CardTitle>
+              <AddContractForm clientId={client.id} />
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-3">
+                {client.contracts?.map((contract: any) => (
+                  <li key={contract.id} className="rounded-md border p-3 text-sm">
+                    <div className="flex items-start justify-between">
+                      <div className="flex flex-col flex-1">
+                        <span className="font-medium">{contract.name}</span>
+                        <span className="text-xs text-muted-foreground">
+                          Início: {format(parseISO(contract.start_date), "dd/MM/yy")}{" "}
+                          {contract.end_date ? `- Fim: ${format(parseISO(contract.end_date), "dd/MM/yy")}` : ""}
+                        </span>
+                        <Badge variant={contract.status === "active" ? "default" : "outline"} className="mt-1 w-fit">
+                          {contract.status === "active" ? "Ativo" : "Inativo"}
+                        </Badge>
+                        <ContractServiceBadges
+                          contractId={contract.id}
+                          clientId={client.id}
+                          services={contract.services || []}
+                          deliverables={contract.deliverables || []}
+                        />
+                      </div>
+                      <div className="flex items-center gap-1 ml-2">
+                        {contract.downloadUrl && (
+                          <a href={contract.downloadUrl} target="_blank" rel="noopener noreferrer">
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <Download className="h-4 w-4" />
+                            </Button>
+                          </a>
+                        )}
+                        <EditContractForm contract={contract} />
+                      </div>
+                    </div>
+                  </li>
+                ))}
+                {client.contracts?.length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-4">Nenhum contrato.</p>
+                )}
+              </ul>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <History className="h-5 w-5" /> Histórico e Valor
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <div className="flex flex-col space-y-1">
+                <Label className="text-muted-foreground">Tempo de Parceria</Label>
+                <p>{partnershipTime}</p>
+              </div>
+              <div className="flex flex-col space-y-1">
+                <Label className="text-muted-foreground">Valor Gerado (Est.)</Label>
+                <p className="font-semibold">
+                  {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(generatedValue)}
+                </p>
+              </div>
+              <div className="flex flex-col space-y-1">
+                <Label className="text-muted-foreground">Próximo Término</Label>
+                <p>
+                  {furthestEndDate ? (
+                    format(parseISO(furthestEndDate), "dd/MM/yyyy")
+                  ) : (
+                    <span className="italic">Indeterminado</span>
+                  )}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* --- NOVA SEÇÃO: OPORTUNIDADES DE UPSELL --- */}
+        <ClientUpsellsSection clientId={client.id} upsells={client.client_upsells || []} />
+        {/* ------------------------------------------- */}
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Dashboard de Resultados</CardTitle>
+            <CardDescription>Visualize o desempenho das campanhas.</CardDescription>
           </CardHeader>
           <CardContent>
-            <Accordion type="single" collapsible className="w-full">
-              {employee.employee_observations.length > 0 ? (
-                employee.employee_observations.map((obs: any) => (
-                  <AccordionItem value={obs.id} key={obs.id}>
-                    <AccordionTrigger>
-                      <div className="flex justify-between items-center w-full pr-4">
-                        <span className="text-sm">{format(parseISO(obs.created_at), "dd/MM/yyyy")}</span>
-                        {obs.tag === "positive" ? (
-                          <div className="flex items-center gap-1.5 text-xs font-medium text-green-500">
-                            <ThumbsUp className="h-3 w-3" /> Positiva
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1.5 text-xs font-medium text-red-500">
-                            <ThumbsDown className="h-3 w-3" /> Negativa
-                          </div>
-                        )}
-                      </div>
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      <p className="text-sm text-muted-foreground p-2 bg-muted/50 rounded-md whitespace-pre-wrap">
-                        {obs.observation}
-                      </p>
-                    </AccordionContent>
-                  </AccordionItem>
-                ))
-              ) : (
-                <p className="text-sm text-muted-foreground text-center py-4">Nenhuma observação.</p>
-              )}
-            </Accordion>
+            <iframe
+              title={`Dashboard ${client.name}`}
+              width="100%"
+              height="600"
+              src={LOOKER_STUDIO_URL}
+              frameBorder="0"
+              style={{ border: 0 }}
+              allowFullScreen
+            ></iframe>
           </CardContent>
         </Card>
 
-        <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Contratos</CardTitle>
-            <AddEmployeeContractForm employeeId={employee.id} />
-            </CardHeader>
-            <CardContent>
-            <ul className="space-y-3">
-                {employee.employee_contracts.length > 0 ? (
-                employee.employee_contracts.map((contract: any) => (
-                    <li key={contract.id} className="flex items-center justify-between rounded-md border p-3">
-                    <div className="flex items-center gap-3">
-                        <FileText className="h-5 w-5 text-muted-foreground" />
-                        <div className="overflow-hidden">
-                        <span className="font-medium block truncate w-32">{contract.name}</span>
-                        <p className="text-xs text-muted-foreground">
-                            {format(parseISO(contract.created_at), "dd/MM/yyyy")}
-                        </p>
-                        </div>
-                    </div>
-                    {contract.downloadUrl && (
-                        <a href={contract.downloadUrl} target="_blank" rel="noopener noreferrer">
-                        <Button variant="ghost" size="icon">
-                            <Download className="h-4 w-4" />
-                        </Button>
-                        </a>
+        <Tabs defaultValue="services" className="space-y-4">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="services">Serviços Pontuais</TabsTrigger>
+            <TabsTrigger value="nps">Avaliações NPS</TabsTrigger>
+          </TabsList>
+          <TabsContent value="services">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle>Serviços Pontuais</CardTitle>
+                <AddServiceForm clientId={client.id} />
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Serviço</TableHead>
+                      <TableHead>Data</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Valor</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {client.one_time_services?.map((service: any) => (
+                      <TableRow key={service.id}>
+                        <TableCell>{service.name}</TableCell>
+                        <TableCell>{format(parseISO(service.date), "dd/MM/yyyy")}</TableCell>
+                        <TableCell>
+                          <ServiceStatusChanger
+                            service={{ id: service.id, clientId: client.id, status: service.status }}
+                          />
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(service.value)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {client.one_time_services?.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={4} className="h-24 text-center">
+                          Nenhum serviço.
+                        </TableCell>
+                      </TableRow>
                     )}
-                    </li>
-                ))
-                ) : (
-                <p className="text-sm text-muted-foreground text-center py-4">Nenhum contrato.</p>
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+          <TabsContent value="nps">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle>Avaliações NPS</CardTitle>
+                <AddNpsForm clientId={client.id} />
+              </CardHeader>
+              <CardContent>
+                {latestNpsResponse && (
+                  <div className="mb-6 p-4 border rounded-lg bg-muted/30">
+                    <h4 className="font-semibold mb-2">
+                      Última ({format(parseISO(latestNpsResponse.response_date), "dd/MM/yyyy")}) - Nota:{" "}
+                      <Badge variant={getNpsBadgeVariant(latestNpsScore)}>{latestNpsScore}</Badge>
+                    </h4>
+                    {worstNpsCategories.length > 0 && (
+                      <div className="mb-2">
+                        <p className="text-sm font-medium text-destructive flex items-center gap-1">
+                          <ThumbsDown className="h-4 w-4" /> Pontos de Atenção:
+                        </p>
+                        <ul className="list-disc list-inside text-sm text-destructive/90">
+                          {worstNpsCategories.map((item) => (
+                            <li key={item.category}>
+                              {item.category} ({item.score})
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {latestNpsResponse.observations && (
+                      <p className="text-sm mt-2">
+                        <span className="font-medium">Observações:</span> {latestNpsResponse.observations}
+                      </p>
+                    )}
+                  </div>
                 )}
-            </ul>
-            </CardContent>
-        </Card>
-
-        <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Plano de Carreira</CardTitle>
-            <AddCareerPlanForm employeeId={employee.id} />
-            </CardHeader>
-            <CardContent>
-            {employee.career_plan_url ? (
-                <div className="space-y-3">
-                <div className="flex items-center justify-between rounded-md border p-3">
-                    <div className="flex items-center gap-3">
-                    <FileText className="h-5 w-5 text-muted-foreground" />
-                    <div>
-                        <span className="font-medium">Plano Atual</span>
-                        {employee.career_plan_expiration_date && (
-                        <p className="text-xs text-muted-foreground">
-                            Expira: {format(parseISO(employee.career_plan_expiration_date), "dd/MM/yyyy")}
-                        </p>
-                        )}
-                    </div>
-                    </div>
-                    <a href={employee.career_plan_url} target="_blank" rel="noopener noreferrer">
-                    <Button variant="ghost" size="icon">
-                        <Download className="h-4 w-4" />
-                    </Button>
-                    </a>
-                </div>
-                </div>
-            ) : (
-                <p className="text-sm text-muted-foreground text-center py-4">Nenhum plano.</p>
-            )}
-            </CardContent>
-        </Card>
+                <Accordion type="single" collapsible className="w-full">
+                  {client.nps_responses?.map((nps: NpsResponse) => (
+                    <AccordionItem value={nps.id} key={nps.id}>
+                      <AccordionTrigger>
+                        <div className="flex justify-between items-center w-full pr-4 text-sm">
+                          <span>Avaliação de {format(parseISO(nps.response_date), "dd/MM/yyyy")}</span>
+                          <Badge variant={getNpsBadgeVariant(nps.score)}>{nps.score}</Badge>
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <div className="space-y-2 pt-2">
+                          <h5 className="font-semibold text-xs mb-1">Notas por Categoria:</h5>
+                          <ul className="list-disc list-inside text-xs text-muted-foreground space-y-1">
+                            {nps.category_scores &&
+                              Object.entries(nps.category_scores).map(([cat, score]) => (
+                                <li key={cat}>
+                                  {cat.replace(/_/g, " ")}: {score}
+                                </li>
+                              ))}
+                          </ul>
+                          {nps.observations && (
+                            <p className="text-xs mt-2">
+                              <span className="font-medium">Observações:</span> {nps.observations}
+                            </p>
+                          )}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  ))}
+                  {client.nps_responses?.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-4">Nenhuma avaliação NPS.</p>
+                  )}
+                </Accordion>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Pagamentos</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="p-4 border rounded-lg bg-muted/30">
-            <h4 className="font-semibold mb-3">Próximo Pagamento</h4>
-            {employee.payment_day ? (
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">Data Prevista</p>
-                  <p className="font-medium">{nextPaymentDateFormatted}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Valor</p>
-                  <p className="font-medium">
-                    {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
-                      employee.salary || 0,
-                    )}
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground text-center">O dia de pagamento ainda não foi definido.</p>
-            )}
-          </div>
-          <Separator className="my-6" />
-          <h4 className="font-semibold mb-4">Histórico de Pagamentos</h4>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Data do Pagamento</TableHead>
-                <TableHead className="text-right">Valor</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {employee.employee_payments.length > 0 ? (
-                employee.employee_payments.map((payment: any) => (
-                  <TableRow key={payment.id}>
-                    <TableCell>
-                      {format(parseISO(payment.payment_date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(payment.amount)}
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={2} className="h-24 text-center text-muted-foreground">
-                    Nenhum pagamento registrado.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
     </div>
   )
 }
