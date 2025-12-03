@@ -1,4 +1,3 @@
-// Caminho: wesystem10/app/dashboard/clients/[id]/actions.ts
 "use server"
 
 import { createClient as createAdminClient } from "@supabase/supabase-js"
@@ -7,7 +6,7 @@ import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
 import { isNonRecurringService } from "@/lib/non-recurring-services"
 
-// --- Action para Serviço Pontual (MODIFICADA) ---
+// --- Action para Serviço Pontual ---
 const oneTimeServiceSchema = z.object({
   clientId: z.string().uuid("ID do cliente inválido."),
   name: z.string().min(1, "O nome do serviço é obrigatório."),
@@ -16,7 +15,6 @@ const oneTimeServiceSchema = z.object({
   status: z.enum(["pending", "completed", "cancelled"], {
     errorMap: () => ({ message: "Status inválido." }),
   }),
-  // services: z.string().optional(), // <-- CAMPO REMOVIDO DO SCHEMA
 })
 
 export async function addOneTimeService(formData: FormData) {
@@ -26,11 +24,7 @@ export async function addOneTimeService(formData: FormData) {
     const firstError = Object.values(validatedFields.error.flatten().fieldErrors).flat()[0]
     return { error: firstError || "Dados inválidos." }
   }
-  // 'services' removido da desestruturação
   const { clientId, name, value, date, status } = validatedFields.data
-
-  // Lógica do 'servicesArray' removida
-  // const servicesArray = services ? JSON.parse(services) : []
 
   const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
   const { error } = await supabaseAdmin.from("one_time_services").insert([
@@ -40,7 +34,6 @@ export async function addOneTimeService(formData: FormData) {
       value,
       date,
       status,
-      // 'services: servicesArray' removido do insert
     },
   ])
   if (error) {
@@ -49,46 +42,72 @@ export async function addOneTimeService(formData: FormData) {
   }
   revalidatePath(`/dashboard/clients/${clientId}`)
   revalidatePath("/dashboard/clients")
-  revalidatePath("/dashboard/financial") // Adicionado para garantir que o financeiro atualize
+  revalidatePath("/dashboard/financial")
   return { success: "Serviço pontual adicionado com sucesso!" }
 }
 
-// ... (Restante do arquivo 'actions.ts' sem alterações) ...
-
 // --- Action para o NPS Interno ---
+
+// Schema atualizado com chaves seguras (sem acentos/espaços)
 const npsSchema = z.object({
   clientId: z.string().uuid(),
-  // Validar cada categoria individualmente
-  "Conteúdos e Roteiros": z.coerce.number().min(0).max(10, "Nota deve ser entre 0 e 10"),
-  Audiovisual: z.coerce.number().min(0).max(10, "Nota deve ser entre 0 e 10"),
-  "Edição de Vídeos": z.coerce.number().min(0).max(10, "Nota deve ser entre 0 e 10"),
-  Design: z.coerce.number().min(0).max(10, "Nota deve ser entre 0 e 10"),
-  "Atendimento Assessor": z.coerce.number().min(0).max(10, "Nota deve ser entre 0 e 10"),
-  "Atendimento VideoMaker": z.coerce.number().min(0).max(10, "Nota deve ser entre 0 e 10"),
-  "Comunicação e Presença": z.coerce.number().min(0).max(10, "Nota deve ser entre 0 e 10"),
-  "Resultado da Parceria": z.coerce.number().min(0).max(10, "Nota deve ser entre 0 e 10"),
+  conteudos_roteiros: z.coerce.number().min(0).max(10, "Nota deve ser entre 0 e 10"),
+  audiovisual: z.coerce.number().min(0).max(10, "Nota deve ser entre 0 e 10"),
+  edicao_videos: z.coerce.number().min(0).max(10, "Nota deve ser entre 0 e 10"),
+  design: z.coerce.number().min(0).max(10, "Nota deve ser entre 0 e 10"),
+  atendimento_assessor: z.coerce.number().min(0).max(10, "Nota deve ser entre 0 e 10"),
+  atendimento_videomaker: z.coerce.number().min(0).max(10, "Nota deve ser entre 0 e 10"),
+  comunicacao_presenca: z.coerce.number().min(0).max(10, "Nota deve ser entre 0 e 10"),
+  resultado_parceria: z.coerce.number().min(0).max(10, "Nota deve ser entre 0 e 10"),
   observations: z.string().optional(),
 })
+
+// Mapeamento para converter de volta aos nomes legíveis antes de salvar no banco
+const categoryLabelMap: Record<string, string> = {
+  conteudos_roteiros: "Conteúdos e Roteiros",
+  audiovisual: "Audiovisual",
+  edicao_videos: "Edição de Vídeos",
+  design: "Design",
+  atendimento_assessor: "Atendimento Assessor",
+  atendimento_videomaker: "Atendimento VideoMaker",
+  comunicacao_presenca: "Comunicação e Presença",
+  resultado_parceria: "Resultado da Parceria",
+}
 
 export async function addNpsResponse(formData: FormData) {
   const rawData = Object.fromEntries(formData.entries())
   const validatedFields = npsSchema.safeParse(rawData)
+  
   if (!validatedFields.success) {
+    console.error("Zod Validation Error:", validatedFields.error);
     const firstError = Object.values(validatedFields.error.flatten().fieldErrors).flat()[0]
     return { error: firstError || "Dados inválidos. Verifique as notas." }
   }
-  const { clientId, observations, ...categoryScores } = validatedFields.data
-  const scores = Object.values(categoryScores)
-  const averageScore = scores.reduce((sum, score) => sum + score, 0) / scores.length
+
+  const { clientId, observations, ...slugScores } = validatedFields.data
+  
+  // Reconstrói o objeto category_scores com os nomes legíveis para o banco
+  const categoryScores: Record<string, number> = {}
+  let totalScore = 0
+  let count = 0
+
+  for (const [slug, score] of Object.entries(slugScores)) {
+    const label = categoryLabelMap[slug] || slug
+    categoryScores[label] = score
+    totalScore += score
+    count++
+  }
+
+  const averageScore = count > 0 ? totalScore / count : 0
 
   const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
   const { error } = await supabaseAdmin.from("nps_responses").insert([
     {
       client_id: clientId,
-      score: Math.round(averageScore), // Salva a média arredondada
-      category_scores: categoryScores, // Salva o JSON com as notas individuais
-      observations: observations || null, // Garante que seja null se vazio
-      response_date: new Date().toISOString().slice(0, 10), // Data atual YYYY-MM-DD
+      score: Math.round(averageScore),
+      category_scores: categoryScores,
+      observations: observations || null,
+      response_date: new Date().toISOString().slice(0, 10),
     },
   ])
   if (error) {
@@ -99,97 +118,76 @@ export async function addNpsResponse(formData: FormData) {
   return { success: "Avaliação NPS salva com sucesso!" }
 }
 
-// --- Action para Atualizar Informações Gerais do Cliente ---
-// VERIFIQUE ESTE SCHEMA E LÓGICA
+// ... (Restante do arquivo permanece inalterado: updateClient, updateClientNotes, addContract, etc.)
+// Mantenha o restante das funções abaixo exatamente como estavam no arquivo original para não quebrar outras funcionalidades.
+
 const updateClientSchema = z.object({
   clientId: z.string().uuid("ID do cliente inválido."),
   name: z.string().min(3, "O nome do cliente é obrigatório.").optional(),
   contact_email: z.string().email("Por favor, insira um email válido.").optional().or(z.literal("")),
-  contact_phone: z.string().optional().or(z.literal("")), // Poderia adicionar validação de formato de telefone
+  contact_phone: z.string().optional().or(z.literal("")),
   status: z.enum(["active", "inactive", "prospect"]).optional(),
   health_status: z.enum(["green", "yellow", "red"]).optional(),
-  cnpj: z.string().optional().or(z.literal("")), // Poderia adicionar validação de formato CNPJ
+  cnpj: z.string().optional().or(z.literal("")),
   address: z.string().optional().or(z.literal("")),
   credit_risk: z.string().optional().or(z.literal("")),
-  // Campos booleanos (pré-processamento para converter 'on'/undefined para boolean)
   has_traffic_service: z.preprocess((val) => val === "on", z.boolean()).optional(),
   ad_account_organized: z.preprocess((val) => val === "on", z.boolean()).optional(),
   ads_running: z.preprocess((val) => val === "on", z.boolean()).optional(),
-  // Campos de ID dos responsáveis (UUID opcional ou 'null' string ou null/undefined)
   assigned_assessor_id: z.string().uuid("ID de assessor inválido.").or(z.literal("null")).optional().nullable(),
   assigned_videomaker_id: z.string().uuid("ID de videomaker inválido.").or(z.literal("null")).optional().nullable(),
-  assigned_relationship_manager_id: z
-    .string()
-    .uuid("ID de gestor inválido.")
-    .or(z.literal("null"))
-    .optional()
-    .nullable(),
-  assigned_editor_id: z.string().uuid("ID de editor inválido.").or(z.literal("null")).optional().nullable(), // <-- ADICIONADO
+  assigned_relationship_manager_id: z.string().uuid("ID de gestor inválido.").or(z.literal("null")).optional().nullable(),
+  assigned_editor_id: z.string().uuid("ID de editor inválido.").or(z.literal("null")).optional().nullable(),
 })
 
 export async function updateClient(formData: FormData) {
   const rawFormData = Object.fromEntries(formData.entries())
 
-  // Trata explicitamente os valores 'null' (string) dos selects antes da validação
-  if (rawFormData.assigned_assessor_id === "null") {
-    rawFormData.assigned_assessor_id = null
-  }
-  if (rawFormData.assigned_videomaker_id === "null") {
-    rawFormData.assigned_videomaker_id = null
-  }
-  if (rawFormData.assigned_relationship_manager_id === "null") {
-    rawFormData.assigned_relationship_manager_id = null
-  }
-  if (rawFormData.assigned_editor_id === "null") { // <-- ADICIONADO
-    rawFormData.assigned_editor_id = null
-  }
+  if (rawFormData.assigned_assessor_id === "null") rawFormData.assigned_assessor_id = null
+  if (rawFormData.assigned_videomaker_id === "null") rawFormData.assigned_videomaker_id = null
+  if (rawFormData.assigned_relationship_manager_id === "null") rawFormData.assigned_relationship_manager_id = null
+  if (rawFormData.assigned_editor_id === "null") rawFormData.assigned_editor_id = null
 
   const validatedFields = updateClientSchema.safeParse(rawFormData)
 
   if (!validatedFields.success) {
-    console.error("Erro de validação Zod (updateClient):", validatedFields.error.flatten().fieldErrors)
     const firstError = Object.values(validatedFields.error.flatten().fieldErrors).flat()[0]
     return { error: firstError || "Dados inválidos." }
   }
 
-  // Extrai os campos validados
   const {
     clientId,
     has_traffic_service,
     ad_account_organized,
     ads_running,
-    assigned_assessor_id, // Já está como UUID ou null
-    assigned_videomaker_id, // Já está como UUID ou null
-    assigned_relationship_manager_id, // Já está como UUID ou null
-    assigned_editor_id, // <-- ADICIONADO
+    assigned_assessor_id,
+    assigned_videomaker_id,
+    assigned_relationship_manager_id,
+    assigned_editor_id,
     ...updateData
   } = validatedFields.data
 
-  // Monta o objeto final para atualização no banco
   const dataToUpdate: Record<string, any> = {
     ...updateData,
-    // Usa ?? false para garantir que o valor seja boolean (false se undefined/null)
     has_traffic_service: has_traffic_service ?? false,
     ad_account_organized: ad_account_organized ?? false,
     ads_running: ads_running ?? false,
-    // Inclui os IDs dos responsáveis (serão null se não selecionados)
     assigned_assessor_id: assigned_assessor_id,
     assigned_videomaker_id: assigned_videomaker_id,
     assigned_relationship_manager_id: assigned_relationship_manager_id,
-    assigned_editor_id: assigned_editor_id, // <-- ADICIONADO
-    updated_at: new Date().toISOString(), // Atualiza timestamp
+    assigned_editor_id: assigned_editor_id,
+    updated_at: new Date().toISOString(),
   }
 
   const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
-  // Busca o valor ANTERIOR dos responsáveis para revalidação
   let previousAssessorId: string | null = null
   let previousVideomakerId: string | null = null
   let previousManagerId: string | null = null
-  let previousEditorId: string | null = null // <-- ADICIONADO
+  let previousEditorId: string | null = null
   const { data: previousClientData } = await supabaseAdmin
     .from("clients")
-    .select("assigned_assessor_id, assigned_videomaker_id, assigned_relationship_manager_id, assigned_editor_id") // <-- ADICIONADO
+    .select("assigned_assessor_id, assigned_videomaker_id, assigned_relationship_manager_id, assigned_editor_id")
     .eq("id", clientId)
     .maybeSingle()
 
@@ -197,48 +195,42 @@ export async function updateClient(formData: FormData) {
     previousAssessorId = previousClientData.assigned_assessor_id
     previousVideomakerId = previousClientData.assigned_videomaker_id
     previousManagerId = previousClientData.assigned_relationship_manager_id
-    previousEditorId = previousClientData.assigned_editor_id // <-- ADICIONADO
+    previousEditorId = previousClientData.assigned_editor_id
   }
 
-  // Atualiza o cliente
   const { error } = await supabaseAdmin
     .from("clients")
-    .update(dataToUpdate) // Atualiza com os dados preparados
-    .eq("id", clientId) // Filtra pelo ID do cliente
+    .update(dataToUpdate)
+    .eq("id", clientId)
 
   if (error) {
     console.error("Erro Supabase (updateClient):", error)
     return { error: `Ocorreu um erro no banco de dados: ${error.message}` }
   }
 
-  // Revalida (limpa cache) das páginas relevantes
-  revalidatePath(`/dashboard/clients/${clientId}`) // Página do cliente atual
-  revalidatePath("/dashboard/clients") // Lista de clientes
-  // Revalida a página do assessor/videomaker/editor/gestor ATUAL se o ID foi definido/alterado
+  revalidatePath(`/dashboard/clients/${clientId}`)
+  revalidatePath("/dashboard/clients")
   if (assigned_assessor_id) revalidatePath(`/dashboard/team/${assigned_assessor_id}`)
   if (assigned_videomaker_id) revalidatePath(`/dashboard/team/${assigned_videomaker_id}`)
   if (assigned_relationship_manager_id) revalidatePath(`/dashboard/team/${assigned_relationship_manager_id}`)
-  if (assigned_editor_id) revalidatePath(`/dashboard/team/${assigned_editor_id}`) // <-- ADICIONADO
+  if (assigned_editor_id) revalidatePath(`/dashboard/team/${assigned_editor_id}`)
   
-  // Revalida a página do assessor/videomaker/editor/gestor ANTERIOR se ele foi removido ou alterado
   if (previousAssessorId && previousAssessorId !== assigned_assessor_id)
     revalidatePath(`/dashboard/team/${previousAssessorId}`)
   if (previousVideomakerId && previousVideomakerId !== assigned_videomaker_id)
     revalidatePath(`/dashboard/team/${previousVideomakerId}`)
   if (previousManagerId && previousManagerId !== assigned_relationship_manager_id)
     revalidatePath(`/dashboard/team/${previousManagerId}`)
-  if (previousEditorId && previousEditorId !== assigned_editor_id) // <-- ADICIONADO
+  if (previousEditorId && previousEditorId !== assigned_editor_id)
     revalidatePath(`/dashboard/team/${previousEditorId}`)
 
   return { success: "Cliente atualizado com sucesso!" }
 }
-// --- FIM DA VERIFICAÇÃO ---
 
-// --- Action para Atualizar Notas e Objetivos do Cliente ---
 const updateClientNotesSchema = z.object({
   clientId: z.string().uuid(),
-  client_notes: z.string().optional().or(z.literal("")), // Permite string vazia
-  objectives: z.string().optional().or(z.literal("")), // Permite string vazia
+  client_notes: z.string().optional().or(z.literal("")),
+  objectives: z.string().optional().or(z.literal("")),
 })
 
 export async function updateClientNotes(formData: FormData) {
@@ -252,7 +244,6 @@ export async function updateClientNotes(formData: FormData) {
   const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
   const { error } = await supabaseAdmin
     .from("clients")
-    // Salva null se a string for vazia, senão salva a string
     .update({ client_notes: client_notes || null, objectives: objectives || null })
     .eq("id", clientId)
   if (error) {
@@ -263,7 +254,6 @@ export async function updateClientNotes(formData: FormData) {
   return { success: "Notas e objetivos atualizados!" }
 }
 
-// --- Action para Adicionar Contrato ---
 const addContractSchema = z.object({
   clientId: z.string().uuid(),
   contract_name: z.string().min(3, "O nome do contrato é obrigatório."),
@@ -271,7 +261,7 @@ const addContractSchema = z.object({
   start_date: z.string().min(1, "A data de início é obrigatória."),
   end_date: z.string().optional().or(z.literal("")),
   contract_file: z.instanceof(File).optional(),
-  services: z.string().optional(), // JSON string de serviços
+  services: z.string().optional(),
 })
 
 export async function addContract(formData: FormData) {
@@ -294,7 +284,6 @@ export async function addContract(formData: FormData) {
 
   const servicesArray = services ? JSON.parse(services) : []
 
-  // 1. Upload do arquivo (se existir)
   let contractPath = null
   if (contract_file && contract_file.size > 0) {
     const supabase = await createClient()
@@ -311,13 +300,11 @@ export async function addContract(formData: FormData) {
     contractPath = filePath
   }
 
-  // 2. Insere dados na tabela 'contracts'
   const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
   let insertedContract
   let insertError
 
-  // Primeiro tenta com services
   const insertData: any = {
     client_id: clientId,
     name: contract_name,
@@ -328,7 +315,6 @@ export async function addContract(formData: FormData) {
     status: "active",
   }
 
-  // Tenta incluir services se foi fornecido
   if (servicesArray.length > 0) {
     insertData.services = servicesArray
   }
@@ -338,7 +324,6 @@ export async function addContract(formData: FormData) {
   insertedContract = result.data
   insertError = result.error
 
-  // Se falhou por causa da coluna services não existir, tenta sem ela
   if (insertError && insertError.message?.includes("services")) {
     delete insertData.services
     const retryResult = await supabaseAdmin.from("contracts").insert(insertData).select().single()
@@ -367,7 +352,6 @@ export async function addContract(formData: FormData) {
       await supabaseAdmin.from("contract_deliverables").insert(deliverables)
     } catch (error) {
       console.error("Erro ao criar deliverables (tabela pode não existir ainda):", error)
-      // Não retorna erro, apenas loga - o contrato já foi criado
     }
   }
 
@@ -408,7 +392,6 @@ export async function updateDeliverable(data: { deliverableId: string; clientId:
   return { success: "Status de entrega atualizado!" }
 }
 
-// --- Action para Atualizar Status do Serviço Pontual ---
 const updateServiceStatusSchema = z.object({
   serviceId: z.string().uuid(),
   clientId: z.string().uuid(),
@@ -429,25 +412,24 @@ export async function updateServiceStatus(data: {
   const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
   const { error } = await supabaseAdmin
     .from("one_time_services")
-    .update({ status: status }) // Atualiza apenas o status
+    .update({ status: status })
     .eq("id", serviceId)
   if (error) {
     console.error("Erro Supabase (updateServiceStatus):", error)
     return { error: `Não foi possível atualizar o status: ${error.message}` }
   }
   revalidatePath(`/dashboard/clients/${clientId}`)
-  revalidatePath("/dashboard/clients") // Revalida lista se o status afetar algum cálculo geral
+  revalidatePath("/dashboard/clients")
   return { success: "Status do serviço atualizado com sucesso!" }
 }
 
-// --- Action para Atualizar Contrato ---
 const updateContractSchema = z.object({
   contractId: z.string().uuid(),
   name: z.string().min(3, "O nome do contrato é obrigatório."),
-  valor_mensal: z.coerce.number().min(0).optional(), // Valor opcional
+  valor_mensal: z.coerce.number().min(0).optional(),
   start_date: z.string().min(1, "A data de início é obrigatória."),
-  end_date: z.string().optional().or(z.literal("")), // Fim opcional
-  status: z.enum(["active", "inactive"]), // Status obrigatório
+  end_date: z.string().optional().or(z.literal("")),
+  status: z.enum(["active", "inactive"]),
 })
 
 export async function updateContract(formData: FormData) {
@@ -461,26 +443,24 @@ export async function updateContract(formData: FormData) {
 
   const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
-  // 1. Busca o client_id associado ao contrato (necessário para revalidar a página do cliente)
   const { data: contract, error: fetchError } = await supabaseAdmin
     .from("contracts")
     .select("client_id")
     .eq("id", contractId)
-    .single() // Espera encontrar exatamente um
+    .single()
 
   if (fetchError || !contract) {
     console.error("Erro ao buscar contrato para atualização:", fetchError)
     return { error: "Contrato não encontrado ou erro ao buscar." }
   }
 
-  // 2. Atualiza o contrato
   const { error: updateError } = await supabaseAdmin
     .from("contracts")
     .update({
       name,
-      valor_mensal: valor_mensal || 0, // Usa 0 se não fornecido
-      start_date, // Garanta YYYY-MM-DD
-      end_date: end_date || null, // Salva null se vazio
+      valor_mensal: valor_mensal || 0,
+      start_date,
+      end_date: end_date || null,
       status,
     })
     .eq("id", contractId)
@@ -490,24 +470,21 @@ export async function updateContract(formData: FormData) {
     return { error: `Não foi possível atualizar o contrato: ${updateError.message}` }
   }
 
-  revalidatePath(`/dashboard/clients/${contract.client_id}`) // Revalida a página do cliente
-  revalidatePath("/dashboard/clients") // Revalida a lista
+  revalidatePath(`/dashboard/clients/${contract.client_id}`)
+  revalidatePath("/dashboard/clients")
   return { success: "Contrato atualizado com sucesso!" }
 }
 
-// --- ACTIONS PARA GERENCIAR CONTATOS DO CLIENTE ---
 const contactSchema = z.object({
   name: z.string().min(3, "O nome é obrigatório."),
-  role: z.string().optional().nullable(), // Cargo opcional
-  email: z.string().email("Email inválido.").optional().or(z.literal("")), // Email opcional e pode ser vazio
-  phone: z.string().optional().nullable(), // Telefone opcional
-  birth_date: z.string().optional().or(z.literal("")).nullable(), // Data opcional (validar formato se necessário)
+  role: z.string().optional().nullable(),
+  email: z.string().email("Email inválido.").optional().or(z.literal("")),
+  phone: z.string().optional().nullable(),
+  birth_date: z.string().optional().or(z.literal("")).nullable(),
 })
 
-// Adicionar contato
 export async function addClientContact(formData: FormData) {
   const clientId = formData.get("clientId") as string
-  // Remove clientId antes de validar o restante com o schema
   formData.delete("clientId")
   const validatedFields = contactSchema.safeParse(Object.fromEntries(formData))
 
@@ -520,10 +497,10 @@ export async function addClientContact(formData: FormData) {
   const { error } = await supabaseAdmin.from("client_contacts").insert({
     client_id: clientId,
     name,
-    role: role || null, // Salva null se vazio
+    role: role || null,
     email: email || null,
     phone: phone || null,
-    birth_date: birth_date || null, // Salva null se vazio (garanta formato YYYY-MM-DD se fornecido)
+    birth_date: birth_date || null,
   })
   if (error) {
     console.error("Erro Supabase (addClientContact):", error)
@@ -533,11 +510,9 @@ export async function addClientContact(formData: FormData) {
   return { success: "Contato adicionado com sucesso." }
 }
 
-// Atualizar contato
 export async function updateClientContact(formData: FormData) {
   const contactId = formData.get("contactId") as string
   const clientId = formData.get("clientId") as string
-  // Remove IDs antes de validar o restante
   formData.delete("contactId")
   formData.delete("clientId")
   const validatedFields = contactSchema.safeParse(Object.fromEntries(formData))
@@ -555,9 +530,9 @@ export async function updateClientContact(formData: FormData) {
       role: role || null,
       email: email || null,
       phone: phone || null,
-      birth_date: birth_date || null, // Garanta formato YYYY-MM-DD se fornecido
+      birth_date: birth_date || null,
     })
-    .eq("id", contactId) // Filtra pelo ID do contato
+    .eq("id", contactId)
   if (error) {
     console.error("Erro Supabase (updateClientContact):", error)
     return { error: `Erro ao atualizar contato: ${error.message}` }
@@ -566,11 +541,9 @@ export async function updateClientContact(formData: FormData) {
   return { success: "Contato atualizado com sucesso." }
 }
 
-// Deletar contato
 export async function deleteClientContact(formData: FormData) {
   const contactId = formData.get("contactId") as string
   const clientId = formData.get("clientId") as string
-  // Validação simples dos IDs (verifica se são UUIDs válidos)
   if (
     !contactId ||
     !clientId ||
@@ -580,7 +553,7 @@ export async function deleteClientContact(formData: FormData) {
     return { error: "IDs inválidos." }
   }
   const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-  const { error } = await supabaseAdmin.from("client_contacts").delete().eq("id", contactId) // Deleta pelo ID do contato
+  const { error } = await supabaseAdmin.from("client_contacts").delete().eq("id", contactId)
   if (error) {
     console.error("Erro Supabase (deleteClientContact):", error)
     return { error: `Erro ao deletar contato: ${error.message}` }
@@ -589,7 +562,6 @@ export async function deleteClientContact(formData: FormData) {
   return { success: "Contato removido com sucesso." }
 }
 
-// --- Action para Alternar Entrega de Serviço ---
 const toggleServiceDeliverySchema = z.object({
   contractId: z.string().uuid(),
   clientId: z.string().uuid(),
@@ -612,7 +584,6 @@ export async function toggleServiceDelivery(data: {
   const { contractId, clientId, serviceName, currentStatus } = validatedFields.data
   const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
-  // Verifica se já existe um deliverable para este serviço
   const { data: existingDeliverable } = await supabaseAdmin
     .from("contract_deliverables")
     .select("id")
@@ -621,7 +592,6 @@ export async function toggleServiceDelivery(data: {
     .maybeSingle()
 
   if (existingDeliverable) {
-    // Atualiza o status existente
     const newStatus = !currentStatus
     const { error } = await supabaseAdmin
       .from("contract_deliverables")
@@ -636,7 +606,6 @@ export async function toggleServiceDelivery(data: {
       return { error: `Não foi possível atualizar: ${error.message}` }
     }
   } else {
-    // Cria um novo deliverable
     const { error } = await supabaseAdmin.from("contract_deliverables").insert({
       contract_id: contractId,
       service_name: serviceName,

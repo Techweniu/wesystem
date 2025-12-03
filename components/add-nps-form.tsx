@@ -20,12 +20,19 @@ import { addNpsResponse } from "@/app/dashboard/clients/[id]/actions"
 import { toast } from "sonner"
 import { PlusCircle } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { useRole } from "@/app/dashboard/layout" // --- ALTERAÇÃO
+import { useRole } from "@/app/dashboard/layout"
 
+// Mapeamento seguro: ID técnico vs Rótulo de exibição
 const npsCategories = [
-  "Conteúdos e Roteiros", "Audiovisual", "Edição de Vídeos", "Design",
-  "Atendimento Assessor", "Atendimento VideoMaker", "Comunicação e Presença", "Resultado da Parceria"
-];
+  { id: "conteudos_roteiros", label: "Conteúdos e Roteiros" },
+  { id: "audiovisual", label: "Audiovisual" },
+  { id: "edicao_videos", label: "Edição de Vídeos" },
+  { id: "design", label: "Design" },
+  { id: "atendimento_assessor", label: "Atendimento Assessor" },
+  { id: "atendimento_videomaker", label: "Atendimento VideoMaker" },
+  { id: "comunicacao_presenca", label: "Comunicação e Presença" },
+  { id: "resultado_parceria", label: "Resultado da Parceria" },
+]
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -33,14 +40,12 @@ function SubmitButton() {
 }
 
 export function AddNpsForm({ clientId }: { clientId: string }) {
-  const userRole = useRole(); // --- ALTERAÇÃO
+  const userRole = useRole();
   const [open, setOpen] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
 
-  // --- ALTERAÇÃO ---
   if (userRole === "limited") return null;
-  // ----------------
 
   async function handleFormSubmit(formData: FormData) {
     formData.append('clientId', clientId);
@@ -61,7 +66,6 @@ export function AddNpsForm({ clientId }: { clientId: string }) {
       <DialogTrigger asChild>
         <Button size="sm"><PlusCircle className="mr-2 h-4 w-4" />Adicionar NPS</Button>
       </DialogTrigger>
-      {/* ... conteúdo do dialog (omitido, sem alterações) ... */}
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Registrar Avaliação NPS</DialogTitle>
@@ -71,9 +75,17 @@ export function AddNpsForm({ clientId }: { clientId: string }) {
           <div className="max-h-[60vh] overflow-y-auto pr-4">
             <div className="grid gap-4">
               {npsCategories.map((category) => (
-                <div key={category} className="grid grid-cols-3 items-center gap-4">
-                  <Label htmlFor={category} className="col-span-2">{category}*</Label>
-                  <Input id={category} name={category} type="number" min="0" max="10" required className="col-span-1" />
+                <div key={category.id} className="grid grid-cols-3 items-center gap-4">
+                  <Label htmlFor={category.id} className="col-span-2">{category.label}*</Label>
+                  <Input 
+                    id={category.id} 
+                    name={category.id} // Usa o ID seguro (sem acentos)
+                    type="number" 
+                    min="0" 
+                    max="10" 
+                    required 
+                    className="col-span-1" 
+                  />
                 </div>
               ))}
               <div className="grid gap-2">
