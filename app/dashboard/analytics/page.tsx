@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { NpsQuadrantChart } from "@/components/nps-quadrant-chart"
 import { TeamAllocationChart } from "@/components/team-allocation-chart"
 import { ProfitabilityChart } from "@/components/profitability-chart"
@@ -33,15 +33,21 @@ async function getAnalyticsData() {
     .select("id, name, role, salary, status")
     .eq("status", "active")
 
-  if (!clients || !employees) return { clients: [], employees: [], profitabilityData: [] }
+  if (!clients || !employees) return { 
+    clients: [], 
+    employees: [], 
+    profitabilityData: [], 
+    npsData: [], 
+    npsSummary: { detractors: 0, passives: 0, promoters: 0 },
+    rankedClients: [],
+    employeeLoad: {} 
+  }
 
   // --- PROCESSAMENTO DE DADOS ---
 
-  // A. Mapa de Custo por Funcionário (Rateio)
-  // Calcula quantos clientes cada funcionário atende para dividir o salário
+  // A. Mapa de Carga por Funcionário
   const employeeLoad: Record<string, number> = {}
   
-  // Conta quantos clientes cada um tem
   clients.forEach(client => {
     const roles = [
       client.assigned_assessor_id,
@@ -54,14 +60,12 @@ async function getAnalyticsData() {
     })
   })
 
-  // B. Cálculo de Lucratividade por Cliente
+  // B. Cálculo de Lucratividade
   const profitabilityData = clients.map(client => {
-    // 1. Receita (Soma de contratos ativos)
     const revenue = client.contracts
       ?.filter(c => c.status === 'active')
       .reduce((sum, c) => sum + Number(c.valor_mensal), 0) || 0
 
-    // 2. Custo (Soma do rateio dos funcionários atribuídos)
     let cost = 0
     const assignedIds = [
       client.assigned_assessor_id,
@@ -72,15 +76,12 @@ async function getAnalyticsData() {
 
     assignedIds.forEach(empId => {
       const emp = employees.find(e => e.id === empId)
-      const load = employeeLoad[empId] || 1 // Evita divisão por zero
+      const load = employeeLoad[empId] || 1
       if (emp && emp.salary) {
-        cost += (emp.salary / load) // Rateio simples
+        cost += (emp.salary / load)
       }
     })
 
-    // Adiciona uma margem de custo operacional fixo (ex: 20% da receita ou valor fixo)
-    // Aqui assumiremos apenas custo de equipe para ser exato com os dados que temos.
-    
     return {
       name: client.name,
       revenue,
@@ -88,10 +89,12 @@ async function getAnalyticsData() {
       profit: revenue - cost,
       margin: revenue > 0 ? ((revenue - cost) / revenue) * 100 : 0
     }
-  }).sort((a, b) => a.profit - b.profit) // Ordena do menor lucro (ou prejuízo) para o maior
+  }).sort((a, b) => a.profit - b.profit)
 
-  // C. Preparar dados para NPS Quadrant
-  const npsData = clients.map(client => {
+  // C. Preparar dados NPS
+  const npsSummary = { detractors: 0, passives: 0, promoters: 0 }
+  
+  const clientsWithNps = clients.map(client => {
     const activeContractValue = client.contracts
       ?.filter(c => c.status === 'active')
       .reduce((sum, c) => sum + Number(c.valor_mensal), 0) || 0
@@ -101,25 +104,54 @@ async function getAnalyticsData() {
       new Date(b.response_date).getTime() - new Date(a.response_date).getTime()
     )[0]?.score
 
-    return {
-      name: client.name,
-      x: latestNps || 0, // Nota NPS
-      y: activeContractValue, // Valor MRR
-      z: 10 // Tamanho da bolha fixo ou baseado em tempo de casa
+    // Calcula resumo
+    if (latestNps !== undefined) {
+      if (latestNps <= 7) npsSummary.detractors++
+      else if (latestNps === 8) npsSummary.passives++
+      else npsSummary.promoters++
     }
-  }).filter(d => d.x > 0 && d.y > 0) // Remove quem não tem NPS ou Receita
+
+    return {
+      id: client.id,
+      name: client.name,
+      latestNps,
+      x: latestNps, 
+      y: activeContractValue,
+      z: 10
+    }
+  })
+
+  // Filtra para o gráfico de quadrantes (precisa ter NPS e Receita)
+  // Nota: x !== undefined permite nota 0
+  const npsChartData = clientsWithNps
+    .filter(d => d.x !== undefined && d.y > 0)
+    .map(d => ({ name: d.name, x: d.x as number, y: d.y, z: d.z }))
+
+  // Filtra para a lista de ranqueamento (apenas quem tem NPS)
+  const rankedClients = clientsWithNps
+    .filter(c => c.latestNps !== undefined)
+    .sort((a, b) => (a.latestNps as number) - (b.latestNps as number))
 
   return {
     clients,
     employees,
     profitabilityData,
-    npsData,
-    employeeLoad // Para o gráfico de alocação
+    npsData: npsChartData,
+    npsSummary,
+    rankedClients,
+    employeeLoad
   }
 }
 
 export default async function AnalyticsPage() {
-  const { profitabilityData, npsData, employees, employeeLoad } = await getAnalyticsData()
+  const { 
+    profitabilityData, 
+    npsData, 
+    employees, 
+    employeeLoad,
+    npsSummary,
+    rankedClients
+  } = await getAnalyticsData()
 
   // Resumo Rápido
   const totalRevenue = profitabilityData.reduce((acc, curr) => acc + curr.revenue, 0)
@@ -192,50 +224,36 @@ export default async function AnalyticsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-             <NpsQuadrantChart data={npsData} />
+             {npsData.length > 0 ? (
+               <NpsQuadrantChart data={npsData} />
+             ) : (
+               <div className="flex h-[300px] items-center justify-center text-muted-foreground border border-dashed rounded-lg">
+                 Insuficiente dados de NPS e Receita para gerar a matriz.
+               </div>
+             )}
           </CardContent>
         </Card>
 
         {/* Gráfico de Lucratividade */}
         <Card className="col-span-1">
-          <CardHeader>
-            <CardTitle>Top Lucratividade vs. Custo</CardTitle>
-            <CardDescription>
-              Análise de Receita (Verde) vs Custo de Equipe Rateado (Preto).
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ProfitabilityChart data={profitabilityData.slice(-10)} /> {/* Mostra os top 10 ou últimos */}
-          </CardContent>
+          {/* Mostra os top 10 ou últimos, invertendo para mostrar maiores receitas primeiro se preferir */}
+          <ProfitabilityChart data={profitabilityData.slice(-10)} /> 
         </Card>
       </div>
 
-      {/* Alocação de Equipe */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Alocação de Equipe</CardTitle>
-          <CardDescription>Quantidade de clientes ativos por colaborador.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <TeamAllocationChart 
-            data={employees.map(e => ({
-              name: e.name,
-              role: e.role,
-              clients: employeeLoad[e.id] || 0
-            })).sort((a,b) => b.clients - a.clients)} 
-          />
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Alocação de Equipe */}
+        <TeamAllocationChart 
+          data={employees.map(e => ({
+            name: e.name,
+            role: e.role,
+            clients: employeeLoad[e.id] || 0
+          }))} 
+        />
 
-      {/* Tabela Resumo NPS */}
-      <Card>
-        <CardHeader>
-           <CardTitle>Resumo de Avaliações NPS</CardTitle>
-        </CardHeader>
-        <CardContent>
-           <NpsScoreSummaryTable npsData={npsData} />
-        </CardContent>
-      </Card>
+        {/* Tabela Resumo NPS */}
+        <NpsScoreSummaryTable data={npsSummary} rankedClients={rankedClients} />
+      </div>
     </div>
   )
 }
