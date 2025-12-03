@@ -1,109 +1,213 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
+import { z } from "zod"
+import { cookies } from "next/headers" // Necessário para ler o cookie de segurança
+
+// --- FUNÇÃO AUXILIAR DE SEGURANÇA ---
+function checkAdminPermission() {
+  const role = cookies().get("user_role")?.value
+  if (role !== "admin") {
+    throw new Error("Acesso negado: Você não tem permissão para realizar operações comerciais.")
+  }
+}
+// ------------------------------------
+
+// Schemas Zod
+const goalSchema = z.object({
+  title: z.string().min(1, "O título é obrigatório."),
+  type: z.enum(["revenue", "clients", "upsell_value", "churn_rate"]),
+  target_value: z.coerce.number().min(0, "O valor da meta deve ser positivo."),
+  current_value: z.coerce.number().min(0).default(0),
+  deadline: z.string().min(1, "A data limite é obrigatória."),
+})
+
+const upsellSchema = z.object({
+  client_id: z.string().uuid("ID do cliente inválido."),
+  status: z.enum(["identified", "negotiating", "closed", "lost"]),
+  services: z.array(z.string()).optional(),
+  notes: z.string().optional(),
+  identified_date: z.string().min(1, "Data é obrigatória."),
+})
+
+// --- ACTIONS DE METAS ---
 
 export async function addCommercialGoal(formData: FormData) {
-  const supabase = await createClient()
+  try {
+    checkAdminPermission() // <--- PROTEÇÃO
 
-  const periodType = formData.get("period_type") as string
-  const periodStart = formData.get("period_start") as string
-  const periodEnd = formData.get("period_end") as string
-  const targetValue = Number.parseFloat(formData.get("target_value") as string)
-  const description = formData.get("description") as string
+    const rawData = {
+      title: formData.get("title"),
+      type: formData.get("type"),
+      target_value: formData.get("target_value"),
+      current_value: formData.get("current_value"),
+      deadline: formData.get("deadline"),
+    }
 
-  const { error } = await supabase.from("commercial_goals").insert({
-    period_type: periodType,
-    period_start: periodStart,
-    period_end: periodEnd,
-    target_value: targetValue,
-    description: description || null,
-  })
+    const validatedFields = goalSchema.safeParse(rawData)
 
-  if (error) {
-    console.error("Erro ao adicionar meta:", error)
-    return { success: false, error: error.message }
+    if (!validatedFields.success) {
+      return { success: false, error: "Dados inválidos. Verifique os campos." }
+    }
+
+    const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+
+    const { error } = await supabaseAdmin.from("commercial_goals").insert({
+      ...validatedFields.data,
+      created_at: new Date().toISOString(),
+    })
+
+    if (error) throw error
+
+    revalidatePath("/dashboard/commercial")
+    return { success: true, message: "Meta criada com sucesso!" }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Erro desconhecido" }
   }
+}
 
-  revalidatePath("/dashboard/commercial")
-  return { success: true }
+export async function updateCommercialGoal(goalId: string, formData: FormData) {
+  try {
+    checkAdminPermission() // <--- PROTEÇÃO
+
+    const rawData = {
+      title: formData.get("title"),
+      type: formData.get("type"),
+      target_value: formData.get("target_value"),
+      current_value: formData.get("current_value"),
+      deadline: formData.get("deadline"),
+    }
+
+    const validatedFields = goalSchema.safeParse(rawData)
+
+    if (!validatedFields.success) return { success: false, error: "Dados inválidos." }
+
+    const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+
+    const { error } = await supabaseAdmin
+      .from("commercial_goals")
+      .update(validatedFields.data)
+      .eq("id", goalId)
+
+    if (error) throw error
+
+    revalidatePath("/dashboard/commercial")
+    return { success: true, message: "Meta atualizada com sucesso!" }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Erro desconhecido" }
+  }
 }
 
 export async function deleteCommercialGoal(goalId: string) {
-  const supabase = await createClient()
+  try {
+    checkAdminPermission() // <--- PROTEÇÃO
 
-  const { error } = await supabase.from("commercial_goals").delete().eq("id", goalId)
+    const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const { error } = await supabaseAdmin.from("commercial_goals").delete().eq("id", goalId)
 
-  if (error) {
-    console.error("Erro ao deletar meta:", error)
-    return { success: false, error: error.message }
+    if (error) throw error
+
+    revalidatePath("/dashboard/commercial")
+    return { success: true, message: "Meta removida com sucesso!" }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Erro desconhecido" }
   }
-
-  revalidatePath("/dashboard/commercial")
-  return { success: true }
 }
+
+// --- ACTIONS DE UPSELL (FUNIL) ---
 
 export async function addClientUpsell(formData: FormData) {
-  const supabase = await createClient()
+  try {
+    checkAdminPermission() // <--- PROTEÇÃO
 
-  const clientId = formData.get("client_id") as string
-  const status = formData.get("status") as string
-  const identifiedDate = formData.get("identified_date") as string
-  const notes = formData.get("notes") as string
-  const servicesJson = formData.get("services") as string
+    // Processa os serviços (checkboxes múltiplos)
+    const services = formData.getAll("service_ids[]") as string[]
 
-  const services = servicesJson ? JSON.parse(servicesJson) : []
+    const rawData = {
+      client_id: formData.get("client_id"),
+      status: formData.get("status"),
+      services: services,
+      notes: formData.get("notes"),
+      identified_date: formData.get("identified_date"),
+    }
 
-  const dataToInsert = {
-    client_id: clientId,
-    status: status || "identified",
-    identified_date: identifiedDate,
-    notes: notes || null,
-    services,
-    description: notes || "", // Temporary: backward compatibility until migration runs
-    estimated_value: 0, // Temporary: backward compatibility until migration runs
-    next_action: null, // Temporary: backward compatibility until migration runs
+    const validatedFields = upsellSchema.safeParse(rawData)
+
+    if (!validatedFields.success) {
+      console.error(validatedFields.error)
+      return { success: false, error: "Dados inválidos." }
+    }
+
+    const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+
+    // Busca nomes dos serviços para salvar no array de texto (simplificação)
+    let serviceNames: string[] = []
+    if (services.length > 0) {
+      const { data: servicesData } = await supabaseAdmin
+        .from("services")
+        .select("name")
+        .in("id", services)
+      
+      if (servicesData) {
+        serviceNames = servicesData.map(s => s.name)
+      }
+    }
+
+    const { error } = await supabaseAdmin.from("client_upsells").insert({
+      client_id: validatedFields.data.client_id,
+      status: validatedFields.data.status,
+      services: serviceNames, // Salva nomes, mas idealmente seria relação N:N
+      notes: validatedFields.data.notes,
+      identified_date: validatedFields.data.identified_date,
+    })
+
+    if (error) throw error
+
+    revalidatePath("/dashboard/clients")
+    revalidatePath(`/dashboard/clients/${validatedFields.data.client_id}`)
+    revalidatePath("/dashboard/commercial")
+    return { success: true, message: "Oportunidade adicionada!" }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Erro desconhecido" }
   }
-
-  const { data, error } = await supabase.from("client_upsells").insert(dataToInsert).select()
-
-  if (error) {
-    console.error("Erro ao adicionar upsell:", error)
-    return { success: false, error: error.message }
-  }
-
-  revalidatePath("/dashboard/commercial")
-  revalidatePath("/dashboard/clients")
-  return { success: true }
 }
 
-export async function updateUpsellStatus(upsellId: string, status: string) {
-  const supabase = await createClient()
+export async function updateUpsellStatus(upsellId: string, newStatus: string) {
+  try {
+    checkAdminPermission() // <--- PROTEÇÃO
 
-  const { error } = await supabase
-    .from("client_upsells")
-    .update({ status, updated_at: new Date().toISOString() })
-    .eq("id", upsellId)
+    const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
-  if (error) {
-    console.error("Erro ao atualizar status do upsell:", error)
-    return { success: false, error: error.message }
+    const { error } = await supabaseAdmin
+      .from("client_upsells")
+      .update({ status: newStatus })
+      .eq("id", upsellId)
+
+    if (error) throw error
+
+    revalidatePath("/dashboard/commercial")
+    revalidatePath("/dashboard/clients")
+    return { success: true, message: "Status atualizado!" }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Erro desconhecido" }
   }
-
-  revalidatePath("/dashboard/commercial")
-  return { success: true }
 }
 
 export async function deleteClientUpsell(upsellId: string) {
-  const supabase = await createClient()
+  try {
+    checkAdminPermission() // <--- PROTEÇÃO
 
-  const { error } = await supabase.from("client_upsells").delete().eq("id", upsellId)
+    const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
-  if (error) {
-    console.error("Erro ao deletar upsell:", error)
-    return { success: false, error: error.message }
+    const { error } = await supabaseAdmin.from("client_upsells").delete().eq("id", upsellId)
+
+    if (error) throw error
+
+    revalidatePath("/dashboard/commercial")
+    revalidatePath("/dashboard/clients")
+    return { success: true, message: "Oportunidade removida!" }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Erro desconhecido" }
   }
-
-  revalidatePath("/dashboard/commercial")
-  return { success: true }
 }

@@ -8,41 +8,36 @@ import { Label } from "@/components/ui/label"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { toast } from "sonner"
-
-// Senhas para os dois níveis de acesso
-const MASTER_PASSWORD = "uinew"
-const LIMITED_PASSWORD = "weniu"
+import { loginAction } from "./actions" // Importa a ação segura
 
 export default function LoginPage() {
-  const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSubmit = async (formData: FormData) => {
     setIsLoading(true)
+    
+    // Chama a Server Action (nada de senha no cliente!)
+    const result = await loginAction(formData)
 
-    // Função auxiliar para definir cookie (válido por 7 dias)
-    const setCookie = (name: string, value: string) => {
-      const date = new Date();
-      date.setTime(date.getTime() + (7 * 24 * 60 * 60 * 1000));
-      const expires = "expires=" + date.toUTCString();
-      document.cookie = name + "=" + value + ";" + expires + ";path=/";
-    }
-
-    if (password === MASTER_PASSWORD) {
-      localStorage.setItem("userRole", "admin")
-      setCookie("user_role", "admin") // --- NOVO: Grava Cookie para o Server Action ler
-      toast.success("Login (Diretoria) realizado com sucesso!")
-      router.push("/dashboard")
-    } else if (password === LIMITED_PASSWORD) {
-      localStorage.setItem("userRole", "limited")
-      setCookie("user_role", "limited") // --- NOVO: Grava Cookie
-      toast.success("Login realizado com sucesso!")
-      router.push("/dashboard/accesses")
-    } else {
-      toast.error("Chave de acesso incorreta.")
+    if (result.error) {
+      toast.error(result.error)
       setIsLoading(false)
+    } else {
+      // Sucesso!
+      // Ainda gravamos no localStorage APENAS para controle de UI (esconder menus),
+      // mas a segurança real agora está no Cookie HttpOnly que o servidor criou.
+      if (result.role) {
+        localStorage.setItem("userRole", result.role)
+      }
+
+      if (result.role === "admin") {
+        toast.success("Login (Diretoria) realizado com sucesso!")
+        router.push("/dashboard")
+      } else {
+        toast.success("Login realizado com sucesso!")
+        router.push("/dashboard/accesses")
+      }
     }
   }
 
@@ -59,17 +54,18 @@ export default function LoginPage() {
             <CardDescription>Digite a chave de acesso para continuar</CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleLogin}>
+            {/* Usamos a action diretamente no form para progressão progressiva, 
+                mas controlamos o submit para feedback visual (loading) */}
+            <form action={handleSubmit}>
               <div className="flex flex-col gap-6">
                 <div className="grid gap-2">
                   <Label htmlFor="password">Chave de Acesso</Label>
                   <Input
                     id="password"
+                    name="password" // Necessário para o FormData
                     type="password"
                     placeholder="Digite sua chave..."
                     required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
                   />
                 </div>
                 <Button type="submit" className="w-full" disabled={isLoading}>

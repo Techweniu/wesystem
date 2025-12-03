@@ -3,178 +3,120 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Building2, TrendingUp, DollarSign, Plus, AlertCircle } from "lucide-react"
-import { AddClientUpsellForm } from "@/components/add-client-upsell-form"
-import { useState } from "react"
-import { updateUpsellStatus } from "@/app/dashboard/commercial/actions"
+import { Calendar, Trash2, Building } from "lucide-react"
+import { format, parseISO } from "date-fns"
+import { ptBR } from "date-fns/locale"
+import { updateUpsellStatus, deleteClientUpsell } from "@/app/dashboard/commercial/actions"
 import { toast } from "sonner"
+import { useRole } from "@/app/dashboard/layout" // --- ALTERAÇÃO
 
-interface ClientCommercialCardProps {
-  client: {
-    id: string
+interface Upsell {
+  id: string
+  client_id: string
+  status: string
+  services: string[] | null
+  notes: string | null
+  identified_date: string
+  clients?: {
     name: string
-    status: string
-    contracts: Array<{
-      id: string
-      valor_mensal: number
-      status: string
-    }>
-    one_time_services: Array<{
-      id: string
-      value: number
-      status: string
-    }>
-    client_upsells: Array<{
-      id: string
-      status: string
-      identified_date: string
-      notes: string | null
-      services: string[] | null
-    }>
   }
 }
 
-export function ClientCommercialCard({ client }: ClientCommercialCardProps) {
-  const [open, setOpen] = useState(false)
+export function ClientCommercialCard({ upsell }: { upsell: Upsell }) {
+  const userRole = useRole() // --- ALTERAÇÃO
 
-  // Calcular valor recorrente (contratos ativos)
-  const recurringValue =
-    client.contracts?.filter((c) => c.status === "active").reduce((sum, c) => sum + Number(c.valor_mensal), 0) || 0
+  // --- ALTERAÇÃO: Define se pode editar ---
+  const canEdit = userRole !== "limited"
+  // ---------------------------------------
 
-  // Calcular valor de serviços pontuais (concluídos)
-  const servicesValue =
-    client.one_time_services?.filter((s) => s.status === "completed").reduce((sum, s) => sum + Number(s.value), 0) || 0
-
-  // Filtrar upsells ativos (não fechados ou perdidos)
-  const activeUpsells = client.client_upsells?.filter((u) => u.status !== "closed" && u.status !== "lost") || []
-
-  const statusColors = {
-    active: "bg-green-500",
-    inactive: "bg-gray-500",
-    pending: "bg-yellow-500",
+  async function handleStatusChange(newStatus: string) {
+    if (!canEdit) return // Proteção extra
+    const result = await updateUpsellStatus(upsell.id, newStatus)
+    if (result.success) toast.success("Status atualizado!")
+    else toast.error("Erro ao atualizar status")
   }
 
-  const upsellStatusLabels = {
-    identified: "Identificado",
-    negotiating: "Em Negociação",
-    closed: "Fechado",
-    lost: "Perdido",
+  async function handleDelete() {
+    if (!confirm("Tem certeza que deseja remover esta oportunidade?")) return
+    const result = await deleteClientUpsell(upsell.id)
+    if (result.success) toast.success("Oportunidade removida!")
+    else toast.error("Erro ao remover")
   }
 
-  console.log("[v0] Client upsells:", client.client_upsells)
-
-  const handleStatusChange = async (upsellId: string, newStatus: string) => {
-    const result = await updateUpsellStatus(upsellId, newStatus)
-    if (result.success) {
-      toast.success("Status atualizado com sucesso!")
-    } else {
-      toast.error("Erro ao atualizar status: " + result.error)
-    }
+  const statusColors: Record<string, string> = {
+    identified: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
+    negotiating: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300",
+    closed: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
+    lost: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
   }
 
   return (
     <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-2">
-            <Building2 className="h-5 w-5 text-primary" />
-            <Badge variant="outline" className={statusColors[client.status as keyof typeof statusColors]}>
-              {client.status}
-            </Badge>
-          </div>
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm" variant="outline">
-                <Plus className="h-4 w-4 mr-1" />
-                Upsell
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Adicionar Oportunidade de Upsell</DialogTitle>
-                <DialogDescription>Registre uma nova oportunidade de venda para {client.name}</DialogDescription>
-              </DialogHeader>
-              <AddClientUpsellForm clientId={client.id} onSuccess={() => setOpen(false)} />
-            </DialogContent>
-          </Dialog>
-        </div>
-        <CardTitle className="text-lg line-clamp-1">{client.name}</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {/* Valores Financeiros */}
-        <div className="space-y-2 pb-3 border-b">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground flex items-center gap-1">
-              <TrendingUp className="h-3 w-3" />
-              Recorrente
-            </span>
-            <span className="font-semibold">
-              {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(recurringValue)}
-            </span>
-          </div>
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground flex items-center gap-1">
-              <DollarSign className="h-3 w-3" />
-              Serviços Pontuais
-            </span>
-            <span className="font-semibold">
-              {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(servicesValue)}
-            </span>
-          </div>
-        </div>
+      <CardContent className="p-4">
+        <div className="flex flex-col gap-3">
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <Building className="h-4 w-4 text-muted-foreground" />
+                <span className="font-semibold text-sm">{upsell.clients?.name || "Cliente Desconhecido"}</span>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {upsell.services && upsell.services.length > 0 ? (
+                  upsell.services.map((service, idx) => (
+                    <Badge key={idx} variant="secondary" className="text-xs">
+                      {service}
+                    </Badge>
+                  ))
+                ) : (
+                  <span className="text-xs text-muted-foreground">Serviços não listados</span>
+                )}
+              </div>
+            </div>
 
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">Oportunidades</span>
-            <Badge variant="secondary">{activeUpsells.length}</Badge>
+            {/* --- ALTERAÇÃO: Esconde botão de deletar --- */}
+            {canEdit && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                onClick={handleDelete}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
+            {/* ------------------------------------------- */}
           </div>
-          {activeUpsells.length === 0 ? (
-            <p className="text-xs text-muted-foreground flex items-center gap-1">
-              <AlertCircle className="h-3 w-3" />
-              Nenhuma oportunidade registrada
-            </p>
-          ) : (
-            <div className="space-y-2 max-h-32 overflow-y-auto">
-              {activeUpsells.map((upsell) => {
-                console.log("[v0] Upsell services:", upsell.services, "Type:", typeof upsell.services)
-                return (
-                  <div key={upsell.id} className="text-xs p-2 bg-muted rounded-md space-y-1">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1">
-                        {upsell.services && upsell.services.length > 0 ? (
-                          <p className="font-medium">{upsell.services.join(", ")}</p>
-                        ) : (
-                          <p className="font-medium text-muted-foreground">Serviços não especificados</p>
-                        )}
-                      </div>
-                      <Select
-                        defaultValue={upsell.status}
-                        onValueChange={(value) => handleStatusChange(upsell.id, value)}
-                      >
-                        <SelectTrigger className="h-6 text-xs w-[130px] shrink-0">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="identified">Identificado</SelectItem>
-                          <SelectItem value="negotiating">Em Negociação</SelectItem>
-                          <SelectItem value="closed">Fechado</SelectItem>
-                          <SelectItem value="lost">Perdido</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {upsell.notes && <p className="text-muted-foreground line-clamp-2">{upsell.notes}</p>}
-                  </div>
-                )
-              })}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center mt-2">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Calendar className="h-3 w-3" />
+              <span>Identificado em: {format(parseISO(upsell.identified_date), "dd/MM/yy", { locale: ptBR })}</span>
+            </div>
+
+            <div className="flex items-center justify-end gap-2">
+              <span className="text-xs font-medium">Status:</span>
+              <Select 
+                defaultValue={upsell.status} 
+                onValueChange={handleStatusChange} 
+                disabled={!canEdit} // --- ALTERAÇÃO: Desabilita select
+              >
+                <SelectTrigger className={`w-[140px] h-8 text-xs border-0 ${statusColors[upsell.status] || ""}`}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="identified">Identificado</SelectItem>
+                  <SelectItem value="negotiating">Em Negociação</SelectItem>
+                  <SelectItem value="closed">Fechado</SelectItem>
+                  <SelectItem value="lost">Perdido</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {upsell.notes && (
+            <div className="bg-muted/30 p-2 rounded text-xs text-muted-foreground mt-1">
+              {upsell.notes}
             </div>
           )}
         </div>

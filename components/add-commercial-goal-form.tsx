@@ -1,96 +1,98 @@
 "use client"
 
-import type React from "react"
-
 import { useState } from "react"
+import { useFormStatus } from "react-dom"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Label } from "@/components/ui/label"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus } from "lucide-react"
 import { addCommercialGoal } from "@/app/dashboard/commercial/actions"
 import { toast } from "sonner"
+import { PlusCircle } from "lucide-react"
+import { useRole } from "@/app/dashboard/layout" // --- ALTERAÇÃO
+
+function SubmitButton() {
+  const { pending } = useFormStatus()
+  return (
+    <Button type="submit" disabled={pending}>
+      {pending ? "Criando..." : "Criar Meta"}
+    </Button>
+  )
+}
 
 export function AddCommercialGoalForm() {
+  const userRole = useRole() // --- ALTERAÇÃO
   const [open, setOpen] = useState(false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    setIsSubmitting(true)
+  // --- ALTERAÇÃO: Se limitado, não renderiza ---
+  if (userRole === "limited") return null;
+  // -------------------------------------------
 
-    const formData = new FormData(e.currentTarget)
+  async function handleAction(formData: FormData) {
     const result = await addCommercialGoal(formData)
-
     if (result.success) {
-      toast.success("Meta adicionada com sucesso!")
+      toast.success(result.message)
       setOpen(false)
-      e.currentTarget.reset()
     } else {
-      toast.error("Erro ao adicionar meta: " + result.error)
+      toast.error(result.error)
     }
-
-    setIsSubmitting(false)
   }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button>
-          <Plus className="h-4 w-4 mr-2" />
-          Adicionar Meta
+          <PlusCircle className="mr-2 h-4 w-4" />
+          Nova Meta
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-md">
+      <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Nova Meta Comercial</DialogTitle>
+          <DialogTitle>Definir Nova Meta</DialogTitle>
+          <DialogDescription>Crie uma meta para acompanhar o desempenho.</DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="period_type">Tipo de Período</Label>
-            <Select name="period_type" required>
+        <form action={handleAction} className="space-y-4 pt-4">
+          <div className="grid gap-2">
+            <Label htmlFor="title">Título da Meta</Label>
+            <Input id="title" name="title" placeholder="Ex: Atingir 100k MRR" required />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="type">Tipo de Métrica</Label>
+            <Select name="type" required>
               <SelectTrigger>
-                <SelectValue placeholder="Selecione o período" />
+                <SelectValue placeholder="Selecione..." />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="monthly">Mensal</SelectItem>
-                <SelectItem value="quarterly">Trimestral</SelectItem>
-                <SelectItem value="yearly">Anual</SelectItem>
+                <SelectItem value="revenue">Receita (MRR)</SelectItem>
+                <SelectItem value="clients">Número de Clientes</SelectItem>
+                <SelectItem value="upsell_value">Valor de Upsell</SelectItem>
+                <SelectItem value="churn_rate">Taxa de Churn</SelectItem>
               </SelectContent>
             </Select>
           </div>
-
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="period_start">Data Início</Label>
-              <Input type="date" name="period_start" required />
+            <div className="grid gap-2">
+              <Label htmlFor="current_value">Valor Atual</Label>
+              <Input id="current_value" name="current_value" type="number" step="0.01" placeholder="0" />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="period_end">Data Fim</Label>
-              <Input type="date" name="period_end" required />
+            <div className="grid gap-2">
+              <Label htmlFor="target_value">Meta (Alvo)</Label>
+              <Input id="target_value" name="target_value" type="number" step="0.01" required />
             </div>
           </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="target_value">Valor Alvo (R$)</Label>
-            <Input type="number" name="target_value" step="0.01" min="0" placeholder="0,00" required />
+          <div className="grid gap-2">
+            <Label htmlFor="deadline">Prazo Final</Label>
+            <Input id="deadline" name="deadline" type="date" required />
           </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="description">Descrição (opcional)</Label>
-            <Textarea name="description" placeholder="Detalhes sobre esta meta..." rows={3} />
-          </div>
-
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Salvando..." : "Salvar Meta"}
-            </Button>
-          </div>
+          <Button type="submit" className="w-full">Salvar Meta</Button>
         </form>
       </DialogContent>
     </Dialog>

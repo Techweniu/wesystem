@@ -1,83 +1,56 @@
 "use server"
 
 import { generateText } from "ai"
-import { z } from "zod"
-import { createClient as createAdminClient } from "@supabase/supabase-js"
-import { format } from "date-fns"
-import OpenAI from "openai" // Declare the OpenAI variable
+import { openai } from "@ai-sdk/openai"
+import { createClient } from "@supabase/supabase-js"
+import { cookies } from "next/headers" // --- IMPORTANTE
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  dangerouslyAllowBrowser: true,
-})
-
-/**
- * Coleta um snapshot completo dos dados de negócio, incluindo dados sensíveis.
- */
-async function getBusinessSnapshot() {
-  const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!)
-
-  // A busca de funcionários agora sempre inclui todos os campos, incluindo os sensíveis.
-  const employeeSelect =
-    "name, status, hire_date, role, department, salary, payment_day, employee_payments(payment_date, amount)"
-
-  const { data: clients } = await supabaseAdmin
-    .from("clients")
-    .select("name, status, contracts(end_date, status), nps_responses(score)")
-  const { data: employees } = await supabaseAdmin.from("employees").select(employeeSelect)
-
-  return JSON.stringify(
-    {
-      current_date: format(new Date(), "yyyy-MM-dd"),
-      clients,
-      employees,
-    },
-    null,
-    2,
-  )
-}
-
-const messageSchema = z.object({
-  role: z.enum(["user", "assistant"]),
-  content: z.string(),
-})
-const chatSchema = z.array(messageSchema)
-
-export async function generateChatResponse(chatHistory: unknown) {
-  const validatedHistory = chatSchema.safeParse(chatHistory)
-  if (!validatedHistory.success) {
-    return { error: "Formato do histórico de chat inválido." }
+// --- FUNÇÃO AUXILIAR DE SEGURANÇA ---
+function checkAdminPermission() {
+  const role = cookies().get("user_role")?.value
+  if (role !== "admin") {
+    throw new Error("Acesso negado: Apenas a diretoria pode consultar o assistente.")
   }
+}
+// ------------------------------------
 
-  const businessSnapshot = await getBusinessSnapshot()
-  const recentHistory = validatedHistory.data.slice(-10)
-
-  const systemPrompt = `Você é um analista de negócios. Analise os dados da empresa fornecidos abaixo em formato JSON e responda em texto às perguntas do usuário.
-  
-  IMPORTANTE: NÃO use formatação markdown (como **negrito**, *itálico*, # títulos, etc.). Use apenas texto simples nas suas respostas.
-  
-  Dados: ${businessSnapshot}`
-
+export async function submitMessage(formData: FormData) {
   try {
-    const { text } = await generateText({
-      model: "meta/llama-3.3-70b",
-      messages: [
-        { role: "system", content: systemPrompt },
-        ...recentHistory.map((msg) => ({
-          role: msg.role as "user" | "assistant",
-          content: msg.content,
-        })),
-      ],
-      temperature: 0.7,
+    checkAdminPermission() // <--- PROTEÇÃO: Bloqueia usuário limitado ou anônimo
+
+    const message = formData.get("message") as string
+    
+    // Conecta ao Supabase com chave de serviço para ler os dados que a IA precisa
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+
+    // 1. Busca contexto resumido (Exemplo simplificado)
+    // Buscamos dados financeiros e de clientes para dar contexto à IA
+    const { data: financialSummary } = await supabaseAdmin.from("costs").select("value, category").limit(20)
+    const { data: clientsSummary } = await supabaseAdmin.from("clients").select("name, status").limit(20)
+
+    const context = JSON.stringify({
+      custos_recentes: financialSummary,
+      clientes_recentes: clientsSummary
     })
 
-    if (!text) {
-      return { error: "A IA não conseguiu gerar insights." }
-    }
+    // 2. Chama a IA
+    const { text } = await generateText({
+      model: openai("gpt-4o"),
+      prompt: `Você é um assistente de BI empresarial.
+      Contexto de dados da empresa: ${context}
+      
+      Pergunta do usuário: ${message}
+      
+      Responda de forma concisa e profissional.`,
+    })
 
-    return { success: text }
+    return { success: true, response: text }
+
   } catch (error) {
-    console.error("Erro na API do Groq:", error)
-    return { error: "Ocorreu um erro ao se comunicar com a IA." }
+    console.error("Erro no Chat:", error)
+    return { success: false, error: error instanceof Error ? error.message : "Erro ao processar mensagem." }
   }
 }

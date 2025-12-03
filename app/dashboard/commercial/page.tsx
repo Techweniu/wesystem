@@ -1,195 +1,153 @@
 import { createClient } from "@/lib/supabase/server"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Target, TrendingUp, Users, DollarSign, BarChart3, AlertCircle } from "lucide-react"
 import { AddCommercialGoalForm } from "@/components/add-commercial-goal-form"
 import { CommercialGoalCard } from "@/components/commercial-goal-card"
 import { ClientCommercialCard } from "@/components/client-commercial-card"
-import { Target, TrendingUp, Users } from "lucide-react"
-import { parseISO, isWithinInterval, isPast, format } from "date-fns"
+import { cookies } from "next/headers" // --- IMPORTADO
 
-const isContractVigent = (contract: { start_date: string | null; end_date: string | null }) => {
-  const today = new Date()
-  const hasStarted = contract.start_date
-    ? isPast(parseISO(contract.start_date)) ||
-      format(parseISO(contract.start_date), "yyyy-MM-dd") === format(today, "yyyy-MM-dd")
-    : true
-  const hasNotEnded = contract.end_date ? !isPast(parseISO(contract.end_date)) : true
-  return hasStarted && hasNotEnded
-}
+export const dynamic = "force-dynamic"
 
 async function getCommercialData() {
   const supabase = await createClient()
 
+  // 1. Buscar Metas
   const { data: goals } = await supabase
     .from("commercial_goals")
     .select("*")
-    .order("period_start", { ascending: false })
+    .order("deadline", { ascending: true })
 
-  const { data: clients } = await supabase
-    .from("clients")
-    .select(
-      `
+  // 2. Buscar Upsells (Funil)
+  const { data: upsells } = await supabase
+    .from("client_upsells")
+    .select(`
       *,
-      contracts (
-        id,
-        valor_mensal,
-        start_date,
-        end_date,
-        status
-      ),
-      one_time_services:one_time_services (
-        id,
-        value,
-        date,
-        status
-      ),
-      client_upsells (
-        id,
-        status,
-        identified_date,
-        services,
-        notes
-      )
-    `,
-    )
-    .order("name")
+      clients ( id, name )
+    `)
+    .order("created_at", { ascending: false })
 
-  return { goals: goals || [], clients: clients || [] }
-}
+  // 3. Calcular Métricas do Funil
+  const funnelStats = {
+    identified: upsells?.filter((u) => u.status === "identified").length || 0,
+    negotiating: upsells?.filter((u) => u.status === "negotiating").length || 0,
+    closed: upsells?.filter((u) => u.status === "closed").length || 0,
+    lost: upsells?.filter((u) => u.status === "lost").length || 0,
+  }
 
-function calculateRevenueForPeriod(clients: any[], periodStart: Date, periodEnd: Date): number {
-  let revenue = 0
-
-  clients.forEach((client) => {
-    // Calcular receita de contratos ativos no período
-    client.contracts?.forEach((contract: any) => {
-      if (contract.status === "active" && contract.start_date) {
-        const contractStart = parseISO(contract.start_date)
-        const contractEnd = contract.end_date ? parseISO(contract.end_date) : new Date()
-
-        // Verificar se o contrato está ativo durante o período
-        if (
-          isWithinInterval(contractStart, { start: periodStart, end: periodEnd }) ||
-          isWithinInterval(contractEnd, { start: periodStart, end: periodEnd }) ||
-          (contractStart <= periodStart && contractEnd >= periodEnd)
-        ) {
-          // Calcular quantos meses do contrato estão no período
-          const monthsInPeriod = Math.ceil(
-            (Math.min(periodEnd.getTime(), contractEnd.getTime()) -
-              Math.max(periodStart.getTime(), contractStart.getTime())) /
-              (1000 * 60 * 60 * 24 * 30.44),
-          )
-          revenue += contract.valor_mensal * Math.max(1, monthsInPeriod)
-        }
-      }
-    })
-
-    // Adicionar serviços pontuais concluídos no período
-    client.one_time_services?.forEach((service: any) => {
-      if (service.status === "completed" && service.date) {
-        const serviceDate = parseISO(service.date)
-        if (isWithinInterval(serviceDate, { start: periodStart, end: periodEnd })) {
-          revenue += Number(service.value)
-        }
-      }
-    })
-  })
-
-  return revenue
-}
-
-function calculateRecurringRevenue(clients: any[]): number {
-  let revenue = 0
-
-  clients.forEach((client) => {
-    if (client.status !== "active") return
-
-    // Calcular apenas receita de contratos ativos e vigentes
-    client.contracts?.forEach((contract: any) => {
-      if (contract.status === "active" && isContractVigent(contract)) {
-        revenue += contract.valor_mensal
-      }
-    })
-  })
-
-  return revenue
+  return {
+    goals: goals || [],
+    upsells: upsells || [],
+    funnelStats,
+  }
 }
 
 export default async function CommercialPage() {
-  const { goals, clients } = await getCommercialData()
-
-  const recurringRevenue = calculateRecurringRevenue(clients)
-
-  const goalsWithRevenue = goals.map((goal) => {
-    const periodStart = parseISO(goal.period_start)
-    const periodEnd = parseISO(goal.period_end)
-    const realizedRevenue = calculateRevenueForPeriod(clients, periodStart, periodEnd)
-
-    return {
-      ...goal,
-      realized_revenue: realizedRevenue,
-      recurring_revenue: recurringRevenue, // Adicionando receita recorrente
-      progress: (realizedRevenue / goal.target_value) * 100,
-    }
-  })
+  const data = await getCommercialData()
+  
+  // --- SEGURANÇA VISUAL ---
+  const userRole = cookies().get("user_role")?.value
+  const isAdmin = userRole === "admin"
+  // ------------------------
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-            <Target className="h-8 w-8" />
-            Comercial
-          </h1>
-          <p className="text-muted-foreground">Acompanhe metas, clientes e oportunidades de upsell</p>
+          <h1 className="text-3xl font-bold tracking-tight">Comercial</h1>
+          <p className="text-muted-foreground">Gestão de metas e oportunidades de vendas.</p>
         </div>
-        <AddCommercialGoalForm />
+        {/* Só mostra botão de adicionar meta se for Admin */}
+        {isAdmin && <AddCommercialGoalForm />}
       </div>
 
-      <div className="space-y-4">
-        <h2 className="text-xl font-semibold flex items-center gap-2">
-          <Target className="h-5 w-5" />
-          Metas Comerciais
-        </h2>
-        {goalsWithRevenue.length === 0 ? (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <TrendingUp className="h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground text-center">
-                Nenhuma meta cadastrada ainda.
-                <br />
-                Adicione sua primeira meta comercial para começar o acompanhamento.
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {goalsWithRevenue.map((goal) => (
-              <CommercialGoalCard key={goal.id} goal={goal} />
-            ))}
-          </div>
-        )}
+      {/* Resumo do Funil */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Identificado</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{data.funnelStats.identified}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Em Negociação</CardTitle>
+            <TrendingUp className="h-4 w-4 text-yellow-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{data.funnelStats.negotiating}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Fechado</CardTitle>
+            <DollarSign className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{data.funnelStats.closed}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Perdido</CardTitle>
+            <AlertCircle className="h-4 w-4 text-red-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{data.funnelStats.lost}</div>
+          </CardContent>
+        </Card>
       </div>
 
-      <div className="space-y-4">
-        <h2 className="text-xl font-semibold flex items-center gap-2">
-          <Users className="h-5 w-5" />
-          Clientes e Oportunidades
-        </h2>
-        {clients.length === 0 ? (
+      <Tabs defaultValue="goals" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="goals">Metas Ativas</TabsTrigger>
+          <TabsTrigger value="funnel">Funil de Upsell</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="goals" className="space-y-4">
+          {data.goals.length > 0 ? (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {data.goals.map((goal) => (
+                <CommercialGoalCard key={goal.id} goal={goal} />
+              ))}
+            </div>
+          ) : (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-10 text-muted-foreground">
+                <Target className="h-10 w-10 mb-4 opacity-20" />
+                <p>Nenhuma meta comercial definida.</p>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        <TabsContent value="funnel">
           <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <Users className="h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground text-center">Nenhum cliente cadastrado ainda.</p>
+            <CardHeader>
+              <CardTitle>Oportunidades de Upsell</CardTitle>
+              <CardDescription>
+                Lista consolidada de oportunidades cadastradas nos clientes.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {data.upsells.length > 0 ? (
+                <div className="space-y-4">
+                  {data.upsells.map((upsell: any) => (
+                    <ClientCommercialCard key={upsell.id} upsell={upsell} />
+                  ))}
+                </div>
+              ) : (
+                <p className="text-center text-muted-foreground py-8">
+                  Nenhuma oportunidade encontrada.
+                </p>
+              )}
             </CardContent>
           </Card>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {clients.map((client) => (
-              <ClientCommercialCard key={client.id} client={client} />
-            ))}
-          </div>
-        )}
-      </div>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

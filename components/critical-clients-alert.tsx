@@ -1,43 +1,26 @@
-// Em wesystem6/components/critical-clients-alert.tsx
-import Link from 'next/link';
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertTriangle } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { AlertTriangle, ArrowRight } from "lucide-react"
+import Link from "next/link"
 
-// Define a estrutura mínima do cliente que o componente espera
 interface Client {
-  id: string;
-  name: string;
-  health_status: 'green' | 'yellow' | 'red' | null;
+  id: string
+  name: string
 }
 
-interface CriticalClientsAlertProps {
-  clients: Client[];
-}
-
-export function CriticalClientsAlert({ clients }: CriticalClientsAlertProps) {
-  // Filtra apenas os clientes com status 'red'
-  const criticalClients = clients.filter(client => client.health_status === 'red');
-
-  // Se não houver clientes críticos, não mostra nada
-  if (criticalClients.length === 0) {
-    return null;
-  }
-
+export function CriticalClientsAlert({ clients }: { clients: Client[] }) {
   return (
-    <Alert variant="destructive" className="mb-6">
+    <Alert variant="destructive">
       <AlertTriangle className="h-4 w-4" />
-      <AlertTitle>Atenção: Clientes em Estado Crítico!</AlertTitle>
-      <AlertDescription>
-        Os seguintes clientes precisam de atenção imediata: {' '}
-        {criticalClients.map((client, index) => (
-          <span key={client.id}>
-            <Link href={`/dashboard/clients/${client.id}`} className="font-semibold underline hover:no-underline">
-              {client.name}
-            </Link>
-            {index < criticalClients.length - 1 ? ', ' : '.'}
-          </span>
-        ))}
+      <AlertTitle>Atenção Requerida</AlertTitle>
+      <AlertDescription className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mt-2">
+        <span>
+          Você tem <strong>{clients.length} clientes</strong> marcados com saúde crítica:{" "}
+          {clients.map(c => c.name).join(", ")}.
+        </span>
+        <Link href="/dashboard/clients" className="font-bold underline flex items-center gap-1 whitespace-nowrap">
+           Ver Clientes <ArrowRight className="h-3 w-3" />
+        </Link>
       </AlertDescription>
     </Alert>
-  );
+  )
 }
