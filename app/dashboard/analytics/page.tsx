@@ -1,15 +1,14 @@
 import { createClient } from "@/lib/supabase/server"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { NpsQuadrantChart } from "@/components/nps-quadrant-chart"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { TeamAllocationChart } from "@/components/team-allocation-chart"
-import { ProfitabilityChart } from "@/components/profitability-chart"
 import { NpsScoreSummaryTable } from "@/components/nps-score-summary-table"
+import { ClientHealthChart } from "@/components/client-health-chart" // Novo
+import { CommercialFunnelChart } from "@/components/commercial-funnel-chart" // Novo
 import { BarChart3, TrendingUp, Users, AlertTriangle } from "lucide-react"
 import { parseISO, isPast, format } from "date-fns"
 
 export const dynamic = "force-dynamic"
 
-// Função auxiliar para verificar vigência do contrato
 const isContractVigent = (contract: { start_date: string | null; end_date: string | null }) => {
   const today = new Date()
   const hasStarted = contract.start_date
@@ -23,14 +22,11 @@ const isContractVigent = (contract: { start_date: string | null; end_date: strin
 async function getAnalyticsData() {
   const supabase = await createClient()
 
-  // 1. Buscar TODOS os Clientes (com contratos e NPS)
-  // Removemos o filtro .eq("status", "active") do banco para filtrar no código e garantir dados
-  const { data: clientsData, error } = await supabase
+  // 1. Buscar TODOS os Clientes (para Saúde e NPS)
+  const { data: clientsData } = await supabase
     .from("clients")
     .select(`
-      id, 
-      name, 
-      status,
+      id, name, status, health_status,
       contracts ( valor_mensal, status, start_date, end_date ),
       nps_responses ( score, response_date ),
       assigned_assessor_id,
@@ -40,160 +36,136 @@ async function getAnalyticsData() {
     `)
     .order("name")
 
-  if (error) {
-    console.error("Erro ao buscar dados de analytics:", error)
-  }
-
-  // Filtrar clientes válidos (Ativos ou Prospects com dados)
   const clients = clientsData?.filter(c => c.status === 'active' || c.status === 'prospect') || []
 
-  // 2. Buscar Funcionários e Salários
+  // 2. Buscar Dados Comerciais (Upsells) para o Funil
+  const { data: upsells } = await supabase
+    .from("client_upsells")
+    .select("status")
+
+  // 3. Buscar Funcionários
   const { data: employees } = await supabase
     .from("employees")
     .select("id, name, role, salary, status")
     .eq("status", "active")
 
-  // Inicializa estruturas de retorno vazias
-  if (!clients || !employees) return { 
-    clients: [], 
-    employees: [], 
-    profitabilityData: [], 
-    npsData: [], 
-    npsSummary: { detractors: 0, passives: 0, promoters: 0 },
-    rankedClients: [],
-    employeeLoad: {} 
-  }
+  // --- PROCESSAMENTO ---
 
-  // --- PROCESSAMENTO DE DADOS ---
-
-  // A. Mapa de Carga por Funcionário
-  const employeeLoad: Record<string, number> = {}
-  
-  clients.forEach(client => {
-    // Só conta carga se o cliente estiver ativo
-    if (client.status !== 'active') return
-
-    const roles = [
-      client.assigned_assessor_id,
-      client.assigned_videomaker_id,
-      client.assigned_relationship_manager_id,
-      client.assigned_editor_id
-    ]
-    roles.forEach(empId => {
-      if (empId) employeeLoad[empId] = (employeeLoad[empId] || 0) + 1
-    })
+  // A. Saúde da Carteira
+  const healthCounts = { green: 0, yellow: 0, red: 0 }
+  clients.forEach(c => {
+    if (c.health_status === 'green') healthCounts.green++
+    else if (c.health_status === 'yellow') healthCounts.yellow++
+    else if (c.health_status === 'red') healthCounts.red++
   })
 
-  // B. Cálculo de Lucratividade
-  const profitabilityData = clients.map(client => {
-    const revenue = client.contracts
-      ?.filter(c => c.status === 'active' && isContractVigent(c))
-      .reduce((sum, c) => sum + Number(c.valor_mensal), 0) || 0
+  const healthData = [
+    { status: "Bom", count: healthCounts.green, fill: "hsl(142, 76%, 36%)" }, // Verde
+    { status: "Atenção", count: healthCounts.yellow, fill: "hsl(48, 96%, 53%)" }, // Amarelo
+    { status: "Crítico", count: healthCounts.red, fill: "hsl(0, 84%, 60%)" }, // Vermelho
+  ]
 
-    let cost = 0
-    const assignedIds = [
-      client.assigned_assessor_id,
-      client.assigned_videomaker_id,
-      client.assigned_relationship_manager_id,
-      client.assigned_editor_id
-    ].filter(Boolean) as string[]
+  // B. Funil Comercial
+  const funnelCounts = { identified: 0, negotiating: 0, closed: 0 }
+  upsells?.forEach(u => {
+    if (u.status === 'identified') funnelCounts.identified++
+    if (u.status === 'negotiating') funnelCounts.negotiating++
+    if (u.status === 'closed') funnelCounts.closed++
+  })
 
-    assignedIds.forEach(empId => {
-      const emp = employees.find(e => e.id === empId)
-      // Carga mínima de 1 para evitar divisão por zero
-      const load = employeeLoad[empId] || 1
-      if (emp && emp.salary) {
-        cost += (emp.salary / load)
-      }
+  const funnelData = [
+    { stage: "Identificado", count: funnelCounts.identified, fill: "hsl(var(--chart-1))" },
+    { stage: "Negociação", count: funnelCounts.negotiating, fill: "hsl(var(--chart-2))" },
+    { stage: "Fechado", count: funnelCounts.closed, fill: "hsl(var(--chart-3))" },
+  ]
+
+  // C. Carga de Equipe
+  const employeeLoad: Record<string, number> = {}
+  if (employees) {
+    clients.forEach(client => {
+      if (client.status !== 'active') return
+      const roles = [
+        client.assigned_assessor_id,
+        client.assigned_videomaker_id,
+        client.assigned_relationship_manager_id,
+        client.assigned_editor_id
+      ]
+      roles.forEach(empId => {
+        if (empId) employeeLoad[empId] = (employeeLoad[empId] || 0) + 1
+      })
     })
+  }
 
-    return {
-      name: client.name,
-      revenue,
-      cost,
-      profit: revenue - cost,
-      margin: revenue > 0 ? ((revenue - cost) / revenue) * 100 : 0
-    }
-  }).sort((a, b) => a.profit - b.profit)
-
-  // C. Preparar dados NPS e Resumo
+  // D. Resumos Financeiros e NPS (Mantidos como KPI)
+  let totalRevenue = 0
+  let totalCost = 0
+  let clientsInLoss = 0
   const npsSummary = { detractors: 0, passives: 0, promoters: 0 }
-  
-  const clientsWithNps = clients.map(client => {
-    const activeContractValue = client.contracts
-      ?.filter(c => c.status === 'active' && isContractVigent(c))
-      .reduce((sum, c) => sum + Number(c.valor_mensal), 0) || 0
-      
-    // Ordenação robusta de datas em JavaScript
-    const responses = client.nps_responses || []
-    const latestResponse = responses.sort((a, b) => 
+  const rankedClients: any[] = []
+
+  clients.forEach(client => {
+    // NPS
+    const latestNps = client.nps_responses?.sort((a, b) => 
       new Date(b.response_date).getTime() - new Date(a.response_date).getTime()
-    )[0]
+    )[0]?.score
 
-    const latestNps = latestResponse?.score
-
-    // Calcula resumo (apenas se houver nota válida)
     if (typeof latestNps === 'number') {
       if (latestNps <= 7) npsSummary.detractors++
       else if (latestNps === 8) npsSummary.passives++
       else npsSummary.promoters++
+      
+      rankedClients.push({ id: client.id, name: client.name, latestNps })
     }
 
-    return {
-      id: client.id,
-      name: client.name,
-      latestNps,
-      revenue: activeContractValue,
+    // Financeiro
+    const revenue = client.contracts?.filter(c => c.status === 'active' && isContractVigent(c))
+      .reduce((sum, c) => sum + Number(c.valor_mensal), 0) || 0
+    
+    totalRevenue += revenue
+
+    // Custo estimado (rateio simples)
+    if (employees) {
+      let clientCost = 0
+      const roles = [
+        client.assigned_assessor_id, client.assigned_videomaker_id,
+        client.assigned_relationship_manager_id, client.assigned_editor_id
+      ].filter(Boolean)
+      
+      roles.forEach(empId => {
+        const emp = employees.find(e => e.id === empId)
+        const load = employeeLoad[empId] || 1
+        if (emp?.salary) clientCost += (emp.salary / load)
+      })
+      totalCost += clientCost
+      if (revenue > 0 && revenue < clientCost) clientsInLoss++
     }
   })
 
-  // D. Dados para o Gráfico de Quadrantes
-  // Filtra clientes que têm NPS (Nota pode ser 0, então checamos typeof)
-  const npsChartData = clientsWithNps
-    .filter(d => typeof d.latestNps === 'number')
-    .map(d => ({ 
-      name: d.name, 
-      nps: d.latestNps as number, 
-      revenue: d.revenue 
-    }))
-
-  // E. Lista de Ranqueamento (Piores notas primeiro)
-  const rankedClients = clientsWithNps
-    .filter(c => typeof c.latestNps === 'number')
-    .sort((a, b) => (a.latestNps as number) - (b.latestNps as number))
+  // Ordena clientes por NPS (piores primeiro)
+  rankedClients.sort((a, b) => a.latestNps - b.latestNps)
 
   return {
-    clients,
-    employees,
-    profitabilityData,
-    npsData: npsChartData,
+    healthData,
+    funnelData,
+    employees: employees || [],
+    employeeLoad,
     npsSummary,
     rankedClients,
-    employeeLoad
+    kpis: { totalRevenue, totalCost, clientsInLoss }
   }
 }
 
 export default async function AnalyticsPage() {
-  const { 
-    profitabilityData, 
-    npsData, 
-    employees, 
-    employeeLoad,
-    npsSummary,
-    rankedClients
-  } = await getAnalyticsData()
-
-  // Resumo Rápido
-  const totalRevenue = profitabilityData.reduce((acc, curr) => acc + curr.revenue, 0)
-  const totalCost = profitabilityData.reduce((acc, curr) => acc + curr.cost, 0)
-  const avgMargin = totalRevenue > 0 ? ((totalRevenue - totalCost) / totalRevenue) * 100 : 0
-  const clientsInLoss = profitabilityData.filter(c => c.profit < 0).length
+  const data = await getAnalyticsData()
+  const avgMargin = data.kpis.totalRevenue > 0 
+    ? ((data.kpis.totalRevenue - data.kpis.totalCost) / data.kpis.totalRevenue) * 100 
+    : 0
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Analytics</h1>
-        <p className="text-muted-foreground">Inteligência de dados e análise de performance.</p>
+        <p className="text-muted-foreground">Visão geral de saúde e performance.</p>
       </div>
 
       {/* Cards de Resumo */}
@@ -207,17 +179,17 @@ export default async function AnalyticsPage() {
             <div className={`text-2xl font-bold ${avgMargin < 20 ? "text-yellow-600" : "text-green-600"}`}>
               {avgMargin.toFixed(1)}%
             </div>
-            <p className="text-xs text-muted-foreground">Baseado em custos diretos de equipe</p>
+            <p className="text-xs text-muted-foreground">Baseado em custos diretos</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Clientes em Prejuízo (Est.)</CardTitle>
+            <CardTitle className="text-sm font-medium">Clientes em Prejuízo</CardTitle>
             <AlertTriangle className="h-4 w-4 text-red-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">{clientsInLoss}</div>
-            <p className="text-xs text-muted-foreground">Receita menor que o custo de equipe rateado</p>
+            <div className="text-2xl font-bold text-red-600">{data.kpis.clientsInLoss}</div>
+            <p className="text-xs text-muted-foreground">Receita &lt; Custo Rateado</p>
           </CardContent>
         </Card>
         <Card>
@@ -227,7 +199,7 @@ export default async function AnalyticsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalCost)}
+              {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(data.kpis.totalCost)}
             </div>
           </CardContent>
         </Card>
@@ -238,61 +210,28 @@ export default async function AnalyticsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-               {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalRevenue)}
+               {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(data.kpis.totalRevenue)}
             </div>
           </CardContent>
         </Card>
       </div>
 
+      {/* Novos Gráficos: Saúde e Funil */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Gráfico de Quadrantes NPS */}
-        <Card className="col-span-1">
-          <CardHeader>
-            <CardTitle>Matriz de Valor x Satisfação</CardTitle>
-            <CardDescription>
-              Identifique clientes de alto valor em risco (NPS baixo e MRR alto).
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-             {npsData.length > 0 ? (
-               <NpsQuadrantChart data={npsData} />
-             ) : (
-               <div className="flex h-[300px] items-center justify-center text-muted-foreground border border-dashed rounded-lg text-center p-4">
-                 <p className="text-sm">
-                   Aguardando dados de NPS.<br/>
-                   <span className="text-xs">Certifique-se de que os clientes têm avaliações de NPS registradas.</span>
-                 </p>
-               </div>
-             )}
-          </CardContent>
-        </Card>
-
-        {/* Gráfico de Lucratividade */}
-        <Card className="col-span-1">
-          <CardHeader>
-            <CardTitle>Receita vs. Custo (Top Clientes)</CardTitle>
-            <CardDescription>
-              Análise financeira dos principais clientes.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ProfitabilityChart data={profitabilityData.slice(-10)} /> 
-          </CardContent>
-        </Card>
+        <ClientHealthChart data={data.healthData} />
+        <CommercialFunnelChart data={data.funnelData} />
       </div>
 
+      {/* Gráficos Secundários: Equipe e NPS */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Alocação de Equipe */}
         <TeamAllocationChart 
-          data={employees.map(e => ({
+          data={data.employees.map(e => ({
             name: e.name,
             role: e.role,
-            clients: employeeLoad[e.id] || 0
+            clients: data.employeeLoad[e.id] || 0
           }))} 
         />
-
-        {/* Tabela Resumo NPS */}
-        <NpsScoreSummaryTable data={npsSummary} rankedClients={rankedClients} />
+        <NpsScoreSummaryTable data={data.npsSummary} rankedClients={data.rankedClients} />
       </div>
     </div>
   )
