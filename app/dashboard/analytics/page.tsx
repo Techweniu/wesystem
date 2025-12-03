@@ -5,11 +5,11 @@ import { TeamAllocationChart } from "@/components/team-allocation-chart"
 import { ProfitabilityChart } from "@/components/profitability-chart"
 import { NpsScoreSummaryTable } from "@/components/nps-score-summary-table"
 import { BarChart3, TrendingUp, Users, AlertTriangle } from "lucide-react"
-import { parseISO, isPast, format } from "date-fns"
+import { parseISO, isPast, format, differenceInDays } from "date-fns"
 
 export const dynamic = "force-dynamic"
 
-// Função auxiliar para verificar vigência do contrato (Igual à página de Clientes)
+// Função auxiliar para verificar vigência do contrato (REPLICADO DA PÁGINA DE CLIENTES)
 const isContractVigent = (contract: { start_date: string | null; end_date: string | null }) => {
   const today = new Date()
   const hasStarted = contract.start_date
@@ -24,6 +24,7 @@ async function getAnalyticsData() {
   const supabase = await createClient()
 
   // 1. Buscar Clientes ATIVOS com Contratos e NPS
+  // IMPORTANTE: Adicionado .order() para garantir que o NPS[0] seja o mais recente, igual à página de clientes
   const { data: clients, error } = await supabase
     .from("clients")
     .select(`
@@ -38,6 +39,7 @@ async function getAnalyticsData() {
       assigned_editor_id
     `)
     .eq("status", "active")
+    .order("response_date", { foreignTable: "nps_responses", ascending: false })
 
   if (error) {
     console.error("Erro ao buscar dados de analytics:", error)
@@ -78,6 +80,7 @@ async function getAnalyticsData() {
 
   // B. Cálculo de Lucratividade
   const profitabilityData = clients.map(client => {
+    // Cálculo de Receita usando isContractVigent (IGUAL CLIENTES)
     const revenue = client.contracts
       ?.filter(c => c.status === 'active' && isContractVigent(c))
       .reduce((sum, c) => sum + Number(c.valor_mensal), 0) || 0
@@ -111,21 +114,16 @@ async function getAnalyticsData() {
   const npsSummary = { detractors: 0, passives: 0, promoters: 0 }
   
   const clientsWithNps = clients.map(client => {
-    // Calcula receita recorrente (MRR) usando a vigência correta
+    // MRR do cliente (calculado igual acima)
     const activeContractValue = client.contracts
       ?.filter(c => c.status === 'active' && isContractVigent(c))
       .reduce((sum, c) => sum + Number(c.valor_mensal), 0) || 0
       
-    // Pega o NPS mais recente
-    const responses = client.nps_responses || []
-    const latestResponse = responses.sort((a, b) => 
-      new Date(b.response_date).getTime() - new Date(a.response_date).getTime()
-    )[0]
+    // Pega o NPS mais recente (confiando no ORDER BY da query do Supabase)
+    const latestNps = client.nps_responses?.[0]?.score
 
-    const latestNps = latestResponse?.score
-
-    // Calcula resumo (apenas se houver nota)
-    if (latestNps !== undefined && latestNps !== null) {
+    // Calcula resumo (apenas se houver nota válida)
+    if (typeof latestNps === 'number') {
       if (latestNps <= 7) npsSummary.detractors++
       else if (latestNps === 8) npsSummary.passives++
       else npsSummary.promoters++
@@ -140,10 +138,9 @@ async function getAnalyticsData() {
   })
 
   // D. Dados para o Gráfico de Quadrantes (Matriz Valor x Satisfação)
-  // Filtra apenas clientes que TÊM uma nota NPS.
-  // REMOVIDO: Filtro de receita > 0, para mostrar todos com NPS.
+  // Filtra clientes que têm NPS (Receita pode ser 0)
   const npsChartData = clientsWithNps
-    .filter(d => d.latestNps !== undefined && d.latestNps !== null)
+    .filter(d => typeof d.latestNps === 'number')
     .map(d => ({ 
       name: d.name, 
       nps: d.latestNps as number, 
@@ -152,7 +149,7 @@ async function getAnalyticsData() {
 
   // E. Dados para Lista de Ranqueamento
   const rankedClients = clientsWithNps
-    .filter(c => c.latestNps !== undefined && c.latestNps !== null)
+    .filter(c => typeof c.latestNps === 'number')
     .sort((a, b) => (a.latestNps as number) - (b.latestNps as number))
 
   return {
@@ -253,7 +250,7 @@ export default async function AnalyticsPage() {
                <div className="flex h-[300px] items-center justify-center text-muted-foreground border border-dashed rounded-lg text-center p-4">
                  <p className="text-sm">
                    Insuficiente dados para gerar a matriz.<br/>
-                   Necessário ter clientes Ativos com <strong>NPS respondido</strong>.
+                   Necessário ter clientes com <strong>NPS respondido</strong>.
                  </p>
                </div>
              )}
