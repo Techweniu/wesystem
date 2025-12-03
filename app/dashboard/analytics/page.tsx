@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { NpsQuadrantChart } from "@/components/nps-quadrant-chart"
 import { TeamAllocationChart } from "@/components/team-allocation-chart"
 import { ProfitabilityChart } from "@/components/profitability-chart"
@@ -11,8 +11,9 @@ export const dynamic = "force-dynamic"
 async function getAnalyticsData() {
   const supabase = await createClient()
 
-  // 1. Buscar Clientes com Contratos e NPS
-  const { data: clients } = await supabase
+  // 1. Buscar Clientes ATIVOS com Contratos e NPS
+  // Nota: Clientes inativos ou prospects não entram no Analytics
+  const { data: clients, error } = await supabase
     .from("clients")
     .select(`
       id, 
@@ -26,6 +27,10 @@ async function getAnalyticsData() {
       assigned_editor_id
     `)
     .eq("status", "active")
+
+  if (error) {
+    console.error("Erro ao buscar dados de analytics:", error)
+  }
 
   // 2. Buscar Funcionários e Salários
   const { data: employees } = await supabase
@@ -95,17 +100,22 @@ async function getAnalyticsData() {
   const npsSummary = { detractors: 0, passives: 0, promoters: 0 }
   
   const clientsWithNps = clients.map(client => {
+    // Calcula receita recorrente (MRR)
     const activeContractValue = client.contracts
       ?.filter(c => c.status === 'active')
       .reduce((sum, c) => sum + Number(c.valor_mensal), 0) || 0
       
     // Pega o NPS mais recente
-    const latestNps = client.nps_responses?.sort((a, b) => 
+    // Garante que nps_responses não seja nulo e ordena
+    const responses = client.nps_responses || []
+    const latestResponse = responses.sort((a, b) => 
       new Date(b.response_date).getTime() - new Date(a.response_date).getTime()
-    )[0]?.score
+    )[0]
 
-    // Calcula resumo
-    if (latestNps !== undefined) {
+    const latestNps = latestResponse?.score
+
+    // Calcula resumo (apenas se houver nota)
+    if (latestNps !== undefined && latestNps !== null) {
       if (latestNps <= 7) npsSummary.detractors++
       else if (latestNps === 8) npsSummary.passives++
       else npsSummary.promoters++
@@ -115,21 +125,23 @@ async function getAnalyticsData() {
       id: client.id,
       name: client.name,
       latestNps,
-      x: latestNps, 
-      y: activeContractValue,
-      z: 10
+      revenue: activeContractValue,
     }
   })
 
-  // Filtra para o gráfico de quadrantes (precisa ter NPS e Receita)
-  // Nota: x !== undefined permite nota 0
+  // D. Dados para o Gráfico de Quadrantes (Matriz Valor x Satisfação)
+  // Filtra clientes que têm NPS E Receita > 0
   const npsChartData = clientsWithNps
-    .filter(d => d.x !== undefined && d.y > 0)
-    .map(d => ({ name: d.name, x: d.x as number, y: d.y, z: d.z }))
+    .filter(d => d.latestNps !== undefined && d.latestNps !== null && d.revenue > 0)
+    .map(d => ({ 
+      name: d.name, 
+      nps: d.latestNps as number, // Mapeia para 'nps' como o componente espera
+      revenue: d.revenue          // Mapeia para 'revenue' como o componente espera
+    }))
 
-  // Filtra para a lista de ranqueamento (apenas quem tem NPS)
+  // E. Dados para Lista de Ranqueamento (apenas quem tem NPS)
   const rankedClients = clientsWithNps
-    .filter(c => c.latestNps !== undefined)
+    .filter(c => c.latestNps !== undefined && c.latestNps !== null)
     .sort((a, b) => (a.latestNps as number) - (b.latestNps as number))
 
   return {
@@ -227,8 +239,11 @@ export default async function AnalyticsPage() {
              {npsData.length > 0 ? (
                <NpsQuadrantChart data={npsData} />
              ) : (
-               <div className="flex h-[300px] items-center justify-center text-muted-foreground border border-dashed rounded-lg">
-                 Insuficiente dados de NPS e Receita para gerar a matriz.
+               <div className="flex h-[300px] items-center justify-center text-muted-foreground border border-dashed rounded-lg text-center p-4">
+                 <p className="text-sm">
+                   Insuficiente dados para gerar a matriz.<br/>
+                   Necessário ter clientes com <strong>NPS respondido</strong> e <strong>Contrato Ativo (Valor &gt; 0)</strong>.
+                 </p>
                </div>
              )}
           </CardContent>
@@ -236,8 +251,16 @@ export default async function AnalyticsPage() {
 
         {/* Gráfico de Lucratividade */}
         <Card className="col-span-1">
-          {/* Mostra os top 10 ou últimos, invertendo para mostrar maiores receitas primeiro se preferir */}
-          <ProfitabilityChart data={profitabilityData.slice(-10)} /> 
+          <CardHeader>
+            <CardTitle>Receita vs. Custo (Top Clientes)</CardTitle>
+            <CardDescription>
+              Análise financeira dos principais clientes.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {/* Mostra os top 10 ou últimos, invertendo para mostrar maiores receitas primeiro se preferir */}
+            <ProfitabilityChart data={profitabilityData.slice(-10)} /> 
+          </CardContent>
         </Card>
       </div>
 
