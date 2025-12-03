@@ -16,22 +16,38 @@ const clientSchema = z.object({
   credit_risk: z.string().optional().or(z.literal("")),
   client_notes: z.string().optional().or(z.literal("")),
   objectives: z.string().optional().or(z.literal("")),
+  
   // Campos de Tráfego
   has_traffic_service: z.preprocess((val) => val === "on" || val === "true", z.boolean()).optional(),
   ad_account_organized: z.preprocess((val) => val === "on" || val === "true", z.boolean()).optional(),
   ads_running: z.preprocess((val) => val === "on" || val === "true", z.boolean()).optional(),
-  // Campos de Contrato (Opcionais na criação, mas validados se fornecidos)
+  
+  // Campos de Equipe
+  assigned_assessor_id: z.string().uuid().optional().or(z.literal("null")).nullable(),
+  assigned_videomaker_id: z.string().uuid().optional().or(z.literal("null")).nullable(),
+  assigned_relationship_manager_id: z.string().uuid().optional().or(z.literal("null")).nullable(),
+  assigned_editor_id: z.string().uuid().optional().or(z.literal("null")).nullable(),
+
+  // Campos de Contrato
   contract_name: z.string().optional().or(z.literal("")),
   contract_value: z.coerce.number().min(0).optional(),
   contract_start_date: z.string().optional().or(z.literal("")),
   contract_end_date: z.string().optional().or(z.literal("")),
   contract_file: z.instanceof(File).optional(),
-  // Serviços (agora array de strings/nomes vindo do ServicesMultiSelect)
+  
+  // Serviços
   services: z.string().optional(), // JSON string
 })
 
 export async function addClient(formData: FormData) {
   const rawData = Object.fromEntries(formData.entries())
+  
+  // Tratamento de campos 'null' vindos do Select
+  if (rawData.assigned_assessor_id === "null") rawData.assigned_assessor_id = null
+  if (rawData.assigned_videomaker_id === "null") rawData.assigned_videomaker_id = null
+  if (rawData.assigned_relationship_manager_id === "null") rawData.assigned_relationship_manager_id = null
+  if (rawData.assigned_editor_id === "null") rawData.assigned_editor_id = null
+
   const validatedFields = clientSchema.safeParse(rawData)
 
   if (!validatedFields.success) {
@@ -61,9 +77,16 @@ export async function addClient(formData: FormData) {
       credit_risk: data.credit_risk || null,
       client_notes: data.client_notes || null,
       objectives: data.objectives || null,
+      // Tráfego
       has_traffic_service: data.has_traffic_service || false,
       ad_account_organized: data.ad_account_organized || false,
       ads_running: data.ads_running || false,
+      // Equipe
+      assigned_assessor_id: data.assigned_assessor_id,
+      assigned_videomaker_id: data.assigned_videomaker_id,
+      assigned_relationship_manager_id: data.assigned_relationship_manager_id,
+      assigned_editor_id: data.assigned_editor_id,
+      
       health_status: "green",
     })
     .select("id")
@@ -93,7 +116,7 @@ export async function addClient(formData: FormData) {
 
       if (uploadError) {
         console.error("Erro Upload Contrato:", uploadError)
-        // Não aborta a criação do cliente, mas avisa no log
+        // Não aborta a criação do cliente
       } else {
         contractPath = filePath
       }
@@ -109,15 +132,13 @@ export async function addClient(formData: FormData) {
         end_date: data.contract_end_date || null,
         status: "active",
         storage_path: contractPath,
-        services: servicesArray, // Salva os serviços no JSON do contrato
+        services: servicesArray, 
       })
       .select("id")
       .single()
 
     if (contractError) {
       console.error("Erro ao criar contrato:", contractError)
-      // O cliente já foi criado, retornamos sucesso parcial ou aviso?
-      // Por enquanto, retornamos erro mas o cliente fica lá (o que é aceitável, o usuário pode tentar adicionar contrato depois)
     } else if (contractData) {
       // 3. Gerar entregáveis para serviços não recorrentes
       const nonRecurringServices = servicesArray.filter((service: string) => isNonRecurringService(service))
@@ -133,10 +154,6 @@ export async function addClient(formData: FormData) {
       }
     }
   }
-
-  // OBS: Não estamos mais inserindo na tabela `client_services` antiga baseada em IDs,
-  // pois estamos migrando para o modelo baseado no contrato (JSONB).
-  // Se necessário para compatibilidade, adicione aqui a lógica de mapeamento nome -> id.
 
   revalidatePath("/dashboard/clients")
   return { success: "Cliente cadastrado com sucesso!" }

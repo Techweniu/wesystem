@@ -1,4 +1,3 @@
-// Em wesystem6/app/dashboard/clients/page.tsx
 import { createClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -12,9 +11,9 @@ import { ClientFilters } from "@/components/client-filters"
 import { NpsQuadrantChart } from "@/components/nps-quadrant-chart"
 import { NpsScoreSummaryTable } from "@/components/nps-score-summary-table"
 import { differenceInDays, parseISO, isPast, startOfMonth, format } from "date-fns"
-// import { CriticalClientsAlert } from "@/components/critical-clients-alert"; // Removido
-import { LowNpsAlertCard } from "@/components/low-nps-alert-card" // Importação do NOVO card
+import { LowNpsAlertCard } from "@/components/low-nps-alert-card"
 
+// Função auxiliar para verificar vigência do contrato
 const isContractVigent = (contract: { start_date: string | null; end_date: string | null }) => {
   const today = new Date()
   const hasStarted = contract.start_date
@@ -23,6 +22,25 @@ const isContractVigent = (contract: { start_date: string | null; end_date: strin
     : true
   const hasNotEnded = contract.end_date ? !isPast(parseISO(contract.end_date)) : true
   return hasStarted && hasNotEnded
+}
+
+async function getEmployeesByRole() {
+  const supabase = await createClient()
+  
+  // Busca todos os funcionários ativos
+  const { data: employees } = await supabase
+    .from("employees")
+    .select("id, name, role")
+    .eq("status", "active")
+    .order("name")
+
+  // Filtra por cargo para facilitar o uso no front
+  const assessors = employees?.filter(e => e.role === "Assessor") || []
+  const videomakers = employees?.filter(e => e.role === "Videomaker") || []
+  const managers = employees?.filter(e => e.role === "Gestor de Relacionamento") || []
+  const editors = employees?.filter(e => e.role === "Editor") || []
+
+  return { assessors, videomakers, managers, editors }
 }
 
 async function getClients({ name, status }: { name?: string; status?: string }) {
@@ -74,10 +92,9 @@ async function getClients({ name, status }: { name?: string; status?: string }) 
           ).end_date!
           daysRemaining = differenceInDays(parseISO(furthestEndDate), today)
         } else {
-          daysRemaining = -1 // Indicates all active contracts have expired end dates
+          daysRemaining = -1 
         }
       }
-      // If no active contracts have end dates, daysRemaining remains null (Indeterminate)
     }
 
     client.contracts?.forEach((contract) => {
@@ -85,13 +102,11 @@ async function getClients({ name, status }: { name?: string; status?: string }) 
         const startDate = parseISO(contract.start_date)
         const daysPassed = differenceInDays(today, startDate)
         if (daysPassed >= 0) {
-          // Calculate revenue based on days passed since start date
-          generatedValue += (contract.valor_mensal / 30.44) * (daysPassed + 1) // Using 30.44 average days in month
+          generatedValue += (contract.valor_mensal / 30.44) * (daysPassed + 1)
         }
       }
     })
 
-    // Add revenue from completed one-time services to the generated value
     const completedOneTimeValue =
       client.one_time_services?.filter((s) => s.status === "completed").reduce((sum, s) => sum + Number(s.value), 0) ||
       0
@@ -104,20 +119,17 @@ async function getClients({ name, status }: { name?: string; status?: string }) 
 async function getAnalyticsData() {
   const supabase = await createClient()
   const today = new Date()
+  const startOfCurrentMonth = format(startOfMonth(today), "yyyy-MM-dd")
 
-  // Fetch all contracts with client status
   const { data: allContracts } = await supabase
     .from("contracts")
-    .select("valor_mensal, status, start_date, end_date, clients(status)") // Fetch client status along with contract
+    .select("valor_mensal, status, start_date, end_date, clients(status)")
 
-  // Calculate MRR from active clients with active and vigent contracts
   const monthlyRevenue =
     allContracts
       ?.filter((c) => c.clients?.status === "active" && c.status === "active" && isContractVigent(c))
       .reduce((sum, c) => sum + Number(c.valor_mensal), 0) || 0
 
-  // Calculate one-time revenue for the current month
-  const startOfCurrentMonth = format(startOfMonth(today), "yyyy-MM-dd")
   const { data: services } = await supabase
     .from("one_time_services")
     .select("value")
@@ -125,25 +137,23 @@ async function getAnalyticsData() {
     .gte("date", startOfCurrentMonth)
   const oneTimeRevenue = services?.reduce((sum, s) => sum + Number(s.value), 0) || 0
 
-  // Fetch active clients data for NPS Quadrant Chart
   const { data: clientsData } = await supabase
     .from("clients")
     .select(`name, contracts(valor_mensal, status, start_date, end_date), nps_responses(score, response_date)`)
     .eq("status", "active")
     .order("response_date", { foreignTable: "nps_responses", ascending: false })
+  
   const npsChartData =
     clientsData
       ?.map((client) => {
-        const latestNps = client.nps_responses[0]?.score // Get the latest NPS score
-        // Calculate MRR specifically for this client (for the chart)
+        const latestNps = client.nps_responses[0]?.score
         const clientMrr = client.contracts
           .filter((c) => c.status === "active" && isContractVigent(c))
           .reduce((sum, c) => sum + c.valor_mensal, 0)
         return { name: client.name, nps: latestNps, revenue: clientMrr }
       })
-      .filter((c) => c.nps !== undefined) || [] // Ensure client has at least one NPS response
+      .filter((c) => c.nps !== undefined) || []
 
-  // Fetch NPS responses for the current month for summary table
   const { data: currentMonthNps } = await supabase
     .from("nps_responses")
     .select("score")
@@ -152,11 +162,9 @@ async function getAnalyticsData() {
   const npsSummaryData = { detractors: 0, passives: 0, promoters: 0 }
   if (currentMonthNps && currentMonthNps.length > 0) {
     currentMonthNps.forEach((r) => {
-      if (r.score <= 7)
-        npsSummaryData.detractors++ // Updated: 0-7 are detractors
-      else if (r.score === 8)
-        npsSummaryData.passives++ // Updated: 8 are passives
-      else npsSummaryData.promoters++ // 9-10 are promoters
+      if (r.score <= 7) npsSummaryData.detractors++
+      else if (r.score === 8) npsSummaryData.passives++
+      else npsSummaryData.promoters++
     })
   }
 
@@ -166,54 +174,54 @@ async function getAnalyticsData() {
 export default async function ClientsPage({ searchParams }: { searchParams?: { name?: string; status?: string } }) {
   const { name, status } = searchParams || {}
 
-  // Fetch all necessary data concurrently
-  const [clients, analytics, allClientsResult] = await Promise.all([
+  // Buscando todos os dados necessários em paralelo
+  const [clients, analytics, allClientsResult, teamData] = await Promise.all([
     getClients({ name, status }),
     getAnalyticsData(),
-    createClient().then((supabase) => supabase.from("clients").select("status")), // Fetch only status for counting
+    createClient().then((supabase) => supabase.from("clients").select("status")),
+    getEmployeesByRole(), // <--- Nova busca de funcionários
   ])
 
-  // Create ranked list of clients by NPS (worst first) - Garantindo que clients não é undefined
   const rankedClients =
     clients
-      ?.filter((c) => c.latestNps !== undefined && c.status === "active") // Filter active clients with NPS scores
-      .sort((a, b) => a.latestNps! - b.latestNps!) || [] // Sort ascending by latest NPS and provide default empty array
+      ?.filter((c) => c.latestNps !== undefined && c.status === "active")
+      .sort((a, b) => a.latestNps! - b.latestNps!) || []
 
-  // Calculate client counts
   const allClients = allClientsResult.data
   const totalClients = allClients?.length || 0
   const activeClients = allClients?.filter((c) => c.status === "active").length || 0
 
-  // Map health status to Tailwind CSS background colors
   const healthStatusColors: { [key: string]: string } = {
     green: "bg-green-500",
     yellow: "bg-yellow-500",
     red: "bg-red-500",
   }
 
-  // Function to render remaining contract days with appropriate styling
   const renderRemainingDays = (days: number | null) => {
     if (days === null) return <span className="text-muted-foreground">Indet.</span>
     if (days < 0) return <Badge variant="destructive">Expirado</Badge>
-    if (days <= 30) return <Badge variant="secondary">{days} dias</Badge> // Highlight if <= 30 days
+    if (days <= 30) return <Badge variant="secondary">{days} dias</Badge>
     return <span className="text-muted-foreground">{days} dias</span>
   }
 
   return (
     <div className="space-y-6">
       <Toaster richColors />
-      {/* ======> LINHA ABAIXO FOI ALTERADA PARA USAR O NOVO CARD: <===== */}
       <LowNpsAlertCard rankedClients={rankedClients} />
-      {/* ============================================================== */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Clientes</h1>
           <p className="text-muted-foreground">Gerencie e analise sua base de clientes</p>
         </div>
-        <AddClientForm />
+        {/* Passando os dados da equipe para o formulário */}
+        <AddClientForm 
+          assessors={teamData.assessors}
+          videomakers={teamData.videomakers}
+          managers={teamData.managers}
+          editors={teamData.editors}
+        />
       </div>
 
-      {/* --- Cards de Resumo --- */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -243,23 +251,20 @@ export default async function ClientsPage({ searchParams }: { searchParams?: { n
         </Card>
       </div>
 
-      {/* --- Gráficos de NPS --- */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <NpsQuadrantChart data={analytics.npsChartData || []} />
-        {/* Passa os dados ranqueados para o componente de resumo */}
         <NpsScoreSummaryTable data={analytics.npsSummaryData} rankedClients={rankedClients || []} />
       </div>
 
-      {/* --- Tabela Principal de Clientes --- */}
       <Card>
         <CardHeader>
-          <ClientFilters /> {/* Componente de filtros */}
+          <ClientFilters />
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[40px]"></TableHead> {/* Coluna para Status de Saúde */}
+                <TableHead className="w-[40px]"></TableHead>
                 <TableHead>Nome</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Dias Restantes</TableHead>
@@ -273,7 +278,6 @@ export default async function ClientsPage({ searchParams }: { searchParams?: { n
               {clients && clients.length > 0 ? (
                 clients.map((client) => (
                   <TableRow key={client.id}>
-                    {/* Célula para Status de Saúde (bolinha colorida) */}
                     <TableCell>
                       <span
                         className={`block w-2.5 h-2.5 rounded-full ${healthStatusColors[client.health_status!] || "bg-gray-500"}`}
@@ -287,7 +291,6 @@ export default async function ClientsPage({ searchParams }: { searchParams?: { n
                       </Badge>
                     </TableCell>
                     <TableCell>{renderRemainingDays(client.daysRemaining)}</TableCell>
-                    {/* Célula para Último NPS com badge colorida */}
                     <TableCell className="text-center">
                       {client.latestNps !== undefined ? (
                         <Badge
@@ -311,7 +314,6 @@ export default async function ClientsPage({ searchParams }: { searchParams?: { n
                         client.generatedValue,
                       )}
                     </TableCell>
-                    {/* Célula de Ações com link para detalhes */}
                     <TableCell className="text-right">
                       <Link href={`/dashboard/clients/${client.id}`}>
                         <Button variant="ghost" size="sm">
@@ -322,11 +324,9 @@ export default async function ClientsPage({ searchParams }: { searchParams?: { n
                   </TableRow>
                 ))
               ) : (
-                // Linha exibida quando não há clientes
                 <TableRow>
                   <TableCell colSpan={8} className="h-24 text-center">
-                    {" "}
-                    Nenhum cliente encontrado.{" "}
+                    Nenhum cliente encontrado.
                   </TableCell>
                 </TableRow>
               )}
