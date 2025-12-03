@@ -1,6 +1,5 @@
 "use client"
 
-import type React from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -8,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { toast } from "sonner"
-import { loginAction } from "./actions" // Importa a ação segura
+import { loginAction } from "./actions"
 
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
@@ -17,27 +16,44 @@ export default function LoginPage() {
   const handleSubmit = async (formData: FormData) => {
     setIsLoading(true)
     
-    // Chama a Server Action (nada de senha no cliente!)
-    const result = await loginAction(formData)
+    try {
+      const result = await loginAction(formData)
 
-    if (result.error) {
-      toast.error(result.error)
-      setIsLoading(false)
-    } else {
-      // Sucesso!
-      // Ainda gravamos no localStorage APENAS para controle de UI (esconder menus),
-      // mas a segurança real agora está no Cookie HttpOnly que o servidor criou.
-      if (result.role) {
-        localStorage.setItem("userRole", result.role)
-      }
+      // Verificação de erro robusta (Evita o erro #130 do React)
+      if (result?.error) {
+        // Garante que a mensagem seja sempre uma string
+        const errorMessage = typeof result.error === 'string' 
+          ? result.error 
+          : "Ocorreu um erro desconhecido ao tentar fazer login."
+        
+        toast.error(errorMessage)
+        setIsLoading(false)
+        return
+      } 
+      
+      if (result?.success) {
+        // Grava no localStorage para controle de UI (Menus)
+        if (result.role) {
+          localStorage.setItem("userRole", result.role)
+        }
 
-      if (result.role === "admin") {
-        toast.success("Login (Diretoria) realizado com sucesso!")
-        router.push("/dashboard")
+        // Redirecionamento baseado no papel
+        if (result.role === "admin") {
+          toast.success("Login (Diretoria) realizado com sucesso!")
+          router.push("/dashboard")
+        } else {
+          toast.success("Login realizado com sucesso!")
+          router.push("/dashboard/accesses")
+        }
       } else {
-        toast.success("Login realizado com sucesso!")
-        router.push("/dashboard/accesses")
+         // Caso de borda onde não há erro nem sucesso claro
+         toast.error("Erro de comunicação com o servidor.")
+         setIsLoading(false)
       }
+    } catch (err) {
+      console.error("Erro no login:", err)
+      toast.error("Erro inesperado. Tente novamente.")
+      setIsLoading(false)
     }
   }
 
@@ -54,15 +70,13 @@ export default function LoginPage() {
             <CardDescription>Digite a chave de acesso para continuar</CardDescription>
           </CardHeader>
           <CardContent>
-            {/* Usamos a action diretamente no form para progressão progressiva, 
-                mas controlamos o submit para feedback visual (loading) */}
             <form action={handleSubmit}>
               <div className="flex flex-col gap-6">
                 <div className="grid gap-2">
                   <Label htmlFor="password">Chave de Acesso</Label>
                   <Input
                     id="password"
-                    name="password" // Necessário para o FormData
+                    name="password"
                     type="password"
                     placeholder="Digite sua chave..."
                     required

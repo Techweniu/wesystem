@@ -13,20 +13,14 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useRouter } from "next/navigation"
 import { ThemeToggle } from "@/components/theme-provider"
-import { logoutAction } from "@/app/auth/login/actions" // Importar a ação de logout
+import { logoutAction } from "@/app/auth/login/actions"
 
 export function DashboardHeader({ user }: { user: any }) {
   const router = useRouter()
 
   const handleSignOut = async () => {
-    // 1. Limpa o localStorage (UI)
     localStorage.removeItem("userRole")
-    
-    // 2. Chama a Server Action para limpar o Cookie Seguro
-    await logoutAction() 
-    
-    // (O redirect já acontece dentro do logoutAction, mas por segurança no cliente:)
-    // router.push("/auth/login") 
+    await logoutAction()
   }
 
   return (
@@ -46,7 +40,8 @@ export function DashboardHeader({ user }: { user: any }) {
             <Button variant="ghost" size="icon" className="rounded-full">
               <Avatar className="h-8 w-8">
                 <AvatarImage src="/placeholder-user.jpg" alt="Avatar" />
-                <AvatarFallback>AD</AvatarFallback>
+                {/* AQUI: Garantimos que renderiza uma string, não o objeto user */}
+                <AvatarFallback>AD</AvatarFallback> 
               </Avatar>
               <span className="sr-only">Menu do usuário</span>
             </Button>
