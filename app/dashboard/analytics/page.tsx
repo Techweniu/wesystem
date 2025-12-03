@@ -5,14 +5,25 @@ import { TeamAllocationChart } from "@/components/team-allocation-chart"
 import { ProfitabilityChart } from "@/components/profitability-chart"
 import { NpsScoreSummaryTable } from "@/components/nps-score-summary-table"
 import { BarChart3, TrendingUp, Users, AlertTriangle } from "lucide-react"
+import { parseISO, isPast, format } from "date-fns"
 
 export const dynamic = "force-dynamic"
+
+// Função auxiliar para verificar vigência do contrato (Igual à página de Clientes)
+const isContractVigent = (contract: { start_date: string | null; end_date: string | null }) => {
+  const today = new Date()
+  const hasStarted = contract.start_date
+    ? isPast(parseISO(contract.start_date)) ||
+      format(parseISO(contract.start_date), "yyyy-MM-dd") === format(today, "yyyy-MM-dd")
+    : true
+  const hasNotEnded = contract.end_date ? !isPast(parseISO(contract.end_date)) : true
+  return hasStarted && hasNotEnded
+}
 
 async function getAnalyticsData() {
   const supabase = await createClient()
 
   // 1. Buscar Clientes ATIVOS com Contratos e NPS
-  // Nota: Clientes inativos ou prospects não entram no Analytics
   const { data: clients, error } = await supabase
     .from("clients")
     .select(`
@@ -68,7 +79,7 @@ async function getAnalyticsData() {
   // B. Cálculo de Lucratividade
   const profitabilityData = clients.map(client => {
     const revenue = client.contracts
-      ?.filter(c => c.status === 'active')
+      ?.filter(c => c.status === 'active' && isContractVigent(c))
       .reduce((sum, c) => sum + Number(c.valor_mensal), 0) || 0
 
     let cost = 0
@@ -100,13 +111,12 @@ async function getAnalyticsData() {
   const npsSummary = { detractors: 0, passives: 0, promoters: 0 }
   
   const clientsWithNps = clients.map(client => {
-    // Calcula receita recorrente (MRR)
+    // Calcula receita recorrente (MRR) usando a vigência correta
     const activeContractValue = client.contracts
-      ?.filter(c => c.status === 'active')
+      ?.filter(c => c.status === 'active' && isContractVigent(c))
       .reduce((sum, c) => sum + Number(c.valor_mensal), 0) || 0
       
     // Pega o NPS mais recente
-    // Garante que nps_responses não seja nulo e ordena
     const responses = client.nps_responses || []
     const latestResponse = responses.sort((a, b) => 
       new Date(b.response_date).getTime() - new Date(a.response_date).getTime()
@@ -130,16 +140,17 @@ async function getAnalyticsData() {
   })
 
   // D. Dados para o Gráfico de Quadrantes (Matriz Valor x Satisfação)
-  // Filtra clientes que têm NPS E Receita > 0
+  // Filtra apenas clientes que TÊM uma nota NPS.
+  // REMOVIDO: Filtro de receita > 0, para mostrar todos com NPS.
   const npsChartData = clientsWithNps
-    .filter(d => d.latestNps !== undefined && d.latestNps !== null && d.revenue > 0)
+    .filter(d => d.latestNps !== undefined && d.latestNps !== null)
     .map(d => ({ 
       name: d.name, 
-      nps: d.latestNps as number, // Mapeia para 'nps' como o componente espera
-      revenue: d.revenue          // Mapeia para 'revenue' como o componente espera
+      nps: d.latestNps as number, 
+      revenue: d.revenue 
     }))
 
-  // E. Dados para Lista de Ranqueamento (apenas quem tem NPS)
+  // E. Dados para Lista de Ranqueamento
   const rankedClients = clientsWithNps
     .filter(c => c.latestNps !== undefined && c.latestNps !== null)
     .sort((a, b) => (a.latestNps as number) - (b.latestNps as number))
@@ -242,7 +253,7 @@ export default async function AnalyticsPage() {
                <div className="flex h-[300px] items-center justify-center text-muted-foreground border border-dashed rounded-lg text-center p-4">
                  <p className="text-sm">
                    Insuficiente dados para gerar a matriz.<br/>
-                   Necessário ter clientes com <strong>NPS respondido</strong> e <strong>Contrato Ativo (Valor &gt; 0)</strong>.
+                   Necessário ter clientes Ativos com <strong>NPS respondido</strong>.
                  </p>
                </div>
              )}
@@ -258,7 +269,6 @@ export default async function AnalyticsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {/* Mostra os top 10 ou últimos, invertendo para mostrar maiores receitas primeiro se preferir */}
             <ProfitabilityChart data={profitabilityData.slice(-10)} /> 
           </CardContent>
         </Card>
