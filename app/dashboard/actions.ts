@@ -56,7 +56,7 @@ export async function getAiInsights() {
 
   try {
     const { text } = await generateText({
-      model: "meta/llama-3.3-70b",
+      model: "gpt-oss-120b", // Modelo atualizado para GPT-OSS-120b
       prompt: systemPrompt,
       temperature: 0.5,
     })
@@ -67,7 +67,7 @@ export async function getAiInsights() {
 
     return { success: text }
   } catch (error) {
-    console.error("Erro na API do Groq ao gerar insights:", error)
+    console.error("Erro na API ao gerar insights:", error)
     return { error: "Ocorreu um erro ao se comunicar com a IA." }
   }
 }
