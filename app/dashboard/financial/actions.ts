@@ -3,12 +3,12 @@
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
-import { createClient } from "@/lib/supabase/server"
-import { cookies } from "next/headers" // --- IMPORTANTE
+import { cookies } from "next/headers"
 
 // --- FUNÇÃO AUXILIAR DE SEGURANÇA ---
-function checkAdminPermission() {
-  const role = cookies().get("user_role")?.value
+async function checkAdminPermission() {
+  const cookieStore = await cookies()
+  const role = cookieStore.get("user_role")?.value
   if (role !== "admin") {
     throw new Error("Acesso negado: Você não tem permissão para realizar esta operação financeira.")
   }
@@ -26,7 +26,7 @@ const costSchema = z.object({
 // --- AÇÃO addCost ---
 export async function addCost(formData: FormData) {
   try {
-    checkAdminPermission() // <--- PROTEÇÃO
+    await checkAdminPermission() // <--- PROTEÇÃO
 
     const rawData = {
       description: formData.get("description"),
@@ -43,7 +43,10 @@ export async function addCost(formData: FormData) {
       return { success: false, error: firstError || "Dados inválidos." }
     }
 
-    const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    )
 
     const { error } = await supabaseAdmin.from("costs").insert([
       {
@@ -67,7 +70,7 @@ export async function addCost(formData: FormData) {
 // --- AÇÃO updateCost ---
 export async function updateCost(id: string, formData: FormData) {
   try {
-    checkAdminPermission() // <--- PROTEÇÃO
+    await checkAdminPermission() // <--- PROTEÇÃO
 
     const rawData = {
       description: formData.get("description"),
@@ -84,7 +87,10 @@ export async function updateCost(id: string, formData: FormData) {
       return { success: false, error: firstError || "Dados inválidos." }
     }
 
-    const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    )
 
     const { error } = await supabaseAdmin.from("costs").update(validated.data).eq("id", id)
 
@@ -100,11 +106,14 @@ export async function updateCost(id: string, formData: FormData) {
 // --- AÇÃO deleteCost ---
 export async function deleteCost(id: string) {
   try {
-    checkAdminPermission() // <--- PROTEÇÃO
+    await checkAdminPermission() // <--- PROTEÇÃO
 
     if (!id) return { success: false, error: "ID inválido." }
 
-    const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    )
 
     const { error } = await supabaseAdmin.from("costs").delete().eq("id", id)
 
@@ -125,7 +134,7 @@ const clientPaymentSchema = z.object({
 
 export async function markClientPaymentAsPaid(formData: FormData) {
   try {
-    checkAdminPermission() // <--- PROTEÇÃO
+    await checkAdminPermission() // <--- PROTEÇÃO
 
     const proofFile = formData.get("proof_file") as File
     if (!proofFile || proofFile.size === 0) {
@@ -138,7 +147,10 @@ export async function markClientPaymentAsPaid(formData: FormData) {
     }
 
     const { clientId, amount } = validatedFields.data
-    const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    )
 
     const fileExtension = proofFile.name.split(".").pop()
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExtension}`
@@ -177,13 +189,16 @@ const undoClientPaymentSchema = z.object({
 
 export async function undoClientPayment(formData: FormData) {
   try {
-    checkAdminPermission() // <--- PROTEÇÃO
+    await checkAdminPermission() // <--- PROTEÇÃO
 
     const validatedFields = undoClientPaymentSchema.safeParse(Object.fromEntries(formData))
     if (!validatedFields.success) return { error: "ID inválido." }
 
     const { clientId } = validatedFields.data
-    const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    )
 
     const startOfMonth = new Date()
     startOfMonth.setDate(1)
@@ -219,13 +234,16 @@ const costPaymentSchema = z.object({
 
 export async function markCostAsPaid(formData: FormData) {
   try {
-    checkAdminPermission() // <--- PROTEÇÃO
+    await checkAdminPermission() // <--- PROTEÇÃO
 
     const validatedFields = costPaymentSchema.safeParse(Object.fromEntries(formData))
     if (!validatedFields.success) return { error: "Dados inválidos." }
 
     const { costId } = validatedFields.data
-    const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    )
 
     const { data: cost } = await supabaseAdmin.from("costs").select("*").eq("id", costId).single()
     if (!cost) return { error: "Custo não encontrado." }
@@ -286,20 +304,23 @@ const undoCostPaymentSchema = z.object({
 
 export async function undoCostPayment(formData: FormData) {
   try {
-    checkAdminPermission() // <--- PROTEÇÃO
+    await checkAdminPermission() // <--- PROTEÇÃO
 
     const validatedFields = undoCostPaymentSchema.safeParse(Object.fromEntries(formData))
     if (!validatedFields.success) return { error: "ID inválido." }
 
     const { costId } = validatedFields.data
-    const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    )
 
     const { error } = await supabaseAdmin
       .from("costs")
-      .update({ 
+      .update({
         paid_date: null,
-        status: 'pending',
-        proof_url: null
+        status: "pending",
+        proof_url: null,
       })
       .eq("id", costId)
 
@@ -320,7 +341,7 @@ const paymentSchema = z.object({
 
 export async function markPaymentAsPaid(formData: FormData) {
   try {
-    checkAdminPermission() // <--- PROTEÇÃO
+    await checkAdminPermission() // <--- PROTEÇÃO
 
     const proofFile = formData.get("proof_file") as File
     if (!proofFile || proofFile.size === 0) return { error: "Comprovante obrigatório." }
@@ -329,7 +350,10 @@ export async function markPaymentAsPaid(formData: FormData) {
     if (!validatedFields.success) return { error: "Dados inválidos." }
 
     const { employeeId, amount } = validatedFields.data
-    const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    )
 
     const fileExtension = proofFile.name.split(".").pop()
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExtension}`
@@ -367,13 +391,16 @@ const undoPaymentSchema = z.object({
 
 export async function undoEmployeePayment(formData: FormData) {
   try {
-    checkAdminPermission() // <--- PROTEÇÃO
+    await checkAdminPermission() // <--- PROTEÇÃO
 
     const validatedFields = undoPaymentSchema.safeParse(Object.fromEntries(formData))
     if (!validatedFields.success) return { error: "ID inválido." }
 
     const { employeeId } = validatedFields.data
-    const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    )
 
     const startOfMonth = new Date()
     startOfMonth.setDate(1)
@@ -410,7 +437,7 @@ const servicePaymentSchema = z.object({
 
 export async function markServiceAsReceived(formData: FormData) {
   try {
-    checkAdminPermission() // <--- PROTEÇÃO
+    await checkAdminPermission() // <--- PROTEÇÃO
 
     const proofFile = formData.get("proof_file") as File
     if (!proofFile || proofFile.size === 0) return { error: "Comprovante obrigatório." }
@@ -419,7 +446,10 @@ export async function markServiceAsReceived(formData: FormData) {
     if (!validatedFields.success) return { error: "Dados inválidos." }
 
     const { serviceId, clientId } = validatedFields.data
-    const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    )
 
     const fileExtension = proofFile.name.split(".").pop()
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExtension}`
@@ -460,13 +490,16 @@ const undoServiceReceiptSchema = z.object({
 
 export async function undoServiceReceipt(formData: FormData) {
   try {
-    checkAdminPermission() // <--- PROTEÇÃO
+    await checkAdminPermission() // <--- PROTEÇÃO
 
     const validatedFields = undoServiceReceiptSchema.safeParse(Object.fromEntries(formData))
     if (!validatedFields.success) return { error: "Dados inválidos." }
 
     const { serviceId, clientId } = validatedFields.data
-    const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    )
 
     const { error: updateError } = await supabaseAdmin
       .from("one_time_services")

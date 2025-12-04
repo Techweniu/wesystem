@@ -17,7 +17,6 @@ export async function loginAction(formData: FormData) {
   let email = ""
   let role = ""
 
-  // 1. Identifica qual usuário está tentando logar
   if (password === adminPwd) {
     email = "admin@wesystem.app"
     role = "admin"
@@ -28,22 +27,20 @@ export async function loginAction(formData: FormData) {
     return { error: "Chave de acesso incorreta." }
   }
 
-  // 2. Tenta fazer login no Supabase Auth (cria sessão real)
   const supabase = await createClient()
   const { error: signInError } = await supabase.auth.signInWithPassword({
     email,
-    password
+    password,
   })
 
-  // 3. Se falhar (usuário não existe), cria o usuário automaticamente
   if (signInError) {
     console.log("Usuário não encontrado, criando...", email)
     const supabaseAdmin = createAdminClient()
-    
+
     const { error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
-      email_confirm: true // Confirma automaticamente
+      email_confirm: true,
     })
 
     if (createError) {
@@ -51,10 +48,9 @@ export async function loginAction(formData: FormData) {
       return { error: "Erro ao gerar acesso seguro." }
     }
 
-    // Tenta logar novamente agora que existe
     const { error: retryError } = await supabase.auth.signInWithPassword({
       email,
-      password
+      password,
     })
 
     if (retryError) {
@@ -62,11 +58,11 @@ export async function loginAction(formData: FormData) {
     }
   }
 
-  // 4. Define o cookie de controle de UI (Legado/Frontend)
-  cookies().set("user_role", role, {
+  const cookieStore = await cookies()
+  cookieStore.set("user_role", role, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    maxAge: 60 * 60 * 24 * 7, // 7 dias
+    maxAge: 60 * 60 * 24 * 7,
     path: "/",
   })
 
@@ -75,7 +71,8 @@ export async function loginAction(formData: FormData) {
 
 export async function logoutAction() {
   const supabase = await createClient()
-  await supabase.auth.signOut() // Logout real do Supabase
-  cookies().delete("user_role") // Limpa cookie de UI
+  await supabase.auth.signOut()
+  const cookieStore = await cookies()
+  cookieStore.delete("user_role")
   redirect("/auth/login")
 }

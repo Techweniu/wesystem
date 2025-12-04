@@ -6,8 +6,9 @@ import { z } from "zod"
 import { cookies } from "next/headers" // Necessário para ler o cookie de segurança
 
 // --- FUNÇÃO AUXILIAR DE SEGURANÇA ---
-function checkAdminPermission() {
-  const role = cookies().get("user_role")?.value
+async function checkAdminPermission() {
+  const cookieStore = await cookies()
+  const role = cookieStore.get("user_role")?.value
   if (role !== "admin") {
     throw new Error("Acesso negado: Você não tem permissão para realizar operações comerciais.")
   }
@@ -35,7 +36,7 @@ const upsellSchema = z.object({
 
 export async function addCommercialGoal(formData: FormData) {
   try {
-    checkAdminPermission() // <--- PROTEÇÃO
+    await checkAdminPermission() // <--- PROTEÇÃO
 
     const rawData = {
       title: formData.get("title"),
@@ -51,7 +52,10 @@ export async function addCommercialGoal(formData: FormData) {
       return { success: false, error: "Dados inválidos. Verifique os campos." }
     }
 
-    const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    )
 
     const { error } = await supabaseAdmin.from("commercial_goals").insert({
       ...validatedFields.data,
@@ -69,7 +73,7 @@ export async function addCommercialGoal(formData: FormData) {
 
 export async function updateCommercialGoal(goalId: string, formData: FormData) {
   try {
-    checkAdminPermission() // <--- PROTEÇÃO
+    await checkAdminPermission() // <--- PROTEÇÃO
 
     const rawData = {
       title: formData.get("title"),
@@ -83,12 +87,12 @@ export async function updateCommercialGoal(goalId: string, formData: FormData) {
 
     if (!validatedFields.success) return { success: false, error: "Dados inválidos." }
 
-    const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    )
 
-    const { error } = await supabaseAdmin
-      .from("commercial_goals")
-      .update(validatedFields.data)
-      .eq("id", goalId)
+    const { error } = await supabaseAdmin.from("commercial_goals").update(validatedFields.data).eq("id", goalId)
 
     if (error) throw error
 
@@ -101,9 +105,12 @@ export async function updateCommercialGoal(goalId: string, formData: FormData) {
 
 export async function deleteCommercialGoal(goalId: string) {
   try {
-    checkAdminPermission() // <--- PROTEÇÃO
+    await checkAdminPermission() // <--- PROTEÇÃO
 
-    const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    )
     const { error } = await supabaseAdmin.from("commercial_goals").delete().eq("id", goalId)
 
     if (error) throw error
@@ -119,7 +126,7 @@ export async function deleteCommercialGoal(goalId: string) {
 
 export async function addClientUpsell(formData: FormData) {
   try {
-    checkAdminPermission() // <--- PROTEÇÃO
+    await checkAdminPermission() // <--- PROTEÇÃO
 
     // Processa os serviços (checkboxes múltiplos)
     const services = formData.getAll("service_ids[]") as string[]
@@ -139,18 +146,18 @@ export async function addClientUpsell(formData: FormData) {
       return { success: false, error: "Dados inválidos." }
     }
 
-    const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    )
 
     // Busca nomes dos serviços para salvar no array de texto (simplificação)
     let serviceNames: string[] = []
     if (services.length > 0) {
-      const { data: servicesData } = await supabaseAdmin
-        .from("services")
-        .select("name")
-        .in("id", services)
-      
+      const { data: servicesData } = await supabaseAdmin.from("services").select("name").in("id", services)
+
       if (servicesData) {
-        serviceNames = servicesData.map(s => s.name)
+        serviceNames = servicesData.map((s) => s.name)
       }
     }
 
@@ -164,9 +171,9 @@ export async function addClientUpsell(formData: FormData) {
 
     if (error) throw error
 
+    revalidatePath("/dashboard/commercial")
     revalidatePath("/dashboard/clients")
     revalidatePath(`/dashboard/clients/${validatedFields.data.client_id}`)
-    revalidatePath("/dashboard/commercial")
     return { success: true, message: "Oportunidade adicionada!" }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : "Erro desconhecido" }
@@ -175,14 +182,14 @@ export async function addClientUpsell(formData: FormData) {
 
 export async function updateUpsellStatus(upsellId: string, newStatus: string) {
   try {
-    checkAdminPermission() // <--- PROTEÇÃO
+    await checkAdminPermission() // <--- PROTEÇÃO
 
-    const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    )
 
-    const { error } = await supabaseAdmin
-      .from("client_upsells")
-      .update({ status: newStatus })
-      .eq("id", upsellId)
+    const { error } = await supabaseAdmin.from("client_upsells").update({ status: newStatus }).eq("id", upsellId)
 
     if (error) throw error
 
@@ -196,9 +203,12 @@ export async function updateUpsellStatus(upsellId: string, newStatus: string) {
 
 export async function deleteClientUpsell(upsellId: string) {
   try {
-    checkAdminPermission() // <--- PROTEÇÃO
+    await checkAdminPermission() // <--- PROTEÇÃO
 
-    const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    )
 
     const { error } = await supabaseAdmin.from("client_upsells").delete().eq("id", upsellId)
 

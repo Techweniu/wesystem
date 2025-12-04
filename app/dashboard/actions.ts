@@ -56,7 +56,7 @@ export async function getAiInsights() {
 
   try {
     const { text } = await generateText({
-      model: "gpt-oss-120b", // Modelo atualizado para GPT-OSS-120b
+      model: "openai/gpt-4o-mini",
       prompt: systemPrompt,
       temperature: 0.5,
     })
