@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { createAdminClient, createClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -13,7 +13,6 @@ import { NpsScoreSummaryTable } from "@/components/nps-score-summary-table"
 import { differenceInDays, parseISO, isPast, startOfMonth, format } from "date-fns"
 import { LowNpsAlertCard } from "@/components/low-nps-alert-card"
 
-// Função auxiliar para verificar vigência do contrato
 const isContractVigent = (contract: { start_date: string | null; end_date: string | null }) => {
   const today = new Date()
   const hasStarted = contract.start_date
@@ -25,16 +24,15 @@ const isContractVigent = (contract: { start_date: string | null; end_date: strin
 }
 
 async function getEmployeesByRole() {
-  const supabase = await createClient()
+  // Admin Client para garantir leitura da lista de funcionários
+  const supabase = createAdminClient()
   
-  // Busca todos os funcionários ativos
   const { data: employees } = await supabase
     .from("employees")
     .select("id, name, role")
     .eq("status", "active")
     .order("name")
 
-  // Filtra por cargo para facilitar o uso no front
   const assessors = employees?.filter(e => e.role === "Assessor") || []
   const videomakers = employees?.filter(e => e.role === "Videomaker") || []
   const managers = employees?.filter(e => e.role === "Gestor de Relacionamento") || []
@@ -44,7 +42,8 @@ async function getEmployeesByRole() {
 }
 
 async function getClients({ name, status }: { name?: string; status?: string }) {
-  const supabase = await createClient()
+  // Admin Client para garantir leitura dos clientes
+  const supabase = createAdminClient()
   let query = supabase
     .from("clients")
     .select(
@@ -117,7 +116,8 @@ async function getClients({ name, status }: { name?: string; status?: string }) 
 }
 
 async function getAnalyticsData() {
-  const supabase = await createClient()
+  // Admin Client para garantir leitura dos dados analíticos
+  const supabase = createAdminClient()
   const today = new Date()
   const startOfCurrentMonth = format(startOfMonth(today), "yyyy-MM-dd")
 
@@ -178,8 +178,8 @@ export default async function ClientsPage({ searchParams }: { searchParams?: { n
   const [clients, analytics, allClientsResult, teamData] = await Promise.all([
     getClients({ name, status }),
     getAnalyticsData(),
-    createClient().then((supabase) => supabase.from("clients").select("status")),
-    getEmployeesByRole(), // <--- Nova busca de funcionários
+    createAdminClient().from("clients").select("status"), // Admin Client aqui também
+    getEmployeesByRole(),
   ])
 
   const rankedClients =
@@ -213,7 +213,6 @@ export default async function ClientsPage({ searchParams }: { searchParams?: { n
           <h1 className="text-3xl font-bold tracking-tight">Clientes</h1>
           <p className="text-muted-foreground">Gerencie e analise sua base de clientes</p>
         </div>
-        {/* Passando os dados da equipe para o formulário */}
         <AddClientForm 
           assessors={teamData.assessors}
           videomakers={teamData.videomakers}
@@ -222,6 +221,8 @@ export default async function ClientsPage({ searchParams }: { searchParams?: { n
         />
       </div>
 
+      {/* ... (Resto do JSX igual, omitido para brevidade, mantenha o que já existe) ... */}
+      
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
