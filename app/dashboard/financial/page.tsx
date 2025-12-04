@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/server" // Admin Client
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Users, FileText, ExternalLink } from "lucide-react"
@@ -46,7 +46,7 @@ function getDateRange(period: string) {
 }
 
 async function getFinancialData(period: string) {
-  const supabase = await createClient()
+  const supabase = createAdminClient() // Busca com privilégios
   const { start, end, startObj, endObj } = getDateRange(period)
 
   // 1. Buscar Dados em Paralelo
@@ -59,55 +59,13 @@ async function getFinancialData(period: string) {
     { data: activeEmployees },
     { data: costCategories }
   ] = await Promise.all([
-    // Custos (Operacionais, Marketing, etc)
-    supabase
-      .from("costs")
-      .select("*")
-      .gte("date", start)
-      .lte("date", end)
-      .order("date", { ascending: false }),
-
-    // Serviços Pontuais
-    supabase
-      .from("one_time_services")
-      .select("*, clients(name)")
-      .gte("date", start)
-      .lte("date", end)
-      .order("date", { ascending: false }),
-
-    // Pagamentos de Clientes (Contratos + Serviços)
-    supabase
-      .from("client_payments")
-      .select("*, clients(name)")
-      .gte("payment_date", start)
-      .lte("payment_date", end)
-      .order("payment_date", { ascending: false }),
-
-    // Pagamentos de Funcionários (Salários)
-    supabase
-      .from("employee_payments")
-      .select("*, employees(name)")
-      .gte("payment_date", start)
-      .lte("payment_date", end)
-      .order("payment_date", { ascending: false }),
-
-    // Contratos Ativos (para calcular MRR esperado)
-    supabase
-      .from("contracts")
-      .select("id, name, valor_mensal, client_id, clients(name)")
-      .eq("status", "active"),
-
-    // Funcionários Ativos (para calcular Folha esperada)
-    supabase
-      .from("employees")
-      .select("id, name, salary, payment_day")
-      .eq("status", "active"),
-      
-    // Categorias de Custo
-    supabase
-      .from("cost_categories")
-      .select("*")
-      .order("name")
+    supabase.from("costs").select("*").gte("date", start).lte("date", end).order("date", { ascending: false }),
+    supabase.from("one_time_services").select("*, clients(name)").gte("date", start).lte("date", end).order("date", { ascending: false }),
+    supabase.from("client_payments").select("*, clients(name)").gte("payment_date", start).lte("payment_date", end).order("payment_date", { ascending: false }),
+    supabase.from("employee_payments").select("*, employees(name)").gte("payment_date", start).lte("payment_date", end).order("payment_date", { ascending: false }),
+    supabase.from("contracts").select("id, name, valor_mensal, client_id, clients(name)").eq("status", "active"),
+    supabase.from("employees").select("id, name, salary, payment_day").eq("status", "active"),
+    supabase.from("cost_categories").select("*").order("name")
   ])
 
   const safeCosts = costs || []
@@ -118,20 +76,10 @@ async function getFinancialData(period: string) {
   const safeEmployees = activeEmployees || []
 
   // --- CÁLCULOS DE RECEITA ---
-
-  // Receita de Contratos (MRR)
-  // Recebido: Soma dos pagamentos de clientes registrados
   const contractsReceived = safeClientPayments.reduce((sum, p) => sum + Number(p.amount), 0)
-  
-  // Esperado (MRR Total): Soma dos valores mensais dos contratos ativos
   const totalMrrExpected = safeContracts.reduce((sum, c) => sum + Number(c.valor_mensal), 0)
-  
-  // Pendente: O que falta receber do MRR (simplificação: MRR Total - Recebido, não pode ser negativo)
-  // Nota: Isso é uma estimativa. Idealmente teríamos faturas individuais.
   const contractsPending = Math.max(0, totalMrrExpected - contractsReceived)
 
-  // Receita de Serviços Pontuais
-  // Recebido: Serviços marcados como 'completed' e com data de recebimento (ou pagos via client_payments se vinculados - simplificando aqui usando o status)
   const servicesRevenue = safeServices
     .filter(s => s.status === 'completed' || s.received_date)
     .reduce((sum, s) => sum + Number(s.value), 0)
@@ -141,13 +89,10 @@ async function getFinancialData(period: string) {
     .reduce((sum, s) => sum + Number(s.value), 0)
 
   // --- CÁLCULOS DE CUSTOS ---
-
-  // Salários
   const salariesPaid = safeEmployeePayments.reduce((sum, p) => sum + Number(p.amount), 0)
   const totalSalariesExpected = safeEmployees.reduce((sum, e) => sum + Number(e.salary), 0)
   const salariesPending = Math.max(0, totalSalariesExpected - salariesPaid)
 
-  // Outros Custos
   const otherCostsPaid = safeCosts
     .filter(c => c.status === 'paid')
     .reduce((sum, c) => sum + Number(c.value), 0)
@@ -157,34 +102,20 @@ async function getFinancialData(period: string) {
     .reduce((sum, c) => sum + Number(c.value), 0)
 
   // --- PREPARAÇÃO PARA TABELAS E GRÁFICOS ---
-
-  // Dados para Gráfico de Categorias (Pie Chart)
   const costsByCategory: Record<string, number> = {}
-  
-  // Adiciona custos operacionais
   safeCosts.forEach(c => {
     const cat = c.category || 'Outros'
     costsByCategory[cat] = (costsByCategory[cat] || 0) + Number(c.value)
   })
-  
-  // Adiciona Salários como uma categoria
   if (salariesPaid + salariesPending > 0) {
     costsByCategory['Salários'] = salariesPaid + salariesPending
   }
 
-  // Tabela de Pagamentos de Clientes (Monitoramento de MRR)
-  // Mapeia contratos ativos para verificar quem pagou
-  // ATENÇÃO: Lógica simplificada. Verifica se houve algum pagamento do cliente no período.
   const clientPaymentsData = safeContracts.map(contract => {
-    // Verifica se houve pagamento deste cliente no período selecionado
-    // (Ignora o valor exato por enquanto, considera "Pago" se houver registro)
     const payment = safeClientPayments.find(p => p.client_id === contract.client_id)
     const isPaid = !!payment
-    
-    // Calcula próxima data de vencimento (dia 10 ou dia do contrato)
     const today = new Date()
-    // Se hoje é dia 15 e pagou, próximo é mês que vem. Se não pagou, é este mês.
-    let nextDate = new Date(today.getFullYear(), today.getMonth(), 10) // Dia 10 padrão
+    let nextDate = new Date(today.getFullYear(), today.getMonth(), 10)
     if (isPaid) {
        nextDate.setMonth(nextDate.getMonth() + 1)
     }
@@ -199,14 +130,13 @@ async function getFinancialData(period: string) {
       proofUrl: payment?.proof_url
     }
   })
-  // Remove duplicatas de clientes (agrupa contratos do mesmo cliente)
+
   const uniqueClientPaymentsMap = new Map()
   clientPaymentsData.forEach(item => {
     if (uniqueClientPaymentsMap.has(item.clientId)) {
       const existing = uniqueClientPaymentsMap.get(item.clientId)
       existing.expectedAmount += item.expectedAmount
       existing.activeContracts.push(...item.activeContracts)
-      // Se algum contrato gerou pagamento, consideramos pago (ajustar conforme regra de negócio real)
       existing.isPaidThisMonth = existing.isPaidThisMonth || item.isPaidThisMonth 
       if (item.proofUrl) existing.proofUrl = item.proofUrl
     } else {
@@ -215,7 +145,6 @@ async function getFinancialData(period: string) {
   })
   const uniqueClientPayments = Array.from(uniqueClientPaymentsMap.values())
 
-  // Tabela de Pagamentos de Funcionários
   const employeePaymentsData = safeEmployees.map(emp => {
     const payment = safeEmployeePayments.find(p => p.employee_id === emp.id)
     const isPaid = !!payment
@@ -265,10 +194,7 @@ export default async function FinancialPage({
   searchParams: { period?: string }
 }) {
   const period = searchParams.period || "month"
-  
-  // Chamada segura da função de dados
   const data = await getFinancialData(period)
-
   const userRole = cookies().get("user_role")?.value
   const isLimited = userRole === "limited"
 
