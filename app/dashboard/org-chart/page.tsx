@@ -1,5 +1,4 @@
-// bi-dashboard (4)/app/dashboard/org-chart/page.tsx
-import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/server" // Admin Client
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { PlusCircle } from "lucide-react"
@@ -7,10 +6,8 @@ import { OrgChartTree } from "@/components/org-chart-tree"
 import { AddOrgPositionForm } from "@/components/add-org-position-form"
 
 async function getOrgChartData(): Promise<{ roots: any[]; allPositions: any[] }> {
-  // Added return type annotation
-  const supabase = await createClient()
+  const supabase = createAdminClient() // Busca com privilégios
 
-  // Default return structure
   const defaultReturn = { roots: [], allPositions: [] }
 
   try {
@@ -22,16 +19,15 @@ async function getOrgChartData(): Promise<{ roots: any[]; allPositions: any[] }>
 
     if (error) {
       console.error("Erro ao buscar dados do organograma:", error)
-      return defaultReturn // Return default on error
+      return defaultReturn
     }
 
     const positions = positionsData || []
 
     if (positions.length === 0) {
-      return defaultReturn // Return default if no active employees
+      return defaultReturn
     }
 
-    // Build the tree structure
     const positionMap = new Map()
     positions.forEach((pos) => {
       positionMap.set(pos.id, { ...pos, children: [] })
@@ -40,20 +36,16 @@ async function getOrgChartData(): Promise<{ roots: any[]; allPositions: any[] }>
     const roots: any[] = []
     positions.forEach((pos) => {
       const currentPosition = positionMap.get(pos.id)
-      // Ensure currentPosition exists before proceeding
       if (!currentPosition) return
 
       if (pos.manager_id && positionMap.has(pos.manager_id)) {
         const manager = positionMap.get(pos.manager_id)
-        // Ensure manager exists before adding child
         if (manager) {
           manager.children.push(currentPosition)
         } else {
-          // If manager_id exists but manager not found (e.g., inactive manager), treat as root
           roots.push(currentPosition)
         }
       } else {
-        // No manager_id or manager not active/found, treat as root
         roots.push(currentPosition)
       }
     })
@@ -61,12 +53,11 @@ async function getOrgChartData(): Promise<{ roots: any[]; allPositions: any[] }>
     return { roots, allPositions: positions }
   } catch (err) {
     console.error("Erro inesperado em getOrgChartData:", err)
-    return defaultReturn // Return default on unexpected error
+    return defaultReturn
   }
 }
 
 export default async function OrgChartPage() {
-  // getOrgChartData is now guaranteed to return the object structure
   const { roots, allPositions } = await getOrgChartData()
 
   return (
