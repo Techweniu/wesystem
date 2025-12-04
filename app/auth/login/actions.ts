@@ -28,24 +28,35 @@ export async function loginAction(formData: FormData) {
   }
 
   const supabase = await createClient()
+  const supabaseAdmin = createAdminClient()
+
   const { error: signInError } = await supabase.auth.signInWithPassword({
     email,
     password,
   })
 
   if (signInError) {
-    console.log("Usuário não encontrado, criando...", email)
-    const supabaseAdmin = createAdminClient()
+    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers()
+    const userExists = existingUsers?.users?.find((u) => u.email === email)
 
-    const { error: createError } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-    })
+    if (userExists) {
+      const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(userExists.id, { password })
 
-    if (createError) {
-      console.error("Erro ao criar usuário:", createError)
-      return { error: "Erro ao gerar acesso seguro." }
+      if (updateError) {
+        console.error("Erro ao atualizar senha:", updateError)
+        return { error: "Erro ao sincronizar acesso." }
+      }
+    } else {
+      const { error: createError } = await supabaseAdmin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+      })
+
+      if (createError) {
+        console.error("Erro ao criar usuário:", createError)
+        return { error: "Erro ao gerar acesso seguro." }
+      }
     }
 
     const { error: retryError } = await supabase.auth.signInWithPassword({
@@ -54,7 +65,8 @@ export async function loginAction(formData: FormData) {
     })
 
     if (retryError) {
-      return { error: "Erro ao autenticar após criação." }
+      console.error("Erro no retry:", retryError)
+      return { error: "Erro ao autenticar. Tente novamente." }
     }
   }
 
@@ -62,7 +74,7 @@ export async function loginAction(formData: FormData) {
   cookieStore.set("user_role", role, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    maxAge: 60 * 60 * 24 * 7,
+    maxAge: 60 * 60 * 24 * 7, // 7 dias
     path: "/",
   })
 
