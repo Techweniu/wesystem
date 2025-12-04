@@ -1,10 +1,6 @@
-import { createClient } from "@/lib/supabase/server";
-// ****** VERIFIQUE ESTA LINHA ******
+import { createAdminClient } from "@/lib/supabase/server"; // Admin Client
 import { AccessesClientPage } from "./accesses-client-page";
-// **********************************
 
-
-// Tipagem movida para cá para ser exportada e usada no Client Component
 export type PlatformAccess = {
   id: string;
   platform_name: string;
@@ -17,13 +13,9 @@ export type PlatformAccess = {
   updated_at: string;
 };
 
-// Função de busca de dados no servidor
 async function getAccessData() {
-  const supabase = await createClient(); // createClient de /lib/supabase/server
+  const supabase = createAdminClient(); // Busca com privilégios
 
-  console.log("AccessesPage (Server): Tentando buscar dados...");
-
-  // Busca TUDO, sem filtro de role
   const { data, error } = await supabase
     .from("platform_access")
     .select("*")
@@ -35,16 +27,10 @@ async function getAccessData() {
     return [];
   }
 
-  console.log(`AccessesPage (Server): Dados buscados com sucesso (${data?.length || 0} itens).`);
-  return (data as PlatformAccess[]) || []; // Garante que retorna um array
+  return (data as PlatformAccess[]) || []; 
 }
 
-// O Server Component principal
 export default async function AccessesPage() {
-  // Busca os dados no servidor ANTES de renderizar
   const initialAccesses = await getAccessData();
-
-  // Renderiza o Client Component, passando os dados buscados como props
-  // (Sem props de role)
   return <AccessesClientPage initialAccesses={initialAccesses} />;
 }
