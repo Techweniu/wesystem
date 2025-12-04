@@ -44,11 +44,10 @@ export async function generateChatResponse(messages: Message[]) {
     })
 
     // Constrói o histórico da conversa para a IA
-    // Convertemos as mensagens anteriores para o formato que a IA entende no prompt
     const conversationHistory = messages.slice(0, -1).map(m => `${m.role === 'user' ? 'Usuário' : 'Assistente'}: ${m.content}`).join("\n")
 
     const systemPrompt = `
-      Você é um assistente de BI empresarial chamado "Wesystem AI".
+      Você é um assistente de BI empresarial chamado "Wesystem AI", alimentado pelo modelo GPT-OSS-120b.
       
       DADOS DO SISTEMA (Contexto Real):
       ${context}
@@ -58,13 +57,13 @@ export async function generateChatResponse(messages: Message[]) {
 
       INSTRUÇÕES:
       1. Responda à pergunta atual do usuário com base nos dados acima.
-      2. Se a pergunta depender de dados que não estão no contexto (ex: "qual o lucro exato de 2022"), diga que não tem essa informação no resumo atual.
+      2. Se a pergunta depender de dados que não estão no contexto, diga que não tem essa informação no resumo atual.
       3. Seja conciso, profissional e direto.
       4. NÃO use formatação Markdown complexa (negrito, itálico), use apenas texto simples.
     `
 
     const { text } = await generateText({
-      model: "meta/llama-3.3-70b",
+      model: "gpt-oss-120b", // Modelo atualizado para GPT-OSS-120b
       prompt: `${systemPrompt}\n\nPergunta Atual do Usuário: ${userQuestion}`,
     })
 
