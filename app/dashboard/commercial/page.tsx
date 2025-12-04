@@ -1,16 +1,16 @@
-import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/server" // Admin Client
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Target, TrendingUp, Users, DollarSign, BarChart3, AlertCircle } from "lucide-react"
 import { AddCommercialGoalForm } from "@/components/add-commercial-goal-form"
 import { CommercialGoalCard } from "@/components/commercial-goal-card"
 import { ClientCommercialCard } from "@/components/client-commercial-card"
-import { cookies } from "next/headers" // --- IMPORTADO
+import { cookies } from "next/headers"
 
 export const dynamic = "force-dynamic"
 
 async function getCommercialData() {
-  const supabase = await createClient()
+  const supabase = createAdminClient() // Busca com privilégios
 
   // 1. Buscar Metas
   const { data: goals } = await supabase
@@ -45,10 +45,8 @@ async function getCommercialData() {
 export default async function CommercialPage() {
   const data = await getCommercialData()
   
-  // --- SEGURANÇA VISUAL ---
   const userRole = cookies().get("user_role")?.value
   const isAdmin = userRole === "admin"
-  // ------------------------
 
   return (
     <div className="space-y-6">
@@ -57,7 +55,6 @@ export default async function CommercialPage() {
           <h1 className="text-3xl font-bold tracking-tight">Comercial</h1>
           <p className="text-muted-foreground">Gestão de metas e oportunidades de vendas.</p>
         </div>
-        {/* Só mostra botão de adicionar meta se for Admin */}
         {isAdmin && <AddCommercialGoalForm />}
       </div>
 
