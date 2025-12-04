@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { EditEmployeeForm } from "@/components/edit-employee-form"
 import { differenceInDays, parseISO, format } from "date-fns"
 import { ptBR } from "date-fns/locale"
-import { TeamTableRow } from "./team-table-row"
+import { TeamTableRow } from "../team-table-row"
 import { TeamFilters } from "@/components/team-filters"
 
 async function getTeamData({ name, status }: { name?: string; status?: string }) {
