@@ -69,6 +69,7 @@ export async function addCost(formData: FormData) {
         status: "pending",
         paid_date: null,
         proof_url: blob.url, // Store proof URL on creation
+        payment_proof_url: null, // payment_proof_url starts as null
       },
     ])
 
@@ -269,20 +270,16 @@ export async function markCostAsPaid(formData: FormData) {
     const fileExtension = proofFile.name.split(".").pop()
     const fileName = `cost-payments/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExtension}`
 
-    const { error: uploadError } = await supabaseAdmin.storage.from("financial-proofs").upload(fileName, proofFile, {
-      contentType: proofFile.type,
-      upsert: false,
+    const blob = await put(fileName, proofFile, {
+      access: "public",
     })
-    if (uploadError) return { error: "Erro no upload." }
-
-    const { data: urlData } = supabaseAdmin.storage.from("financial-proofs").getPublicUrl(fileName)
 
     const { error: paymentError } = await supabaseAdmin
       .from("costs")
       .update({
         paid_date: new Date().toISOString().split("T")[0],
         status: "paid",
-        proof_url: urlData.publicUrl,
+        payment_proof_url: blob.url, // Now saves to payment_proof_url
       })
       .eq("id", costId)
 
@@ -301,6 +298,7 @@ export async function markCostAsPaid(formData: FormData) {
         paid_date: null,
         status: "pending",
         proof_url: null,
+        payment_proof_url: null,
       })
     }
 
@@ -334,7 +332,7 @@ export async function undoCostPayment(formData: FormData) {
       .update({
         paid_date: null,
         status: "pending",
-        proof_url: null,
+        payment_proof_url: null, // Only clear payment proof
       })
       .eq("id", costId)
 

@@ -11,6 +11,7 @@ import { ptBR } from "date-fns/locale"
 import Link from "next/link"
 import { EditEmployeeForm } from "@/components/edit-employee-form"
 import { AddObservationForm } from "@/components/add-observation-form"
+import { AddContributionForm } from "@/components/add-contribution-form"
 import { CareerPlanExpirationBadge } from "@/components/career-plan-expiration-badge"
 
 async function getEmployeeData(id: string) {
@@ -299,6 +300,9 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
               </TabsContent>
 
               <TabsContent value="contributions" className="mt-0">
+                <div className="flex justify-end mb-4">
+                  <AddContributionForm employeeId={employee.id} />
+                </div>
                 {employee.employee_contributions?.length > 0 ? (
                   <Table>
                     <TableHeader>
