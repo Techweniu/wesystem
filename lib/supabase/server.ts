@@ -3,30 +3,36 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 import { cookies } from "next/headers"
 
 /**
- * Creates a Supabase server client for use in Server Components.
+ * Creates a Supabase server client for use in Server Components & Actions.
+ * USES ANON KEY: Respects RLS policies (Security).
  */
 export async function createClient() {
   const cookieStore = cookies()
 
-  return createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
-    cookies: {
-      getAll() {
-        return cookieStore.getAll()
-      },
-      setAll(cookiesToSet) {
-        try {
-          cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options))
-        } catch {
-          // Ignorar erros em Server Components é seguro se o middleware estiver tratando a sessão.
-        }
+  // CORREÇÃO DE SEGURANÇA: Usar ANON_KEY em vez de SERVICE_ROLE_KEY
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, 
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options))
+          } catch {
+            // Ignorar erros em Server Components é esperado
+          }
+        },
       },
     },
-  })
+  )
 }
 
 /**
  * Creates a Supabase admin client with service role key for privileged operations.
- * Use this for operations that bypass Row Level Security (RLS).
+ * Use this ONLY for admin tasks (e.g., creating users, deleting protected data).
  */
 export function createAdminClient() {
   return createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
