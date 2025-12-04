@@ -5,10 +5,10 @@ import Link from "next/link"
 import { TableRow, TableCell } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Eye } from "lucide-react"
+import { Eye, MapPin, Laptop, Home } from "lucide-react"
 import { EditEmployeeForm } from "@/components/edit-employee-form"
-// import { MarkPaymentButton } from "./mark-payment-button" // <-- REMOVIDO
 import { CareerPlanExpirationBadge } from "@/components/career-plan-expiration-badge"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 type Employee = any
 
@@ -26,11 +26,43 @@ export function TeamTableRow({ employee, allEmployees }: { employee: Employee; a
     <>
       <TableRow>
         <TableCell className="font-medium">
-          <Link href={`/dashboard/team/${employee.id}`} className="hover:underline flex items-center">
-            {employee.name}
+          <div className="flex items-center gap-2">
+            <Link href={`/dashboard/team/${employee.id}`} className="hover:underline flex items-center">
+              {employee.name}
+            </Link>
             <CareerPlanExpirationBadge expirationDate={employee.career_plan_expiration_date} />
-          </Link>
-          <p className="text-xs text-muted-foreground">{employee.role}</p>
+            
+            {/* Ícones de Modelo de Trabalho */}
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger>
+                  {employee.work_model === 'home_office' ? (
+                    <div className="bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 p-1 rounded-full">
+                      <Home className="h-3 w-3" />
+                    </div>
+                  ) : employee.work_model === 'presential' ? (
+                    <div className="bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 p-1 rounded-full">
+                      <MapPin className="h-3 w-3" />
+                    </div>
+                  ) : null}
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="font-semibold">{employee.work_model === 'home_office' ? 'Home Office' : 'Presencial'}</p>
+                  {employee.work_model === 'presential' && employee.office_location && (
+                    <p className="text-xs text-muted-foreground">{employee.office_location}</p>
+                  )}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+          <p className="text-xs text-muted-foreground flex items-center gap-1">
+            {employee.role}
+            {employee.office_location && (
+              <span className="text-[10px] bg-muted px-1 rounded ml-1">
+                {employee.office_location}
+              </span>
+            )}
+          </p>
         </TableCell>
         <TableCell>
           <Badge variant={employee.status === "active" ? "default" : "outline"}>
@@ -48,8 +80,6 @@ export function TeamTableRow({ employee, allEmployees }: { employee: Employee; a
         <TableCell>{renderPaymentStatus(employee.daysUntilPayment)}</TableCell>
         <TableCell>{employee.nextPaymentDateFormatted || "-"}</TableCell>
         
-        {/* CÉLULA DE PAGAMENTO REMOVIDA DAQUI */}
-
         <TableCell className="text-right">
           <Link href={`/dashboard/team/${employee.id}`}>
             <Button variant="ghost" size="sm">

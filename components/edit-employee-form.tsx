@@ -29,10 +29,9 @@ import {
 import { saveEmployee } from "@/app/dashboard/team/actions"
 import { toast } from "sonner"
 import { format } from "date-fns"
-import { ROLES, DEPARTMENTS } from "@/lib/constants"
-// --- ALTERAÇÃO: Importar useRole ---
+import { ROLES, DEPARTMENTS, WORK_MODELS, OFFICE_LOCATIONS } from "@/lib/constants"
 import { useRole } from "@/app/dashboard/layout"
-// ----------------------------------
+import { MapPin, Briefcase } from "lucide-react"
 
 interface Employee {
   id: string
@@ -45,6 +44,8 @@ interface Employee {
   status: "active" | "inactive"
   manager_id: string | null
   payment_day: number | null
+  work_model?: "presential" | "home_office" | null
+  office_location?: "Itumbiara" | "Uberlândia" | null
 }
 
 interface EditEmployeeFormProps {
@@ -71,13 +72,14 @@ export function EditEmployeeForm({
   open: controlledOpen,
   onOpenChange: setControlledOpen,
 }: EditEmployeeFormProps) {
-  const userRole = useRole(); // --- ALTERAÇÃO
+  const userRole = useRole(); 
   const [internalOpen, setInternalOpen] = useState(false)
   const formRef = useRef<HTMLFormElement>(null)
+  
+  // Estado para controlar a exibição condicional do local
+  const [workModel, setWorkModel] = useState<string>(employee?.work_model || "presential")
 
-  // --- ALTERAÇÃO: Bloqueia renderização se limitado ---
   if (userRole === "limited") return null;
-  // --------------------------------------------------
 
   const isEditing = !!employee
   const open = controlledOpen ?? internalOpen
@@ -95,22 +97,32 @@ export function EditEmployeeForm({
     } else {
       toast.success(result.success)
       setOpen(false)
-      if (!isEditing) formRef.current?.reset()
+      if (!isEditing) {
+        formRef.current?.reset()
+        setWorkModel("presential") // Reseta para o padrão
+      }
+    }
+  }
+
+  // Manipulador para quando o modal abre/fecha (para resetar estados se necessário)
+  const handleOpenChange = (isOpen: boolean) => {
+    setOpen(isOpen)
+    if (isOpen && employee) {
+      setWorkModel(employee.work_model || "presential")
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       {children && <DialogTrigger asChild>{children}</DialogTrigger>}
       <DialogContent className="sm:max-w-[600px]">
-        {/* ... conteúdo do cabeçalho ... */}
         <DialogHeader>
           <DialogTitle>{isEditing ? "Editar Colaborador" : "Adicionar Novo Colaborador"}</DialogTitle>
           <DialogDescription>Preencha os detalhes abaixo.</DialogDescription>
         </DialogHeader>
         <form ref={formRef} action={handleFormSubmit} className="space-y-4 max-h-[80vh] overflow-y-auto pr-6">
           {employee && <input type="hidden" name="id" value={employee.id} />}
-          {/* ... campos do form (Nome, Email, Cargo, etc - sem alterações) ... */}
+          
           <div className="grid gap-2">
             <Label htmlFor="name">Nome*</Label>
             <Input id="name" name="name" defaultValue={employee?.name} required />
@@ -155,6 +167,56 @@ export function EditEmployeeForm({
               </Select>
             </div>
           </div>
+
+          {/* --- NOVOS CAMPOS: MODELO DE TRABALHO E LOCAL --- */}
+          <div className="grid grid-cols-2 gap-4 bg-muted/20 p-3 rounded-md">
+            <div className="grid gap-2">
+              <Label htmlFor="work_model" className="flex items-center gap-2">
+                <Briefcase className="h-4 w-4 text-muted-foreground" />
+                Modelo *
+              </Label>
+              <Select 
+                name="work_model" 
+                defaultValue={workModel} 
+                onValueChange={setWorkModel}
+                required
+              >
+                <SelectTrigger id="work_model">
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
+                <SelectContent>
+                  {WORK_MODELS.map((model) => (
+                    <SelectItem key={model.value} value={model.value}>{model.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Renderização Condicional do Local */}
+            {workModel === "presential" && (
+              <div className="grid gap-2 animate-in fade-in slide-in-from-left-2 duration-300">
+                <Label htmlFor="office_location" className="flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-muted-foreground" />
+                  Unidade *
+                </Label>
+                <Select 
+                  name="office_location" 
+                  defaultValue={employee?.office_location || undefined} 
+                  required={workModel === "presential"}
+                >
+                  <SelectTrigger id="office_location">
+                    <SelectValue placeholder="Selecione a unidade" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {OFFICE_LOCATIONS.map((loc) => (
+                      <SelectItem key={loc} value={loc}>{loc}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+          {/* ------------------------------------------------ */}
           
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-2">

@@ -3,66 +3,83 @@
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
-// --- ALTERAÇÃO: Importar as constantes ---
-import { ROLES, DEPARTMENTS } from "@/lib/constants"
-// ----------------------------------------
+import { ROLES, DEPARTMENTS, WORK_MODELS, OFFICE_LOCATIONS } from "@/lib/constants"
 
 // Schema completo para validação dos dados do colaborador
 const employeeSchema = z.object({
-  id: z.string().uuid().optional().or(z.literal("")), // Para edição ou criação
+  id: z.string().uuid().optional().or(z.literal("")),
   name: z.string().min(3, "O nome é obrigatório."),
   email: z.string().email("O e-mail é inválido."),
   
-  // --- ALTERAÇÃO: Valida o cargo contra a constante ROLES ---
   role: z.enum(ROLES, {
     errorMap: () => ({ message: "Selecione um cargo válido da lista." }),
   }),
-  // ----------------------------------------------------------
 
-  // --- ALTERAÇÃO: Valida o departamento contra a constante DEPARTMENTS ---
   department: z
     .enum(DEPARTMENTS, {
       errorMap: () => ({ message: "Selecione um departamento válido da lista." }),
     })
     .optional()
-    .nullable(), // .optional().nullable() permite que seja ausente ou null
-  // ---------------------------------------------------------------------
+    .nullable(),
 
   salary: z.coerce.number().min(0, "O salário não pode ser negativo.").optional().nullable(),
   hire_date: z.string().min(1, "A data de contratação é obrigatória."), 
   status: z.enum(["active", "inactive"]),
   manager_id: z.string().uuid().optional().or(z.literal("null")).nullable(), 
-  payment_day: z.coerce.number().min(1).max(31).optional().nullable(), 
-})
+  payment_day: z.coerce.number().min(1).max(31).optional().nullable(),
+  
+  // --- NOVOS CAMPOS ---
+  work_model: z.enum(["presential", "home_office"], {
+    errorMap: () => ({ message: "Selecione o modelo de trabalho." }),
+  }),
+  
+  office_location: z.enum(OFFICE_LOCATIONS).optional().nullable(),
+}).refine((data) => {
+  // Validação condicional: Se for presencial, precisa de local
+  if (data.work_model === "presential" && !data.office_location) {
+    return false;
+  }
+  return true;
+}, {
+  message: "Selecione a unidade para o trabalho presencial.",
+  path: ["office_location"],
+});
 
 // Ação para salvar (criar ou atualizar) um colaborador
 export async function saveEmployee(formData: FormData) {
   const rawData = Object.fromEntries(formData)
 
-  // Trata explicitamente o valor 'null' (string) vindo do select de gestor
   if (rawData.manager_id === "null") {
     rawData.manager_id = null
   }
-  // Trata explicitamente o valor 'none' (string) ou ausência vindo do select de departamento
   if (!rawData.department || rawData.department === "none") {
     rawData.department = null
+  }
+  
+  // Tratamento para garantir que office_location seja null se não enviado
+  if (!rawData.office_location || rawData.office_location === "null") {
+    rawData.office_location = null;
   }
 
   const validatedFields = employeeSchema.safeParse(rawData)
 
   if (!validatedFields.success) {
     console.error("Erro Validação Colaborador:", validatedFields.error.flatten().fieldErrors)
-    // Prioriza mensagens de erro específicas para role e department se existirem
     const roleError = validatedFields.error.flatten().fieldErrors.role?.[0]
     const deptError = validatedFields.error.flatten().fieldErrors.department?.[0]
+    const locationError = validatedFields.error.flatten().fieldErrors.office_location?.[0] // Captura erro de local
     const firstOtherError = Object.values(validatedFields.error.flatten().fieldErrors).flat()[0] 
-    return { error: roleError || deptError || firstOtherError || "Dados inválidos. Verifique os campos preenchidos." }
+    return { error: roleError || deptError || locationError || firstOtherError || "Dados inválidos. Verifique os campos preenchidos." }
   }
 
-  // Separa o ID dos outros dados validados
   const { id, ...employeeData } = validatedFields.data
 
-  // Prepara os dados para salvar
+  // Lógica de Negócio: Se for Home Office, forçamos o local a ser NULL
+  // Isso garante integridade mesmo se o front mandar lixo
+  if (employeeData.work_model === "home_office") {
+    employeeData.office_location = null;
+  }
+
   const dataToSave = {
     ...employeeData,
     hire_date: employeeData.hire_date ? new Date(employeeData.hire_date).toISOString().split("T")[0] : null,
@@ -74,11 +91,9 @@ export async function saveEmployee(formData: FormData) {
   const isEditing = !!id 
 
   if (isEditing) {
-    // Atualiza o colaborador existente
     const { error: updateError } = await supabaseAdmin.from("employees").update(dataToSave).eq("id", id)
     error = updateError
   } else {
-    // Cria um novo colaborador
     const { error: insertError } = await supabaseAdmin.from("employees").insert(dataToSave)
     error = insertError
   }
@@ -88,7 +103,6 @@ export async function saveEmployee(formData: FormData) {
     return { error: `Ocorreu um erro no banco de dados: ${error.message}` }
   }
 
-  // Revalida (atualiza o cache) das páginas relevantes
   revalidatePath("/dashboard/team")
   revalidatePath("/dashboard/org-chart")
   if (isEditing) {
@@ -98,7 +112,19 @@ export async function saveEmployee(formData: FormData) {
   return { success: `Colaborador ${isEditing ? "atualizado" : "criado"} com sucesso!` }
 }
 
+// ... (Mantenha as outras funções addEmployeeObservation, addEmployeeContract, etc. inalteradas abaixo)
+// Vou omitir para economizar espaço, mas elas devem permanecer no arquivo.
 // --- AÇÃO PARA ADICIONAR OBSERVAÇÃO ---
+// ...
+// --- AÇÃO PARA ADICIONAR CONTRATO DO COLABORADOR ---
+// ...
+// --- AÇÃO PARA ADICIONAR CONTRIBUIÇÃO DO COLABORADOR ---
+// ...
+// --- AÇÃO PARA ADICIONAR PLANO DE CARREIRA ---
+// ...
+// (Copie e cole o restante do seu arquivo original aqui)
+
+// --- REPLICANDO O RESTANTE DO ARQUIVO PARA COMPLETUDE ---
 const observationSchema = z.object({
   employeeId: z.string().uuid(),
   observation: z.string().min(1, "A observação não pode estar vazia."),
@@ -132,7 +158,6 @@ export async function addEmployeeObservation(formData: FormData) {
   return { success: "Observação salva com sucesso!" }
 }
 
-// --- AÇÃO PARA ADICIONAR CONTRATO DO COLABORADOR ---
 const addContractSchema = z.object({
   employeeId: z.string().uuid("ID do colaborador inválido."),
   contract_name: z.string().min(3, "O nome do contrato é obrigatório."),
@@ -186,7 +211,6 @@ export async function addEmployeeContract(formData: FormData) {
   return { success: "Contrato adicionado com sucesso!" }
 }
 
-// --- AÇÃO PARA ADICIONAR CONTRIBUIÇÃO DO COLABORADOR ---
 const contributionSchema = z.object({
   employeeId: z.string().uuid(),
   description: z.string().min(3, "A descrição é obrigatória."),
@@ -225,7 +249,6 @@ export async function addEmployeeContribution(formData: FormData) {
   return { success: "Contribuição registrada com sucesso!" }
 }
 
-// --- AÇÃO PARA ADICIONAR PLANO DE CARREIRA ---
 const addCareerPlanSchema = z.object({
   employeeId: z.string().uuid("ID do colaborador inválido."),
   career_plan_file: z.instanceof(File).refine((file) => file.size > 0, "O arquivo do plano de carreira é obrigatório."),

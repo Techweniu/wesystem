@@ -14,7 +14,7 @@ export const ROLES = [
   "Colaborador de Tecnologia",
   "Backoffice",
   "Representante Comercial",
-] as const; // 'as const' é crucial para o Zod entender que são valores literais
+] as const;
 
 export const DEPARTMENTS = [
   "Diretoria", 
@@ -22,4 +22,15 @@ export const DEPARTMENTS = [
   "Edição", 
   "Assessoria", 
   "Audiovisual"
+] as const;
+
+// --- NOVAS CONSTANTES ---
+export const WORK_MODELS = [
+  { value: "presential", label: "Presencial" },
+  { value: "home_office", label: "Home Office" },
+] as const;
+
+export const OFFICE_LOCATIONS = [
+  "Itumbiara",
+  "Uberlândia",
 ] as const;
