@@ -20,7 +20,6 @@ import { addNpsResponse } from "@/app/dashboard/clients/[id]/actions"
 import { toast } from "sonner"
 import { PlusCircle } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { useRole } from "@/app/dashboard/layout"
 
 // Mapeamento seguro: ID técnico vs Rótulo de exibição
 const npsCategories = [
@@ -35,36 +34,40 @@ const npsCategories = [
 ]
 
 function SubmitButton() {
-  const { pending } = useFormStatus();
-  return <Button type="submit" disabled={pending}>{pending ? "Salvando..." : "Salvar Avaliação"}</Button>;
+  const { pending } = useFormStatus()
+  return (
+    <Button type="submit" disabled={pending}>
+      {pending ? "Salvando..." : "Salvar Avaliação"}
+    </Button>
+  )
 }
 
 export function AddNpsForm({ clientId }: { clientId: string }) {
-  const userRole = useRole();
-  const [open, setOpen] = useState(false);
-  const formRef = useRef<HTMLFormElement>(null);
-  const router = useRouter();
-
-  if (userRole === "limited") return null;
+  const [open, setOpen] = useState(false)
+  const formRef = useRef<HTMLFormElement>(null)
+  const router = useRouter()
 
   async function handleFormSubmit(formData: FormData) {
-    formData.append('clientId', clientId);
-    const result = await addNpsResponse(formData);
+    formData.append("clientId", clientId)
+    const result = await addNpsResponse(formData)
 
     if (result.error) {
-      toast.error("Erro ao salvar NPS.", { description: result.error });
+      toast.error("Erro ao salvar NPS.", { description: result.error })
     } else {
-      toast.success(result.success);
-      setOpen(false);
-      formRef.current?.reset();
-      router.refresh(); 
+      toast.success(result.success)
+      setOpen(false)
+      formRef.current?.reset()
+      router.refresh()
     }
   }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm"><PlusCircle className="mr-2 h-4 w-4" />Adicionar NPS</Button>
+        <Button size="sm">
+          <PlusCircle className="mr-2 h-4 w-4" />
+          Adicionar NPS
+        </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
@@ -76,15 +79,17 @@ export function AddNpsForm({ clientId }: { clientId: string }) {
             <div className="grid gap-4">
               {npsCategories.map((category) => (
                 <div key={category.id} className="grid grid-cols-3 items-center gap-4">
-                  <Label htmlFor={category.id} className="col-span-2">{category.label}*</Label>
-                  <Input 
-                    id={category.id} 
-                    name={category.id} // Usa o ID seguro (sem acentos)
-                    type="number" 
-                    min="0" 
-                    max="10" 
-                    required 
-                    className="col-span-1" 
+                  <Label htmlFor={category.id} className="col-span-2">
+                    {category.label}*
+                  </Label>
+                  <Input
+                    id={category.id}
+                    name={category.id}
+                    type="number"
+                    min="0"
+                    max="10"
+                    required
+                    className="col-span-1"
                   />
                 </div>
               ))}
@@ -95,11 +100,15 @@ export function AddNpsForm({ clientId }: { clientId: string }) {
             </div>
           </div>
           <DialogFooter>
-            <DialogClose asChild><Button type="button" variant="outline">Cancelar</Button></DialogClose>
+            <DialogClose asChild>
+              <Button type="button" variant="outline">
+                Cancelar
+              </Button>
+            </DialogClose>
             <SubmitButton />
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
-  );
+  )
 }

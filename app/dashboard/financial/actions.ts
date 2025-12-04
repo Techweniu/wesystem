@@ -4,6 +4,7 @@ import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 import { cookies } from "next/headers"
+import { put } from "@vercel/blob"
 
 // --- FUNÇÃO AUXILIAR DE SEGURANÇA ---
 async function checkAdminPermission() {
@@ -26,7 +27,13 @@ const costSchema = z.object({
 // --- AÇÃO addCost ---
 export async function addCost(formData: FormData) {
   try {
-    await checkAdminPermission() // <--- PROTEÇÃO
+    await checkAdminPermission()
+
+    // Validate proof file
+    const proofFile = formData.get("proof_file") as File
+    if (!proofFile || proofFile.size === 0) {
+      return { success: false, error: "Comprovante é obrigatório." }
+    }
 
     const rawData = {
       description: formData.get("description"),
@@ -43,6 +50,14 @@ export async function addCost(formData: FormData) {
       return { success: false, error: firstError || "Dados inválidos." }
     }
 
+    // Upload proof file to Vercel Blob
+    const fileExtension = proofFile.name.split(".").pop()
+    const fileName = `costs/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExtension}`
+
+    const blob = await put(fileName, proofFile, {
+      access: "public",
+    })
+
     const supabaseAdmin = createAdminClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -53,7 +68,7 @@ export async function addCost(formData: FormData) {
         ...validated.data,
         status: "pending",
         paid_date: null,
-        proof_url: null,
+        proof_url: blob.url, // Store proof URL on creation
       },
     ])
 
@@ -70,7 +85,7 @@ export async function addCost(formData: FormData) {
 // --- AÇÃO updateCost ---
 export async function updateCost(id: string, formData: FormData) {
   try {
-    await checkAdminPermission() // <--- PROTEÇÃO
+    await checkAdminPermission()
 
     const rawData = {
       description: formData.get("description"),
@@ -106,7 +121,7 @@ export async function updateCost(id: string, formData: FormData) {
 // --- AÇÃO deleteCost ---
 export async function deleteCost(id: string) {
   try {
-    await checkAdminPermission() // <--- PROTEÇÃO
+    await checkAdminPermission()
 
     if (!id) return { success: false, error: "ID inválido." }
 
@@ -134,7 +149,7 @@ const clientPaymentSchema = z.object({
 
 export async function markClientPaymentAsPaid(formData: FormData) {
   try {
-    await checkAdminPermission() // <--- PROTEÇÃO
+    await checkAdminPermission()
 
     const proofFile = formData.get("proof_file") as File
     if (!proofFile || proofFile.size === 0) {
@@ -189,7 +204,7 @@ const undoClientPaymentSchema = z.object({
 
 export async function undoClientPayment(formData: FormData) {
   try {
-    await checkAdminPermission() // <--- PROTEÇÃO
+    await checkAdminPermission()
 
     const validatedFields = undoClientPaymentSchema.safeParse(Object.fromEntries(formData))
     if (!validatedFields.success) return { error: "ID inválido." }
@@ -234,7 +249,7 @@ const costPaymentSchema = z.object({
 
 export async function markCostAsPaid(formData: FormData) {
   try {
-    await checkAdminPermission() // <--- PROTEÇÃO
+    await checkAdminPermission()
 
     const validatedFields = costPaymentSchema.safeParse(Object.fromEntries(formData))
     if (!validatedFields.success) return { error: "Dados inválidos." }
@@ -252,16 +267,15 @@ export async function markCostAsPaid(formData: FormData) {
     if (!proofFile || proofFile.size === 0) return { error: "Comprovante obrigatório." }
 
     const fileExtension = proofFile.name.split(".").pop()
-    const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExtension}`
-    const filePath = `cost-payments/${fileName}`
+    const fileName = `cost-payments/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExtension}`
 
-    const { error: uploadError } = await supabaseAdmin.storage.from("financial-proofs").upload(filePath, proofFile, {
+    const { error: uploadError } = await supabaseAdmin.storage.from("financial-proofs").upload(fileName, proofFile, {
       contentType: proofFile.type,
       upsert: false,
     })
     if (uploadError) return { error: "Erro no upload." }
 
-    const { data: urlData } = supabaseAdmin.storage.from("financial-proofs").getPublicUrl(filePath)
+    const { data: urlData } = supabaseAdmin.storage.from("financial-proofs").getPublicUrl(fileName)
 
     const { error: paymentError } = await supabaseAdmin
       .from("costs")
@@ -304,7 +318,7 @@ const undoCostPaymentSchema = z.object({
 
 export async function undoCostPayment(formData: FormData) {
   try {
-    await checkAdminPermission() // <--- PROTEÇÃO
+    await checkAdminPermission()
 
     const validatedFields = undoCostPaymentSchema.safeParse(Object.fromEntries(formData))
     if (!validatedFields.success) return { error: "ID inválido." }
@@ -341,7 +355,7 @@ const paymentSchema = z.object({
 
 export async function markPaymentAsPaid(formData: FormData) {
   try {
-    await checkAdminPermission() // <--- PROTEÇÃO
+    await checkAdminPermission()
 
     const proofFile = formData.get("proof_file") as File
     if (!proofFile || proofFile.size === 0) return { error: "Comprovante obrigatório." }
@@ -391,7 +405,7 @@ const undoPaymentSchema = z.object({
 
 export async function undoEmployeePayment(formData: FormData) {
   try {
-    await checkAdminPermission() // <--- PROTEÇÃO
+    await checkAdminPermission()
 
     const validatedFields = undoPaymentSchema.safeParse(Object.fromEntries(formData))
     if (!validatedFields.success) return { error: "ID inválido." }
@@ -437,7 +451,7 @@ const servicePaymentSchema = z.object({
 
 export async function markServiceAsReceived(formData: FormData) {
   try {
-    await checkAdminPermission() // <--- PROTEÇÃO
+    await checkAdminPermission()
 
     const proofFile = formData.get("proof_file") as File
     if (!proofFile || proofFile.size === 0) return { error: "Comprovante obrigatório." }
@@ -452,16 +466,15 @@ export async function markServiceAsReceived(formData: FormData) {
     )
 
     const fileExtension = proofFile.name.split(".").pop()
-    const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExtension}`
-    const filePath = `service-payments/${fileName}`
+    const fileName = `service-payments/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExtension}`
 
-    const { error: uploadError } = await supabaseAdmin.storage.from("financial-proofs").upload(filePath, proofFile, {
+    const { error: uploadError } = await supabaseAdmin.storage.from("financial-proofs").upload(fileName, proofFile, {
       contentType: proofFile.type,
       upsert: false,
     })
     if (uploadError) return { error: "Erro no upload." }
 
-    const { data: urlData } = supabaseAdmin.storage.from("financial-proofs").getPublicUrl(filePath)
+    const { data: urlData } = supabaseAdmin.storage.from("financial-proofs").getPublicUrl(fileName)
 
     const { error: updateError } = await supabaseAdmin
       .from("one_time_services")
@@ -490,7 +503,7 @@ const undoServiceReceiptSchema = z.object({
 
 export async function undoServiceReceipt(formData: FormData) {
   try {
-    await checkAdminPermission() // <--- PROTEÇÃO
+    await checkAdminPermission()
 
     const validatedFields = undoServiceReceiptSchema.safeParse(Object.fromEntries(formData))
     if (!validatedFields.success) return { error: "Dados inválidos." }

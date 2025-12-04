@@ -1,166 +1,366 @@
-import { createAdminClient } from "@/lib/supabase/server" // Admin Client
+import { createAdminClient } from "@/lib/supabase/server"
+import { notFound } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Users, DollarSign, PlusCircle, TrendingDown } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { EditEmployeeForm } from "@/components/edit-employee-form"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { User, Mail, Calendar, DollarSign, MapPin, Home, FileText, ArrowLeft, Users, TrendingUp } from "lucide-react"
 import { differenceInDays, parseISO, format } from "date-fns"
 import { ptBR } from "date-fns/locale"
-import { TeamTableRow } from "../team-table-row"
-import { TeamFilters } from "@/components/team-filters"
+import Link from "next/link"
+import { EditEmployeeForm } from "@/components/edit-employee-form"
+import { AddObservationForm } from "@/components/add-observation-form"
+import { CareerPlanExpirationBadge } from "@/components/career-plan-expiration-badge"
 
-async function getTeamData({ name, status }: { name?: string; status?: string }) {
-  const supabase = createAdminClient() // Busca com privilégios
-  const today = new Date()
-  const currentMonth = today.getMonth()
-  const currentYear = today.getFullYear()
+async function getEmployeeData(id: string) {
+  const supabase = createAdminClient()
 
-  const { data: allEmployeesData } = await supabase
+  const { data: employee, error } = await supabase
     .from("employees")
-    .select("status, salary, employee_payments(amount)")
-
-  let query = supabase
-    .from("employees")
-    .select(
-      `*, manager:manager_id(name), employee_payments(amount, payment_date), employee_observations(*), career_plan_expiration_date`,
-    )
-    .order("name")
+    .select(`
+      *,
+      manager:manager_id(id, name),
+      employee_payments(id, amount, payment_date, proof_url),
+      employee_observations(id, observation, tag, created_at),
+      employee_contributions(id, description, category, value, date),
+      employee_contracts(id, name, storage_path, created_at)
+    `)
+    .eq("id", id)
+    .order("payment_date", { foreignTable: "employee_payments", ascending: false })
     .order("created_at", { foreignTable: "employee_observations", ascending: false })
+    .order("date", { foreignTable: "employee_contributions", ascending: false })
+    .single()
 
-  if (name) {
-    query = query.ilike("name", `%${name}%`)
-  }
-  if (status && status !== "all") {
-    query = query.eq("status", status)
-  }
-
-  const { data: employees, error } = await query
-
-  if (error) {
-    console.error("Erro ao buscar dados da equipe:", error)
-    return { employees: [], totalPaid: 0, activeEmployees: 0, totalSalary: 0 }
+  if (error || !employee) {
+    return null
   }
 
-  const employeesWithCalculations = employees?.map((emp) => {
-    const hireDate = parseISO(emp.hire_date)
-    const daysSinceHire = differenceInDays(today, hireDate)
-    const totalCostGenerated = emp.salary ? (emp.salary / 30.44) * (daysSinceHire > 0 ? daysSinceHire : 0) : 0
-    const totalPaid = emp.employee_payments.reduce((sum: number, p: any) => sum + Number(p.amount), 0)
-    let daysUntilPayment = null
-    let nextPaymentDateFormatted = null
-    if (emp.payment_day) {
-      const nextPaymentDate = new Date(currentYear, currentMonth, emp.payment_day)
-      if (today.getTime() > nextPaymentDate.getTime()) {
-        nextPaymentDate.setMonth(nextPaymentDate.getMonth() + 1)
-      }
-      daysUntilPayment = differenceInDays(nextPaymentDate, today)
-      nextPaymentDateFormatted = format(nextPaymentDate, "dd/MM/yyyy - EEEE", { locale: ptBR })
-    }
-    const isPaidThisMonth = emp.employee_payments.some((p: any) => {
-      const paymentDate = new Date(p.payment_date)
-      return paymentDate.getMonth() === currentMonth && paymentDate.getFullYear() === currentYear
-    })
-    return { ...emp, totalCostGenerated, totalPaid, daysUntilPayment, nextPaymentDateFormatted, isPaidThisMonth }
-  })
+  // Get subordinates
+  const { data: subordinates } = await supabase
+    .from("employees")
+    .select("id, name, role, status")
+    .eq("manager_id", id)
+    .eq("status", "active")
 
-  const activeEmployees = allEmployeesData?.filter((e) => e.status === "active").length || 0
-  const totalSalary =
-    allEmployeesData?.filter((e) => e.status === "active").reduce((sum, e) => sum + Number(e.salary || 0), 0) || 0
-  const totalPaid =
-    allEmployeesData?.flatMap((e) => e.employee_payments).reduce((sum, p: any) => sum + Number(p.amount), 0) || 0
+  // Get all employees for editing
+  const { data: allEmployees } = await supabase.from("employees").select("id, name, role, status").order("name")
 
-  return { employees: employeesWithCalculations, totalPaid, activeEmployees, totalSalary }
+  // Calculate metrics
+  const today = new Date()
+  const hireDate = parseISO(employee.hire_date)
+  const daysSinceHire = differenceInDays(today, hireDate)
+  const totalCostGenerated = employee.salary ? (employee.salary / 30.44) * (daysSinceHire > 0 ? daysSinceHire : 0) : 0
+  const totalPaid = employee.employee_payments?.reduce((sum: number, p: any) => sum + Number(p.amount), 0) || 0
+  const totalContributions =
+    employee.employee_contributions?.reduce((sum: number, c: any) => sum + Number(c.value), 0) || 0
+
+  return {
+    ...employee,
+    daysSinceHire,
+    totalCostGenerated,
+    totalPaid,
+    totalContributions,
+    subordinates: subordinates || [],
+    allEmployees: allEmployees || [],
+  }
 }
 
-export default async function TeamPage({ searchParams }: { searchParams?: { name?: string; status?: string } }) {
-  const { name, status } = searchParams || {}
-  const data = await getTeamData({ name, status })
-  const allEmployees = data.employees || []
+export default async function EmployeeDetailPage({ params }: { params: { id: string } }) {
+  const employee = await getEmployeeData(params.id)
+
+  if (!employee) {
+    notFound()
+  }
+
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value)
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Equipe</h1>
-          <p className="text-muted-foreground">Gestão de colaboradores e pagamentos</p>
+        <div className="flex items-center gap-4">
+          <Link href="/dashboard/team">
+            <Button variant="ghost" size="icon">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          </Link>
+          <div>
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-bold tracking-tight">{employee.name}</h1>
+              <Badge variant={employee.status === "active" ? "default" : "outline"}>
+                {employee.status === "active" ? "Ativo" : "Inativo"}
+              </Badge>
+              <CareerPlanExpirationBadge expirationDate={employee.career_plan_expiration_date} />
+            </div>
+            <p className="text-muted-foreground">
+              {employee.role} • {employee.department}
+            </p>
+          </div>
         </div>
-        <EditEmployeeForm allEmployees={allEmployees}>
-          <Button>
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Adicionar Colaborador
-          </Button>
+        <EditEmployeeForm employee={employee} allEmployees={employee.allEmployees}>
+          <Button>Editar Colaborador</Button>
         </EditEmployeeForm>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      {/* Summary Cards */}
+      <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Colaboradores Ativos</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{data.activeEmployees}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Folha de Pagamento Mensal</CardTitle>
+            <CardTitle className="text-sm font-medium">Salário Mensal</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(data.totalSalary)}
-            </div>
-            <p className="text-xs text-muted-foreground">(ativos)</p>
+            <div className="text-2xl font-bold">{formatCurrency(employee.salary || 0)}</div>
+            <p className="text-xs text-muted-foreground">Dia de pagamento: {employee.payment_day || "Não definido"}</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Pago (Histórico)</CardTitle>
-            <TrendingDown className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Custo Total Gerado</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(data.totalPaid)}
-            </div>
-            <p className="text-xs text-muted-foreground">Soma de todos os pagamentos</p>
+            <div className="text-2xl font-bold">{formatCurrency(employee.totalCostGenerated)}</div>
+            <p className="text-xs text-muted-foreground">{employee.daysSinceHire} dias desde contratação</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Pago</CardTitle>
+            <DollarSign className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{formatCurrency(employee.totalPaid)}</div>
+            <p className="text-xs text-muted-foreground">
+              {employee.employee_payments?.length || 0} pagamentos registrados
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Contribuições</CardTitle>
+            <TrendingUp className="h-4 w-4 text-blue-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">{formatCurrency(employee.totalContributions)}</div>
+            <p className="text-xs text-muted-foreground">
+              {employee.employee_contributions?.length || 0} contribuições
+            </p>
           </CardContent>
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <TeamFilters />
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Salário</TableHead>
-                <TableHead className="text-right">Custo Gerado</TableHead>
-                <TableHead>Dias Restantes</TableHead>
-                <TableHead>Próximo Pagamento</TableHead>
-                <TableHead className="w-[50px] text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {allEmployees.length > 0 ? (
-                allEmployees.map((employee: any) => (
-                  <TeamTableRow key={employee.id} employee={employee} allEmployees={allEmployees} />
-                ))
+      {/* Main Content */}
+      <div className="grid gap-6 md:grid-cols-3">
+        {/* Info Card */}
+        <Card className="md:col-span-1">
+          <CardHeader>
+            <CardTitle>Informações</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-3">
+              <Mail className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium">Email</p>
+                <p className="text-sm text-muted-foreground">{employee.email || "Não informado"}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium">Data de Contratação</p>
+                <p className="text-sm text-muted-foreground">
+                  {format(parseISO(employee.hire_date), "dd/MM/yyyy", { locale: ptBR })}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              {employee.work_model === "home_office" ? (
+                <Home className="h-4 w-4 text-blue-500" />
               ) : (
-                <TableRow>
-                  <TableCell colSpan={7} className="h-24 text-center">
-                    Nenhum colaborador encontrado.
-                  </TableCell>
-                </TableRow>
+                <MapPin className="h-4 w-4 text-orange-500" />
               )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+              <div>
+                <p className="text-sm font-medium">Modelo de Trabalho</p>
+                <p className="text-sm text-muted-foreground">
+                  {employee.work_model === "home_office" ? "Home Office" : "Presencial"}
+                  {employee.office_location && ` • ${employee.office_location}`}
+                </p>
+              </div>
+            </div>
+            {employee.manager && (
+              <div className="flex items-center gap-3">
+                <Users className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <p className="text-sm font-medium">Gestor</p>
+                  <Link
+                    href={`/dashboard/team/${employee.manager.id}`}
+                    className="text-sm text-primary hover:underline"
+                  >
+                    {employee.manager.name}
+                  </Link>
+                </div>
+              </div>
+            )}
+            {employee.career_plan_url && (
+              <div className="flex items-center gap-3">
+                <FileText className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <p className="text-sm font-medium">Plano de Carreira</p>
+                  <a
+                    href={employee.career_plan_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-primary hover:underline"
+                  >
+                    Ver documento
+                  </a>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Tabs */}
+        <Card className="md:col-span-2">
+          <Tabs defaultValue="observations" className="w-full">
+            <CardHeader>
+              <TabsList className="grid w-full grid-cols-4">
+                <TabsTrigger value="observations">Observações</TabsTrigger>
+                <TabsTrigger value="payments">Pagamentos</TabsTrigger>
+                <TabsTrigger value="contributions">Contribuições</TabsTrigger>
+                <TabsTrigger value="subordinates">Subordinados</TabsTrigger>
+              </TabsList>
+            </CardHeader>
+            <CardContent>
+              <TabsContent value="observations" className="mt-0">
+                <div className="flex justify-end mb-4">
+                  <AddObservationForm employeeId={employee.id} />
+                </div>
+                {employee.employee_observations?.length > 0 ? (
+                  <div className="space-y-3">
+                    {employee.employee_observations.map((obs: any) => (
+                      <div key={obs.id} className="p-3 border rounded-lg">
+                        <div className="flex items-center justify-between mb-2">
+                          <Badge variant="outline">{obs.tag || "Geral"}</Badge>
+                          <span className="text-xs text-muted-foreground">
+                            {format(parseISO(obs.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                          </span>
+                        </div>
+                        <p className="text-sm">{obs.observation}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-8">Nenhuma observação registrada.</p>
+                )}
+              </TabsContent>
+
+              <TabsContent value="payments" className="mt-0">
+                {employee.employee_payments?.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Data</TableHead>
+                        <TableHead className="text-right">Valor</TableHead>
+                        <TableHead className="text-center">Comprovante</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {employee.employee_payments.map((payment: any) => (
+                        <TableRow key={payment.id}>
+                          <TableCell>
+                            {format(parseISO(payment.payment_date), "dd/MM/yyyy", { locale: ptBR })}
+                          </TableCell>
+                          <TableCell className="text-right font-medium">{formatCurrency(payment.amount)}</TableCell>
+                          <TableCell className="text-center">
+                            {payment.proof_url ? (
+                              <a
+                                href={payment.proof_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary hover:underline text-sm"
+                              >
+                                Ver comprovante
+                              </a>
+                            ) : (
+                              <span className="text-muted-foreground text-sm">-</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-8">Nenhum pagamento registrado.</p>
+                )}
+              </TabsContent>
+
+              <TabsContent value="contributions" className="mt-0">
+                {employee.employee_contributions?.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Descrição</TableHead>
+                        <TableHead>Categoria</TableHead>
+                        <TableHead>Data</TableHead>
+                        <TableHead className="text-right">Valor</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {employee.employee_contributions.map((contrib: any) => (
+                        <TableRow key={contrib.id}>
+                          <TableCell className="font-medium">{contrib.description}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{contrib.category || "Geral"}</Badge>
+                          </TableCell>
+                          <TableCell>{format(parseISO(contrib.date), "dd/MM/yyyy", { locale: ptBR })}</TableCell>
+                          <TableCell className="text-right font-medium text-green-600">
+                            {formatCurrency(contrib.value)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-8">Nenhuma contribuição registrada.</p>
+                )}
+              </TabsContent>
+
+              <TabsContent value="subordinates" className="mt-0">
+                {employee.subordinates?.length > 0 ? (
+                  <div className="grid gap-3">
+                    {employee.subordinates.map((sub: any) => (
+                      <Link
+                        key={sub.id}
+                        href={`/dashboard/team/${sub.id}`}
+                        className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                            <User className="h-4 w-4 text-primary" />
+                          </div>
+                          <div>
+                            <p className="font-medium">{sub.name}</p>
+                            <p className="text-sm text-muted-foreground">{sub.role}</p>
+                          </div>
+                        </div>
+                        <Badge variant={sub.status === "active" ? "default" : "outline"}>
+                          {sub.status === "active" ? "Ativo" : "Inativo"}
+                        </Badge>
+                      </Link>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-8">Nenhum subordinado direto.</p>
+                )}
+              </TabsContent>
+            </CardContent>
+          </Tabs>
+        </Card>
+      </div>
     </div>
   )
 }

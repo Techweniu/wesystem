@@ -3,47 +3,52 @@
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
-import { ROLES, DEPARTMENTS, WORK_MODELS, OFFICE_LOCATIONS } from "@/lib/constants"
+import { ROLES, DEPARTMENTS, OFFICE_LOCATIONS } from "@/lib/constants"
 
 // Schema completo para validação dos dados do colaborador
-const employeeSchema = z.object({
-  id: z.string().uuid().optional().or(z.literal("")),
-  name: z.string().min(3, "O nome é obrigatório."),
-  email: z.string().email("O e-mail é inválido."),
-  
-  role: z.enum(ROLES, {
-    errorMap: () => ({ message: "Selecione um cargo válido da lista." }),
-  }),
+const employeeSchema = z
+  .object({
+    id: z.string().uuid().optional().or(z.literal("")),
+    name: z.string().min(3, "O nome é obrigatório."),
+    email: z.string().email("O e-mail é inválido."),
 
-  department: z
-    .enum(DEPARTMENTS, {
-      errorMap: () => ({ message: "Selecione um departamento válido da lista." }),
-    })
-    .optional()
-    .nullable(),
+    role: z.enum(ROLES, {
+      errorMap: () => ({ message: "Selecione um cargo válido da lista." }),
+    }),
 
-  salary: z.coerce.number().min(0, "O salário não pode ser negativo.").optional().nullable(),
-  hire_date: z.string().min(1, "A data de contratação é obrigatória."), 
-  status: z.enum(["active", "inactive"]),
-  manager_id: z.string().uuid().optional().or(z.literal("null")).nullable(), 
-  payment_day: z.coerce.number().min(1).max(31).optional().nullable(),
-  
-  // --- NOVOS CAMPOS ---
-  work_model: z.enum(["presential", "home_office"], {
-    errorMap: () => ({ message: "Selecione o modelo de trabalho." }),
-  }),
-  
-  office_location: z.enum(OFFICE_LOCATIONS).optional().nullable(),
-}).refine((data) => {
-  // Validação condicional: Se for presencial, precisa de local
-  if (data.work_model === "presential" && !data.office_location) {
-    return false;
-  }
-  return true;
-}, {
-  message: "Selecione a unidade para o trabalho presencial.",
-  path: ["office_location"],
-});
+    department: z
+      .enum(DEPARTMENTS, {
+        errorMap: () => ({ message: "Selecione um departamento válido da lista." }),
+      })
+      .optional()
+      .nullable(),
+
+    salary: z.coerce.number().min(0, "O salário não pode ser negativo.").optional().nullable(),
+    hire_date: z.string().min(1, "A data de contratação é obrigatória."),
+    status: z.enum(["active", "inactive"]),
+    manager_id: z.string().uuid().optional().or(z.literal("null")).nullable(),
+    payment_day: z.coerce.number().min(1).max(31).optional().nullable(),
+
+    // --- NOVOS CAMPOS ---
+    work_model: z.enum(["presential", "home_office"], {
+      errorMap: () => ({ message: "Selecione o modelo de trabalho." }),
+    }),
+
+    office_location: z.enum(OFFICE_LOCATIONS).optional().nullable(),
+  })
+  .refine(
+    (data) => {
+      // Validação condicional: Se for presencial, precisa de local
+      if (data.work_model === "presential" && !data.office_location) {
+        return false
+      }
+      return true
+    },
+    {
+      message: "Selecione a unidade para o trabalho presencial.",
+      path: ["office_location"],
+    },
+  )
 
 // Ação para salvar (criar ou atualizar) um colaborador
 export async function saveEmployee(formData: FormData) {
@@ -55,10 +60,10 @@ export async function saveEmployee(formData: FormData) {
   if (!rawData.department || rawData.department === "none") {
     rawData.department = null
   }
-  
+
   // Tratamento para garantir que office_location seja null se não enviado
   if (!rawData.office_location || rawData.office_location === "null") {
-    rawData.office_location = null;
+    rawData.office_location = null
   }
 
   const validatedFields = employeeSchema.safeParse(rawData)
@@ -68,8 +73,15 @@ export async function saveEmployee(formData: FormData) {
     const roleError = validatedFields.error.flatten().fieldErrors.role?.[0]
     const deptError = validatedFields.error.flatten().fieldErrors.department?.[0]
     const locationError = validatedFields.error.flatten().fieldErrors.office_location?.[0] // Captura erro de local
-    const firstOtherError = Object.values(validatedFields.error.flatten().fieldErrors).flat()[0] 
-    return { error: roleError || deptError || locationError || firstOtherError || "Dados inválidos. Verifique os campos preenchidos." }
+    const firstOtherError = Object.values(validatedFields.error.flatten().fieldErrors).flat()[0]
+    return {
+      error:
+        roleError ||
+        deptError ||
+        locationError ||
+        firstOtherError ||
+        "Dados inválidos. Verifique os campos preenchidos.",
+    }
   }
 
   const { id, ...employeeData } = validatedFields.data
@@ -77,7 +89,7 @@ export async function saveEmployee(formData: FormData) {
   // Lógica de Negócio: Se for Home Office, forçamos o local a ser NULL
   // Isso garante integridade mesmo se o front mandar lixo
   if (employeeData.work_model === "home_office") {
-    employeeData.office_location = null;
+    employeeData.office_location = null
   }
 
   const dataToSave = {
@@ -88,7 +100,7 @@ export async function saveEmployee(formData: FormData) {
   const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
   let error
-  const isEditing = !!id 
+  const isEditing = !!id
 
   if (isEditing) {
     const { error: updateError } = await supabaseAdmin.from("employees").update(dataToSave).eq("id", id)
@@ -106,29 +118,30 @@ export async function saveEmployee(formData: FormData) {
   revalidatePath("/dashboard/team")
   revalidatePath("/dashboard/org-chart")
   if (isEditing) {
-    revalidatePath(`/dashboard/team/${id}`) 
+    revalidatePath(`/dashboard/team/${id}`)
   }
 
   return { success: `Colaborador ${isEditing ? "atualizado" : "criado"} com sucesso!` }
 }
 
-// ... (Mantenha as outras funções addEmployeeObservation, addEmployeeContract, etc. inalteradas abaixo)
-// Vou omitir para economizar espaço, mas elas devem permanecer no arquivo.
 // --- AÇÃO PARA ADICIONAR OBSERVAÇÃO ---
-// ...
-// --- AÇÃO PARA ADICIONAR CONTRATO DO COLABORADOR ---
-// ...
-// --- AÇÃO PARA ADICIONAR CONTRIBUIÇÃO DO COLABORADOR ---
-// ...
-// --- AÇÃO PARA ADICIONAR PLANO DE CARREIRA ---
-// ...
-// (Copie e cole o restante do seu arquivo original aqui)
-
-// --- REPLICANDO O RESTANTE DO ARQUIVO PARA COMPLETUDE ---
 const observationSchema = z.object({
   employeeId: z.string().uuid(),
   observation: z.string().min(1, "A observação não pode estar vazia."),
-  tag: z.enum(["positive", "negative"]),
+  tag: z
+    .enum([
+      "feedback_positivo",
+      "feedback_negativo",
+      "reuniao_1_1",
+      "desenvolvimento",
+      "performance",
+      "comportamento",
+      "geral",
+      "positive", // Keep backward compatibility
+      "negative", // Keep backward compatibility
+    ])
+    .optional()
+    .default("geral"),
 })
 
 export async function addEmployeeObservation(formData: FormData) {
@@ -155,9 +168,11 @@ export async function addEmployeeObservation(formData: FormData) {
   }
 
   revalidatePath(`/dashboard/team/${employeeId}`)
+  revalidatePath("/dashboard/team")
   return { success: "Observação salva com sucesso!" }
 }
 
+// --- AÇÃO PARA ADICIONAR CONTRATO DO COLABORADOR ---
 const addContractSchema = z.object({
   employeeId: z.string().uuid("ID do colaborador inválido."),
   contract_name: z.string().min(3, "O nome do contrato é obrigatório."),
@@ -180,25 +195,26 @@ export async function addEmployeeContract(formData: FormData) {
   const { employeeId, contract_name, contract_file } = validatedFields.data
 
   let contractPath = null
-  const supabase = await createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+  const supabase = await createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
   const fileExtension = contract_file.name.split(".").pop()
-  const newFileName = `${Date.now()}.${fileExtension}` 
-  const filePath = `${employeeId}/${newFileName}` 
+  const newFileName = `${Date.now()}.${fileExtension}`
+  const filePath = `${employeeId}/${newFileName}`
 
-  const { error: uploadError } = await supabase.storage
-    .from("employee_contracts") 
-    .upload(filePath, contract_file)
+  const { error: uploadError } = await supabase.storage.from("employee_contracts").upload(filePath, contract_file)
 
   if (uploadError) {
     console.error("Erro Upload Contrato:", uploadError)
     return { error: `Não foi possível enviar o arquivo: ${uploadError.message}` }
   }
-  contractPath = filePath 
+  contractPath = filePath
 
   const { error: insertError } = await supabase.from("employee_contracts").insert({
     employee_id: employeeId,
     name: contract_name,
-    storage_path: contractPath, 
+    storage_path: contractPath,
   })
 
   if (insertError) {
@@ -211,12 +227,13 @@ export async function addEmployeeContract(formData: FormData) {
   return { success: "Contrato adicionado com sucesso!" }
 }
 
+// --- AÇÃO PARA ADICIONAR CONTRIBUIÇÃO DO COLABORADOR ---
 const contributionSchema = z.object({
   employeeId: z.string().uuid(),
   description: z.string().min(3, "A descrição é obrigatória."),
-  category: z.enum(["Venda", "Upsell", "Ideia", "Melhoria de Processo", "Outro"]), 
+  category: z.enum(["Venda", "Upsell", "Ideia", "Melhoria de Processo", "Outro"]),
   value: z.coerce.number().min(0, "O valor não pode ser negativo.").optional().nullable(),
-  date: z.string().min(1, "A data é obrigatória."), 
+  date: z.string().min(1, "A data é obrigatória."),
 })
 
 export async function addEmployeeContribution(formData: FormData) {
@@ -236,7 +253,7 @@ export async function addEmployeeContribution(formData: FormData) {
     employee_id: employeeId,
     description: contributionData.description,
     category: contributionData.category,
-    value: contributionData.value, 
+    value: contributionData.value,
     date: contributionData.date ? new Date(contributionData.date).toISOString().split("T")[0] : null,
   })
 
@@ -249,6 +266,7 @@ export async function addEmployeeContribution(formData: FormData) {
   return { success: "Contribuição registrada com sucesso!" }
 }
 
+// --- AÇÃO PARA ADICIONAR PLANO DE CARREIRA ---
 const addCareerPlanSchema = z.object({
   employeeId: z.string().uuid("ID do colaborador inválido."),
   career_plan_file: z.instanceof(File).refine((file) => file.size > 0, "O arquivo do plano de carreira é obrigatório."),
