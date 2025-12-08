@@ -32,7 +32,7 @@ export function TeamAllocationChart({ data }: TeamAllocationChartProps) {
             config={{
               clients: {
                 label: "Clientes",
-                color: "hsl(var(--chart-2))", // Azul
+                color: "#3b82f6", // Azul explícito
               },
             }}
             className="h-[350px] w-full"
@@ -56,7 +56,7 @@ export function TeamAllocationChart({ data }: TeamAllocationChartProps) {
                 cursor={false}
                 content={<ChartTooltipContent indicator="line" />}
               />
-              <Bar dataKey="clients" fill="var(--color-clients)" radius={[0, 4, 4, 0]}>
+              <Bar dataKey="clients" fill="#3b82f6" radius={[0, 4, 4, 0]}>
                 <LabelList 
                   dataKey="clients" 
                   position="right" 
