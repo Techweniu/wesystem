@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
-import { CartesianGrid, Scatter, ScatterChart, XAxis, YAxis } from "recharts"
+import { CartesianGrid, Scatter, ScatterChart, XAxis, YAxis, LabelList } from "recharts"
 
 interface NpsClientDistributionChartProps {
   data: Array<{
@@ -45,13 +45,13 @@ export function NpsClientDistributionChart({ data }: NpsClientDistributionChartP
             <XAxis
               type="number"
               dataKey="x"
-              tickFormatter={(value) => data[value]?.name || ""}
+              tickFormatter={(value) => data[value]?.name || ''}
               interval={0}
               angle={-45}
               textAnchor="end"
               className="text-xs"
               height={80}
-              tick={{ fill: "hsl(var(--foreground))", fontSize: 10 }}
+              tick={{ fill: "hsl(var(--muted-foreground))" }}
             />
             <YAxis
               type="number"
@@ -59,13 +59,14 @@ export function NpsClientDistributionChart({ data }: NpsClientDistributionChartP
               name="NPS Score"
               domain={[0, 10]}
               className="text-xs"
-              tick={{ fill: "hsl(var(--foreground))", fontSize: 11 }}
+              tick={{ fill: "hsl(var(--muted-foreground))" }}
             />
-            <ChartTooltip
-              cursor={false}
-              content={
-                <ChartTooltipContent formatter={(value, name, props) => `${props.payload.name}: ${value}`} hideLabel />
-              }
+            <ChartTooltip 
+                cursor={false}
+                content={<ChartTooltipContent 
+                    formatter={(value, name, props) => `${props.payload.name}: ${value}`}
+                    hideLabel
+                />} 
             />
             <Scatter data={chartData} fill="hsl(var(--chart-2))" />
           </ScatterChart>
