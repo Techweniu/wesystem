@@ -5,7 +5,19 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { User, Mail, Calendar, DollarSign, MapPin, Home, FileText, ArrowLeft, Users, TrendingUp } from "lucide-react"
+import {
+  User,
+  Mail,
+  Calendar,
+  DollarSign,
+  MapPin,
+  Home,
+  FileText,
+  ArrowLeft,
+  Users,
+  TrendingUp,
+  Star,
+} from "lucide-react"
 import { differenceInDays, parseISO, format } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import Link from "next/link"
@@ -47,6 +59,52 @@ async function getEmployeeData(id: string) {
   // Get all employees for editing
   const { data: allEmployees } = await supabase.from("employees").select("id, name, role, status").order("name")
 
+  const { data: assignedClients } = await supabase
+    .from("clients")
+    .select("id, name")
+    .or(
+      `assigned_assessor_id.eq.${id},assigned_editor_id.eq.${id},assigned_relationship_manager_id.eq.${id},assigned_videomaker_id.eq.${id}`,
+    )
+
+  const npsData: { averageNps: number | null; npsCount: number; clientsWithNps: any[] } = {
+    averageNps: null,
+    npsCount: 0,
+    clientsWithNps: [],
+  }
+
+  if (assignedClients && assignedClients.length > 0) {
+    const clientIds = assignedClients.map((c) => c.id)
+
+    const { data: npsResponses } = await supabase
+      .from("nps_responses")
+      .select("score, client_id, response_date")
+      .in("client_id", clientIds)
+      .order("response_date", { ascending: false })
+
+    if (npsResponses && npsResponses.length > 0) {
+      const totalScore = npsResponses.reduce((sum, nps) => sum + nps.score, 0)
+      npsData.averageNps = totalScore / npsResponses.length
+      npsData.npsCount = npsResponses.length
+
+      // Group NPS by client to show breakdown
+      const clientNpsMap = new Map<string, { scores: number[]; clientName: string }>()
+      for (const nps of npsResponses) {
+        const client = assignedClients.find((c) => c.id === nps.client_id)
+        if (!clientNpsMap.has(nps.client_id)) {
+          clientNpsMap.set(nps.client_id, { scores: [], clientName: client?.name || "Cliente" })
+        }
+        clientNpsMap.get(nps.client_id)?.scores.push(nps.score)
+      }
+
+      npsData.clientsWithNps = Array.from(clientNpsMap.entries()).map(([clientId, data]) => ({
+        clientId,
+        clientName: data.clientName,
+        averageScore: data.scores.reduce((a, b) => a + b, 0) / data.scores.length,
+        responseCount: data.scores.length,
+      }))
+    }
+  }
+
   // Calculate metrics
   const today = new Date()
   const hireDate = parseISO(employee.hire_date)
@@ -64,7 +122,21 @@ async function getEmployeeData(id: string) {
     totalContributions,
     subordinates: subordinates || [],
     allEmployees: allEmployees || [],
+    assignedClients: assignedClients || [],
+    npsData,
   }
+}
+
+function getNpsColor(score: number): string {
+  if (score >= 9) return "text-green-600"
+  if (score >= 7) return "text-yellow-600"
+  return "text-red-600"
+}
+
+function getNpsBadgeVariant(score: number): "default" | "secondary" | "destructive" {
+  if (score >= 9) return "default"
+  if (score >= 7) return "secondary"
+  return "destructive"
 }
 
 export default async function EmployeeDetailPage({ params }: { params: { id: string } }) {
@@ -105,8 +177,8 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
         </EditEmployeeForm>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      {/* Summary Cards - Added NPS card */}
+      <div className="grid gap-4 md:grid-cols-5">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Salário Mensal</CardTitle>
@@ -149,6 +221,33 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
             <p className="text-xs text-muted-foreground">
               {employee.employee_contributions?.length || 0} contribuições
             </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">NPS Médio</CardTitle>
+            <Star className="h-4 w-4 text-yellow-500" />
+          </CardHeader>
+          <CardContent>
+            {employee.npsData.averageNps !== null ? (
+              <>
+                <div className={`text-2xl font-bold ${getNpsColor(employee.npsData.averageNps)}`}>
+                  {employee.npsData.averageNps.toFixed(1)}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {employee.npsData.npsCount} avaliações de {employee.assignedClients.length} cliente(s)
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="text-2xl font-bold text-muted-foreground">-</div>
+                <p className="text-xs text-muted-foreground">
+                  {employee.assignedClients.length > 0
+                    ? `${employee.assignedClients.length} cliente(s), sem NPS`
+                    : "Sem clientes vinculados"}
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -224,14 +323,15 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
           </CardContent>
         </Card>
 
-        {/* Tabs */}
+        {/* Tabs - Added Clientes tab */}
         <Card className="md:col-span-2">
           <Tabs defaultValue="observations" className="w-full">
             <CardHeader>
-              <TabsList className="grid w-full grid-cols-4">
+              <TabsList className="grid w-full grid-cols-5">
                 <TabsTrigger value="observations">Observações</TabsTrigger>
                 <TabsTrigger value="payments">Pagamentos</TabsTrigger>
                 <TabsTrigger value="contributions">Contribuições</TabsTrigger>
+                <TabsTrigger value="clients">Clientes</TabsTrigger>
                 <TabsTrigger value="subordinates">Subordinados</TabsTrigger>
               </TabsList>
             </CardHeader>
@@ -330,6 +430,52 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
                   </Table>
                 ) : (
                   <p className="text-sm text-muted-foreground text-center py-8">Nenhuma contribuição registrada.</p>
+                )}
+              </TabsContent>
+
+              <TabsContent value="clients" className="mt-0">
+                {employee.assignedClients?.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Cliente</TableHead>
+                        <TableHead className="text-center">NPS Médio</TableHead>
+                        <TableHead className="text-center">Avaliações</TableHead>
+                        <TableHead className="text-right">Ações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {employee.assignedClients.map((client: any) => {
+                        const clientNps = employee.npsData.clientsWithNps.find((c: any) => c.clientId === client.id)
+                        return (
+                          <TableRow key={client.id}>
+                            <TableCell className="font-medium">{client.name}</TableCell>
+                            <TableCell className="text-center">
+                              {clientNps ? (
+                                <Badge variant={getNpsBadgeVariant(clientNps.averageScore)}>
+                                  {clientNps.averageScore.toFixed(1)}
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground text-sm">-</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-center">{clientNps ? clientNps.responseCount : 0}</TableCell>
+                            <TableCell className="text-right">
+                              <Link href={`/dashboard/clients/${client.id}`}>
+                                <Button variant="ghost" size="sm">
+                                  Ver cliente
+                                </Button>
+                              </Link>
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-8">
+                    Nenhum cliente vinculado a este colaborador.
+                  </p>
                 )}
               </TabsContent>
 
