@@ -1,81 +1,92 @@
 "use client"
 
-import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts"
 
-const data = [
-  { name: "Jan", total: Math.floor(Math.random() * 5000) + 1000 },
-  { name: "Fev", total: Math.floor(Math.random() * 5000) + 1000 },
-  { name: "Mar", total: Math.floor(Math.random() * 5000) + 1000 },
-  { name: "Abr", total: Math.floor(Math.random() * 5000) + 1000 },
-  { name: "Mai", total: Math.floor(Math.random() * 5000) + 1000 },
-  { name: "Jun", total: Math.floor(Math.random() * 5000) + 1000 },
-]
+// Tipo de dados ATUALIZADO
+type RevenueData = {
+  month: string
+  receita: number // Realizada
+  custos: number // Realizado
+  lucro: number // Realizado
+  receita_estimada: number
+  custo_estimado: number
+}
 
-export function RevenueChartClient() {
+export function RevenueChartClient({ data }: { data: RevenueData[] }) {
   return (
-    <Card className="col-span-4">
-      <CardHeader>
-        <CardTitle>Receita Total</CardTitle>
-        <CardDescription>
-          Receita mensal nos últimos 6 meses
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="pl-2">
-        <div className="h-[350px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data}>
-              <CartesianGrid 
-                vertical={false} 
-                strokeDasharray="3 3" 
-                className="stroke-muted" 
-              />
-              <XAxis
-                dataKey="name"
-                stroke="hsl(var(--muted-foreground))"
-                fontSize={12}
-                tickLine={false}
-                axisLine={false}
-                tickMargin={10}
-              />
-              <YAxis
-                stroke="hsl(var(--muted-foreground))"
-                fontSize={12}
-                tickLine={false}
-                axisLine={false}
-                tickFormatter={(value) => `R$${value}`}
-              />
-              <Tooltip 
-                 cursor={{ fill: 'hsl(var(--muted)/0.2)' }}
-                 content={({ active, payload, label }) => {
-                    if (active && payload && payload.length) {
-                      return (
-                        <div className="rounded-lg border bg-background p-2 shadow-sm">
-                          <div className="grid grid-cols-2 gap-2">
-                            <div className="flex flex-col">
-                              <span className="text-[0.70rem] uppercase text-muted-foreground">
-                                {label}
-                              </span>
-                              <span className="font-bold text-foreground">
-                                R$ {payload[0].value}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      )
-                    }
-                    return null
-                 }}
-              />
-              <Bar
-                dataKey="total"
-                fill="hsl(var(--primary))"
-                radius={[4, 4, 0, 0]}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </CardContent>
-    </Card>
+    <ChartContainer
+      config={{
+        receita: {
+          label: "Receita (Realizada)",
+          color: "hsl(var(--chart-1))",
+        },
+        custos: {
+          label: "Custos (Realizado)",
+          color: "hsl(var(--chart-5))",
+        },
+        lucro: {
+          label: "Lucro (Realizado)",
+          color: "hsl(var(--chart-2))",
+        },
+        // --- NOVAS CONFIGURAÇÕES ---
+        receita_estimada: {
+          label: "Receita (Estimada)",
+          color: "hsl(var(--chart-1))",
+        },
+        custo_estimado: {
+          label: "Custo (Estimado)",
+          color: "hsl(var(--chart-5))",
+        },
+        // --- FIM DA ATUALIZAÇÃO ---
+      }}
+      className="h-[300px]"
+    >
+      <AreaChart data={data}>
+        <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+        <XAxis dataKey="month" className="text-xs" tick={{ fill: "hsl(var(--foreground))" }} />
+        <YAxis className="text-xs" tick={{ fill: "hsl(var(--foreground))" }} />
+        <ChartTooltip content={<ChartTooltipContent />} />
+
+        {/* --- ÁREAS REALIZADAS (Sólidas, com sombra) --- */}
+        <Area
+          type="monotone"
+          dataKey="receita"
+          stroke="hsl(var(--chart-1))"
+          fill="hsl(var(--chart-1))"
+          fillOpacity={0.4}
+        />
+        <Area
+          type="monotone"
+          dataKey="custos"
+          stroke="hsl(var(--chart-5))"
+          fill="hsl(var(--chart-5))"
+          fillOpacity={0.4}
+        />
+        <Area
+          type="monotone"
+          dataKey="lucro"
+          stroke="hsl(var(--chart-2))"
+          fill="hsl(var(--chart-2))"
+          fillOpacity={0.5}
+        />
+
+        {/* --- ÁREAS ESTIMADAS (Pontilhadas, sem sombra) --- */}
+        <Area
+          type="monotone"
+          dataKey="receita_estimada"
+          stroke="hsl(var(--chart-1))"
+          strokeDasharray="5 5" // <-- Linha pontilhada
+          fillOpacity={0} // <-- Sem sombra
+        />
+        <Area
+          type="monotone"
+          dataKey="custo_estimado"
+          stroke="hsl(var(--chart-5))"
+          strokeDasharray="5 5" // <-- Linha pontilhada
+          fillOpacity={0} // <-- Sem sombra
+        />
+      </AreaChart>
+    </ChartContainer>
   )
 }
