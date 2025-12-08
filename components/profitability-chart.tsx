@@ -41,11 +41,11 @@ export function ProfitabilityChart({ data }: ProfitabilityChartProps) {
           config={{
             receita: {
               label: "Receita",
-              color: "hsl(var(--chart-1))", // Verde
+              color: "#22c55e", // Verde
             },
             custo: {
               label: "Custo Estimado",
-              color: "hsl(var(--chart-5))", // Cinza/Preto
+              color: "#ef4444", // Vermelho
             },
           }}
           className="h-[300px]"
@@ -73,8 +73,8 @@ export function ProfitabilityChart({ data }: ProfitabilityChartProps) {
               }
             />
             <ChartLegend content={<ChartLegendContent />} />
-            <Bar dataKey="receita" fill="var(--color-receita)" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="custo" fill="var(--color-custo)" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="receita" fill="#22c55e" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="custo" fill="#ef4444" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ChartContainer>
       </CardContent>
