@@ -1,66 +1,98 @@
 "use client"
 
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
-import { Bar, BarChart, CartesianGrid, XAxis, LabelList } from "recharts"
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, LabelList, Cell } from "recharts"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 
-interface CommercialFunnelChartProps {
-  data: Array<{
-    stage: string
-    count: number
-    fill: string
-  }>
-}
+const chartData = [
+  { stage: "Leads", value: 500, fill: "hsl(var(--chart-1))" },
+  { stage: "Qualificados", value: 350, fill: "hsl(var(--chart-2))" },
+  { stage: "Proposta", value: 200, fill: "hsl(var(--chart-3))" },
+  { stage: "Negociação", value: 100, fill: "hsl(var(--chart-4))" },
+  { stage: "Fechado", value: 50, fill: "hsl(var(--chart-5))" },
+]
 
-export function CommercialFunnelChart({ data }: CommercialFunnelChartProps) {
+const chartConfig = {
+  value: {
+    label: "Valor",
+    color: "hsl(var(--primary))",
+  },
+  Leads: {
+    label: "Leads",
+    color: "hsl(var(--chart-1))",
+  },
+  Qualificados: {
+    label: "Qualificados",
+    color: "hsl(var(--chart-2))",
+  },
+  Proposta: {
+    label: "Proposta",
+    color: "hsl(var(--chart-3))",
+  },
+  Negociação: {
+    label: "Negociação",
+    color: "hsl(var(--chart-4))",
+  },
+  Fechado: {
+    label: "Fechado",
+    color: "hsl(var(--chart-5))",
+  },
+} satisfies ChartConfig
+
+export function CommercialFunnelChart() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Funil de Upsell</CardTitle>
-        <CardDescription>Oportunidades por estágio de negociação.</CardDescription>
+        <CardTitle>Funil de Vendas</CardTitle>
+        <CardDescription>Conversão por etapa do funil</CardDescription>
       </CardHeader>
       <CardContent>
-        {data.some(d => d.count > 0) ? (
-          <ChartContainer
-            config={{
-              count: {
-                label: "Oportunidades",
-                color: "hsl(var(--primary))",
-              },
+        <ChartContainer config={chartConfig} className="min-h-[200px] w-full">
+          <BarChart
+            accessibilityLayer
+            data={chartData}
+            layout="vertical"
+            margin={{
+              left: 20,
             }}
-            className="h-[300px]"
           >
-            <BarChart
-              data={data}
-              margin={{ top: 20 }}
-            >
-              <CartesianGrid vertical={false} />
-              <XAxis
+            <CartesianGrid horizontal={false} className="stroke-muted" />
+            <YAxis
+              dataKey="stage"
+              type="category"
+              tickLine={false}
+              tickMargin={10}
+              axisLine={false}
+              className="text-xs font-medium text-muted-foreground"
+              hide
+            />
+            <XAxis dataKey="value" type="number" hide />
+            <ChartTooltip
+              cursor={{ fill: 'hsl(var(--muted)/0.2)' }}
+              content={<ChartTooltipContent hideLabel />}
+            />
+            <Bar dataKey="value" layout="vertical" radius={5}>
+              {/* Mapeamento explicito de cores para cada etapa */}
+              {chartData.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={entry.fill} />
+              ))}
+              <LabelList
                 dataKey="stage"
-                tickLine={false}
-                tickMargin={10}
-                axisLine={false}
-                className="text-xs"
+                position="insideLeft"
+                offset={8}
+                className="fill-background font-medium drop-shadow-sm"
+                fontSize={12}
               />
-              <ChartTooltip
-                cursor={false}
-                content={<ChartTooltipContent hideLabel />}
+              <LabelList
+                dataKey="value"
+                position="right"
+                offset={8}
+                className="fill-foreground font-bold"
+                fontSize={12}
               />
-              <Bar dataKey="count" fill="var(--color-count)" radius={8}>
-                <LabelList
-                  position="top"
-                  offset={12}
-                  className="fill-foreground"
-                  fontSize={12}
-                />
-              </Bar>
-            </BarChart>
-          </ChartContainer>
-        ) : (
-          <div className="flex h-[300px] items-center justify-center text-muted-foreground text-sm border border-dashed rounded-lg m-4">
-            Nenhuma oportunidade registrada.
-          </div>
-        )}
+            </Bar>
+          </BarChart>
+        </ChartContainer>
       </CardContent>
     </Card>
   )
