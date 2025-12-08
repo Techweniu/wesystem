@@ -27,11 +27,11 @@ export function NpsQuadrantChart({ data }: NpsQuadrantChartProps) {
           config={{
             revenueNpsScatter: {
               label: "Clientes",
-              color: "hsl(var(--chart-2))", // Azul que se adapta ao tema
+              color: "hsl(var(--chart-2))",
             },
             referenceLines: {
               label: "Médias",
-              color: "hsl(var(--chart-1))", // Verde Weniu
+              color: "hsl(var(--chart-1))",
             },
           }}
           className="h-[450px]"
@@ -56,7 +56,7 @@ export function NpsQuadrantChart({ data }: NpsQuadrantChartProps) {
                 )
               }
               className="text-xs"
-              tick={{ fill: "hsl(var(--muted-foreground))" }}
+              tick={{ fill: "hsl(var(--foreground))" }}
             />
 
             <YAxis
@@ -66,7 +66,7 @@ export function NpsQuadrantChart({ data }: NpsQuadrantChartProps) {
               domain={[0, 10]}
               tickCount={11}
               className="text-xs"
-              tick={{ fill: "hsl(var(--muted-foreground))" }}
+              tick={{ fill: "hsl(var(--foreground))" }}
             />
 
             <Tooltip
@@ -101,7 +101,7 @@ export function NpsQuadrantChart({ data }: NpsQuadrantChartProps) {
             </ReferenceLine>
 
             <Scatter data={data} fill="hsl(var(--chart-2))">
-              <LabelList dataKey="name" position="top" offset={8} fontSize={10} fill="hsl(var(--foreground))" />
+              <LabelList dataKey="name" position="top" offset={8} fontSize={10} fill="hsl(var(--chart-1))" />
             </Scatter>
           </ScatterChart>
         </ChartContainer>

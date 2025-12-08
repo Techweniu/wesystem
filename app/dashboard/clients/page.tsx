@@ -1,4 +1,4 @@
-import { createAdminClient, createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -26,17 +26,17 @@ const isContractVigent = (contract: { start_date: string | null; end_date: strin
 async function getEmployeesByRole() {
   // Admin Client para garantir leitura da lista de funcionários
   const supabase = createAdminClient()
-  
+
   const { data: employees } = await supabase
     .from("employees")
     .select("id, name, role")
     .eq("status", "active")
     .order("name")
 
-  const assessors = employees?.filter(e => e.role === "Assessor") || []
-  const videomakers = employees?.filter(e => e.role === "Videomaker") || []
-  const managers = employees?.filter(e => e.role === "Gestor de Relacionamento") || []
-  const editors = employees?.filter(e => e.role === "Editor") || []
+  const assessors = employees?.filter((e) => e.role === "Assessor") || []
+  const videomakers = employees?.filter((e) => e.role === "Videomaker") || []
+  const managers = employees?.filter((e) => e.role === "Gestor de Relacionamento") || []
+  const editors = employees?.filter((e) => e.role === "Editor") || []
 
   return { assessors, videomakers, managers, editors }
 }
@@ -91,7 +91,7 @@ async function getClients({ name, status }: { name?: string; status?: string }) 
           ).end_date!
           daysRemaining = differenceInDays(parseISO(furthestEndDate), today)
         } else {
-          daysRemaining = -1 
+          daysRemaining = -1
         }
       }
     }
@@ -142,7 +142,7 @@ async function getAnalyticsData() {
     .select(`name, contracts(valor_mensal, status, start_date, end_date), nps_responses(score, response_date)`)
     .eq("status", "active")
     .order("response_date", { foreignTable: "nps_responses", ascending: false })
-  
+
   const npsChartData =
     clientsData
       ?.map((client) => {
@@ -178,7 +178,9 @@ export default async function ClientsPage({ searchParams }: { searchParams?: { n
   const [clients, analytics, allClientsResult, teamData] = await Promise.all([
     getClients({ name, status }),
     getAnalyticsData(),
-    createAdminClient().from("clients").select("status"), // Admin Client aqui também
+    createAdminClient()
+      .from("clients")
+      .select("status"), // Admin Client aqui também
     getEmployeesByRole(),
   ])
 
@@ -201,7 +203,7 @@ export default async function ClientsPage({ searchParams }: { searchParams?: { n
     if (days === null) return <span className="text-muted-foreground">Indet.</span>
     if (days < 0) return <Badge variant="destructive">Expirado</Badge>
     if (days <= 30) return <Badge variant="secondary">{days} dias</Badge>
-    return <span className="text-muted-foreground">{days} dias</span>
+    return <span className="text-foreground">{days} dias</span>
   }
 
   return (
@@ -213,7 +215,7 @@ export default async function ClientsPage({ searchParams }: { searchParams?: { n
           <h1 className="text-3xl font-bold tracking-tight">Clientes</h1>
           <p className="text-muted-foreground">Gerencie e analise sua base de clientes</p>
         </div>
-        <AddClientForm 
+        <AddClientForm
           assessors={teamData.assessors}
           videomakers={teamData.videomakers}
           managers={teamData.managers}
@@ -222,7 +224,7 @@ export default async function ClientsPage({ searchParams }: { searchParams?: { n
       </div>
 
       {/* ... (Resto do JSX igual, omitido para brevidade, mantenha o que já existe) ... */}
-      
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
