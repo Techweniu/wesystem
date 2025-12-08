@@ -1,7 +1,7 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
+import { ChartContainer, ChartTooltipContent } from "@/components/ui/chart"
 import { CartesianGrid, Scatter, ScatterChart, XAxis, YAxis, Tooltip, ReferenceLine, Label, LabelList } from "recharts"
 
 interface NpsQuadrantChartProps {
@@ -14,8 +14,8 @@ interface NpsQuadrantChartProps {
 
 export function NpsQuadrantChart({ data }: NpsQuadrantChartProps) {
   // Calcula as médias para posicionar as linhas dos quadrantes
-  const averageRevenue = data.length > 0 ? data.reduce((sum, item) => sum + item.revenue, 0) / data.length : 0;
-  const averageNps = data.length > 0 ? data.reduce((sum, item) => sum + item.nps, 0) / data.length : 0;
+  const averageRevenue = data.length > 0 ? data.reduce((sum, item) => sum + item.revenue, 0) / data.length : 0
+  const averageNps = data.length > 0 ? data.reduce((sum, item) => sum + item.nps, 0) / data.length : 0
 
   return (
     <Card>
@@ -25,15 +25,14 @@ export function NpsQuadrantChart({ data }: NpsQuadrantChartProps) {
       <CardContent>
         <ChartContainer
           config={{
-            // CORES REVERTIDAS CONFORME SOLICITADO
             revenueNpsScatter: {
               label: "Clientes",
-              color: "#002492", // Cor das bolinhas (azul)
+              color: "hsl(var(--chart-2))", // Azul que se adapta ao tema
             },
             referenceLines: {
-                label: "Médias",
-                color: "#03d967", // Cor das linhas (verde)
-            }
+              label: "Médias",
+              color: "hsl(var(--chart-1))", // Verde Weniu
+            },
           }}
           className="h-[450px]"
         >
@@ -46,12 +45,16 @@ export function NpsQuadrantChart({ data }: NpsQuadrantChartProps) {
             }}
           >
             <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-            
+
             <XAxis
               type="number"
               dataKey="revenue"
               name="Receita (R$)"
-              tickFormatter={(value) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", notation: 'compact' }).format(value)}
+              tickFormatter={(value) =>
+                new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", notation: "compact" }).format(
+                  value,
+                )
+              }
               className="text-xs"
               tick={{ fill: "hsl(var(--muted-foreground))" }}
             />
@@ -66,35 +69,39 @@ export function NpsQuadrantChart({ data }: NpsQuadrantChartProps) {
               tick={{ fill: "hsl(var(--muted-foreground))" }}
             />
 
-            <Tooltip cursor={{ strokeDasharray: '3 3' }} content={<ChartTooltipContent formatter={(value, name, props) => {
-                if (name === 'revenue') return [`${props.payload.name} - Receita: ${new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value)}`];
-                if (name === 'nps') return [`NPS: ${value}`];
-                return value;
-              }} hideLabel />} />
+            <Tooltip
+              cursor={{ strokeDasharray: "3 3" }}
+              content={
+                <ChartTooltipContent
+                  formatter={(value, name, props) => {
+                    if (name === "revenue")
+                      return [
+                        `${props.payload.name} - Receita: ${new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value)}`,
+                      ]
+                    if (name === "nps") return [`NPS: ${value}`]
+                    return value
+                  }}
+                  hideLabel
+                />
+              }
+            />
 
-            <ReferenceLine 
-              y={averageNps} 
-              stroke="var(--color-referenceLines)"
-              strokeWidth={1}
-            >
-              <Label value="Média NPS" position="insideTopLeft" fill="var(--color-referenceLines)" fontSize={10} />
+            <ReferenceLine y={averageNps} stroke="hsl(var(--chart-1))" strokeWidth={1}>
+              <Label value="Média NPS" position="insideTopLeft" fill="hsl(var(--chart-1))" fontSize={10} />
             </ReferenceLine>
-            <ReferenceLine 
-              x={averageRevenue} 
-              stroke="var(--color-referenceLines)"
-              strokeWidth={1}
-            >
-               <Label value="Média Receita" position="insideTopLeft" fill="var(--color-referenceLines)" fontSize={10} angle={-90} dy={-10} />
-            </ReferenceLine>
-
-            <Scatter data={data} fill="var(--color-revenueNpsScatter)">
-              <LabelList 
-                dataKey="name" 
-                position="top" 
-                offset={8} 
-                fontSize={10} 
-                fill="hsl(var(--foreground))" 
+            <ReferenceLine x={averageRevenue} stroke="hsl(var(--chart-1))" strokeWidth={1}>
+              <Label
+                value="Média Receita"
+                position="insideTopLeft"
+                fill="hsl(var(--chart-1))"
+                fontSize={10}
+                angle={-90}
+                dy={-10}
               />
+            </ReferenceLine>
+
+            <Scatter data={data} fill="hsl(var(--chart-2))">
+              <LabelList dataKey="name" position="top" offset={8} fontSize={10} fill="hsl(var(--foreground))" />
             </Scatter>
           </ScatterChart>
         </ChartContainer>

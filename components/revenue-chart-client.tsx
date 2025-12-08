@@ -7,8 +7,8 @@ import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts"
 type RevenueData = {
   month: string
   receita: number // Realizada
-  custos: number  // Realizado
-  lucro: number   // Realizado
+  custos: number // Realizado
+  lucro: number // Realizado
   receita_estimada: number
   custo_estimado: number
 }
@@ -29,7 +29,6 @@ export function RevenueChartClient({ data }: { data: RevenueData[] }) {
           label: "Lucro (Realizado)",
           color: "hsl(var(--chart-2))",
         },
-        // --- NOVAS CONFIGURAÇÕES ---
         receita_estimada: {
           label: "Receita (Estimada)",
           color: "hsl(var(--chart-1))",
@@ -38,16 +37,15 @@ export function RevenueChartClient({ data }: { data: RevenueData[] }) {
           label: "Custo (Estimado)",
           color: "hsl(var(--chart-5))",
         },
-        // --- FIM DA ATUALIZAÇÃO ---
       }}
       className="h-[300px]"
     >
       <AreaChart data={data}>
         <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-        <XAxis dataKey="month" className="text-xs" tick={{ fill: "hsl(var(--muted-foreground))" }} />
-        <YAxis className="text-xs" tick={{ fill: "hsl(var(--muted-foreground))" }} />
+        <XAxis dataKey="month" className="text-xs" tick={{ fill: "hsl(var(--foreground))", fontSize: 11 }} />
+        <YAxis className="text-xs" tick={{ fill: "hsl(var(--foreground))", fontSize: 11 }} />
         <ChartTooltip content={<ChartTooltipContent />} />
-        
+
         {/* --- ÁREAS REALIZADAS (Sólidas, com sombra) --- */}
         <Area
           type="monotone"
@@ -76,15 +74,15 @@ export function RevenueChartClient({ data }: { data: RevenueData[] }) {
           type="monotone"
           dataKey="receita_estimada"
           stroke="hsl(var(--chart-1))"
-          strokeDasharray="5 5" // <-- Linha pontilhada
-          fillOpacity={0}         // <-- Sem sombra
+          strokeDasharray="5 5"
+          fillOpacity={0}
         />
         <Area
           type="monotone"
           dataKey="custo_estimado"
           stroke="hsl(var(--chart-5))"
-          strokeDasharray="5 5" // <-- Linha pontilhada
-          fillOpacity={0}         // <-- Sem sombra
+          strokeDasharray="5 5"
+          fillOpacity={0}
         />
       </AreaChart>
     </ChartContainer>

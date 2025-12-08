@@ -22,8 +22,8 @@ export function NpsChartClient({ data }: { data: NpsData[] }) {
     >
       <BarChart data={data}>
         <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-        <XAxis dataKey="category" className="text-xs" tick={{ fill: "hsl(var(--muted-foreground))" }} />
-        <YAxis className="text-xs" tick={{ fill: "hsl(var(--muted-foreground))" }} />
+        <XAxis dataKey="category" className="text-xs" tick={{ fill: "hsl(var(--foreground))", fontSize: 12 }} />
+        <YAxis className="text-xs" tick={{ fill: "hsl(var(--foreground))", fontSize: 11 }} />
         <ChartTooltip content={<ChartTooltipContent />} />
         <Bar dataKey="count" radius={[4, 4, 0, 0]} />
       </BarChart>

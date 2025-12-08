@@ -19,8 +19,8 @@
   --secondary-foreground: oklch(0.985 0 0);
 
   --muted: oklch(0.96 0 0);
-  /* Improved contrast for muted-foreground - darker gray for better readability */
-  --muted-foreground: oklch(0.35 0 0);
+  /* Improved contrast for muted-foreground - darker for better readability */
+  --muted-foreground: oklch(0.4 0 0);
 
   /* Verde fluorescente como accent */
   --accent: 143 95% 43%;
@@ -32,12 +32,18 @@
   --input: oklch(0.92 0 0);
   --ring: 143 95% 43%;
 
-  /* Charts */
-  --chart-1: 143 95% 43%;
-  --chart-2: 220 100% 18%;
-  --chart-3: 168 100% 14%;
+  /* Charts - cores otimizadas para tema claro */
+  --chart-1: 143 95% 43%; /* Verde Weniu */
+  --chart-2: 220 100% 35%; /* Azul mais claro para melhor visibilidade */
+  --chart-3: 45 100% 45%; /* Amarelo/Laranja para neutros */
   --chart-4: 220 100% 29%;
-  --chart-5: 193 30% 50%;
+  --chart-5: 0 70% 50%; /* Vermelho para detratores */
+
+  /* Novas variáveis semânticas para status */
+  --success: 143 95% 35%;
+  --success-foreground: oklch(0.985 0 0);
+  --warning: 45 100% 45%;
+  --warning-foreground: oklch(0.145 0 0);
 
   --radius: 0.625rem;
 
@@ -52,51 +58,58 @@
   --sidebar-ring: 143 95% 43%;
 }
 
-/* Added complete dark theme */
+/* Dark theme completamente revisado para contraste */
 .dark {
-  --background: oklch(0.12 0.01 260);
-  --foreground: oklch(0.95 0 0);
-  --card: oklch(0.16 0.01 260);
-  --card-foreground: oklch(0.95 0 0);
-  --popover: oklch(0.16 0.01 260);
-  --popover-foreground: oklch(0.95 0 0);
+  --background: oklch(0.13 0.015 260);
+  --foreground: oklch(0.93 0 0);
+  --card: oklch(0.17 0.015 260);
+  --card-foreground: oklch(0.93 0 0);
+  --popover: oklch(0.17 0.015 260);
+  --popover-foreground: oklch(0.93 0 0);
 
   /* Verde fluorescente Weniu - mantido para consistência */
-  --primary: 143 95% 43%;
+  --primary: 143 95% 50%;
   --primary-foreground: oklch(0.145 0 0);
 
   /* Azul escuro ajustado para dark mode */
-  --secondary: 220 60% 30%;
-  --secondary-foreground: oklch(0.95 0 0);
+  --secondary: 220 50% 40%;
+  --secondary-foreground: oklch(0.93 0 0);
 
-  --muted: oklch(0.22 0.01 260);
-  --muted-foreground: oklch(0.65 0 0);
+  --muted: oklch(0.24 0.015 260);
+  /* muted-foreground mais claro para melhor legibilidade no dark */
+  --muted-foreground: oklch(0.72 0 0);
 
-  --accent: 143 95% 43%;
+  --accent: 143 95% 50%;
   --accent-foreground: oklch(0.145 0 0);
 
   --destructive: oklch(0.65 0.25 25);
-  --destructive-foreground: oklch(0.95 0 0);
-  --border: oklch(0.28 0.01 260);
-  --input: oklch(0.22 0.01 260);
-  --ring: 143 95% 43%;
+  --destructive-foreground: oklch(0.93 0 0);
+  --border: oklch(0.32 0.015 260);
+  --input: oklch(0.24 0.015 260);
+  --ring: 143 95% 50%;
 
-  /* Charts - cores mais vibrantes para dark mode */
-  --chart-1: 143 95% 50%;
-  --chart-2: 220 80% 50%;
-  --chart-3: 168 80% 40%;
-  --chart-4: 220 70% 55%;
-  --chart-5: 193 40% 60%;
+  /* Charts - cores MUITO mais vibrantes para dark mode */
+  --chart-1: 143 100% 55%; /* Verde brilhante */
+  --chart-2: 210 100% 65%; /* Azul vibrante - alta visibilidade */
+  --chart-3: 45 100% 60%; /* Amarelo/Laranja para neutros */
+  --chart-4: 200 90% 60%; /* Ciano */
+  --chart-5: 0 85% 65%; /* Vermelho vibrante para detratores */
+
+  /* Variáveis semânticas para status no dark */
+  --success: 143 95% 55%;
+  --success-foreground: oklch(0.145 0 0);
+  --warning: 45 100% 55%;
+  --warning-foreground: oklch(0.145 0 0);
 
   /* Sidebar dark */
-  --sidebar: oklch(0.14 0.01 260);
-  --sidebar-foreground: oklch(0.95 0 0);
-  --sidebar-primary: 143 95% 43%;
+  --sidebar: oklch(0.15 0.015 260);
+  --sidebar-foreground: oklch(0.93 0 0);
+  --sidebar-primary: 143 95% 50%;
   --sidebar-primary-foreground: oklch(0.145 0 0);
-  --sidebar-accent: oklch(0.22 0.01 260);
-  --sidebar-accent-foreground: oklch(0.95 0 0);
-  --sidebar-border: oklch(0.25 0.01 260);
-  --sidebar-ring: 143 95% 43%;
+  --sidebar-accent: oklch(0.24 0.015 260);
+  --sidebar-accent-foreground: oklch(0.93 0 0);
+  --sidebar-border: oklch(0.28 0.015 260);
+  --sidebar-ring: 143 95% 50%;
 }
 
 @theme inline {
@@ -124,6 +137,11 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+  /* Adicionando tokens de sucesso e warning */
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -168,13 +186,13 @@
 
 /* Dark mode scrollbar */
 .dark ::-webkit-scrollbar-track {
-  background: oklch(0.12 0.01 260);
+  background: oklch(0.13 0.015 260);
 }
 
 .dark ::-webkit-scrollbar-thumb {
-  background: oklch(0.35 0.01 260);
+  background: oklch(0.38 0.015 260);
 }
 
 .dark ::-webkit-scrollbar-thumb:hover {
-  background: oklch(0.45 0.01 260);
+  background: oklch(0.48 0.015 260);
 }

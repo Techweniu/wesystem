@@ -107,7 +107,7 @@ export function FinancialTable({ costs }: FinancialTableProps) {
                     {cost.payment_proof_url ? (
                       <Button variant="ghost" size="sm" asChild className="gap-1">
                         <a href={cost.payment_proof_url} target="_blank" rel="noopener noreferrer">
-                          <CreditCard className="h-4 w-4 text-green-600" />
+                          <CreditCard className="h-4 w-4 text-primary" />
                           <span className="hidden sm:inline">Ver</span>
                           <ExternalLink className="h-3 w-3" />
                         </a>
