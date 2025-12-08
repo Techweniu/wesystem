@@ -22,6 +22,7 @@ const costSchema = z.object({
   category: z.string().min(1, "Categoria é obrigatória"),
   date: z.string().min(1, "Data é obrigatória"),
   is_recurring: z.preprocess((val) => val === "true", z.boolean()).default(false),
+  recurrence_days: z.coerce.number().min(1).max(365).default(30),
 })
 
 // --- AÇÃO addCost ---
@@ -41,6 +42,7 @@ export async function addCost(formData: FormData) {
       category: formData.get("category"),
       date: formData.get("date"),
       is_recurring: formData.get("is_recurring"),
+      recurrence_days: formData.get("recurrence_days"),
     }
 
     const validated = costSchema.safeParse(rawData)
@@ -65,11 +67,16 @@ export async function addCost(formData: FormData) {
 
     const { error } = await supabaseAdmin.from("costs").insert([
       {
-        ...validated.data,
+        description: validated.data.description,
+        value: validated.data.value,
+        category: validated.data.category,
+        date: validated.data.date,
+        is_recurring: validated.data.is_recurring,
+        recurrence_days: validated.data.is_recurring ? validated.data.recurrence_days : null,
         status: "pending",
         paid_date: null,
-        proof_url: blob.url, // Store proof URL on creation
-        payment_proof_url: null, // payment_proof_url starts as null
+        proof_url: blob.url,
+        payment_proof_url: null,
       },
     ])
 
@@ -94,6 +101,7 @@ export async function updateCost(id: string, formData: FormData) {
       category: formData.get("category"),
       date: formData.get("date"),
       is_recurring: formData.get("is_recurring"),
+      recurrence_days: formData.get("recurrence_days"),
     }
 
     const validated = costSchema.safeParse(rawData)
@@ -279,15 +287,16 @@ export async function markCostAsPaid(formData: FormData) {
       .update({
         paid_date: new Date().toISOString().split("T")[0],
         status: "paid",
-        payment_proof_url: blob.url, // Now saves to payment_proof_url
+        payment_proof_url: blob.url,
       })
       .eq("id", costId)
 
     if (paymentError) return { error: paymentError.message }
 
     if (cost.is_recurring) {
+      const recurrenceDays = cost.recurrence_days || 30 // fallback to 30 if not set
       const nextDate = new Date(cost.date)
-      nextDate.setMonth(nextDate.getMonth() + 1)
+      nextDate.setDate(nextDate.getDate() + recurrenceDays)
 
       await supabaseAdmin.from("costs").insert({
         description: cost.description,
@@ -295,9 +304,10 @@ export async function markCostAsPaid(formData: FormData) {
         category: cost.category,
         date: nextDate.toISOString().split("T")[0],
         is_recurring: true,
+        recurrence_days: recurrenceDays,
         paid_date: null,
         status: "pending",
-        proof_url: null,
+        proof_url: cost.proof_url, // Keep original cost proof
         payment_proof_url: null,
       })
     }

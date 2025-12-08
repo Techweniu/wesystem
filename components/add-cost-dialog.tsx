@@ -29,6 +29,7 @@ export function AddCostDialog({ employees, costCategories }: AddCostDialogProps)
   const [open, setOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isRecurring, setIsRecurring] = useState(false)
+  const [recurrenceDays, setRecurrenceDays] = useState(30)
   const [proofFile, setProofFile] = useState<File | null>(null)
   const formRef = useRef<HTMLFormElement>(null)
 
@@ -44,6 +45,7 @@ export function AddCostDialog({ employees, costCategories }: AddCostDialogProps)
 
     const formData = new FormData(e.currentTarget)
     formData.set("is_recurring", isRecurring.toString())
+    formData.set("recurrence_days", recurrenceDays.toString())
     formData.set("proof_file", proofFile)
 
     const result = await addCost(formData)
@@ -52,6 +54,7 @@ export function AddCostDialog({ employees, costCategories }: AddCostDialogProps)
       toast.success("Custo adicionado com sucesso!")
       formRef.current?.reset()
       setIsRecurring(false)
+      setRecurrenceDays(30)
       setProofFile(null)
       setOpen(false)
     } else {
@@ -64,7 +67,6 @@ export function AddCostDialog({ employees, costCategories }: AddCostDialogProps)
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (file) {
-      // Validate file size (max 10MB)
       if (file.size > 10 * 1024 * 1024) {
         toast.error("Arquivo muito grande", { description: "O tamanho máximo é 10MB." })
         return
@@ -81,6 +83,7 @@ export function AddCostDialog({ employees, costCategories }: AddCostDialogProps)
         if (!isOpen) {
           setProofFile(null)
           setIsRecurring(false)
+          setRecurrenceDays(30)
         }
       }}
     >
@@ -170,9 +173,93 @@ export function AddCostDialog({ employees, costCategories }: AddCostDialogProps)
               <p className="text-xs text-muted-foreground">Formatos aceitos: imagens ou PDF (máx. 10MB)</p>
             </div>
 
-            <div className="flex items-center space-x-2">
-              <Switch id="is_recurring" checked={isRecurring} onCheckedChange={setIsRecurring} />
-              <Label htmlFor="is_recurring">Custo Recorrente (mensal)</Label>
+            <div className="space-y-3">
+              <div className="flex items-center space-x-2">
+                <Switch id="is_recurring" checked={isRecurring} onCheckedChange={setIsRecurring} />
+                <Label htmlFor="is_recurring">Custo Recorrente</Label>
+              </div>
+
+              {isRecurring && (
+                <div className="ml-6 p-4 border rounded-lg bg-muted/30 space-y-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="recurrence_days">Intervalo de Recorrência (dias) *</Label>
+                    <div className="flex items-center gap-3">
+                      <Input
+                        id="recurrence_days"
+                        type="number"
+                        min="1"
+                        max="365"
+                        value={recurrenceDays}
+                        onChange={(e) => setRecurrenceDays(Number(e.target.value))}
+                        className="w-24"
+                      />
+                      <span className="text-sm text-muted-foreground">dias</span>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant={recurrenceDays === 7 ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setRecurrenceDays(7)}
+                    >
+                      Semanal (7)
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={recurrenceDays === 15 ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setRecurrenceDays(15)}
+                    >
+                      Quinzenal (15)
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={recurrenceDays === 30 ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setRecurrenceDays(30)}
+                    >
+                      Mensal (30)
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={recurrenceDays === 60 ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setRecurrenceDays(60)}
+                    >
+                      Bimestral (60)
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={recurrenceDays === 90 ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setRecurrenceDays(90)}
+                    >
+                      Trimestral (90)
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={recurrenceDays === 180 ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setRecurrenceDays(180)}
+                    >
+                      Semestral (180)
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={recurrenceDays === 365 ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setRecurrenceDays(365)}
+                    >
+                      Anual (365)
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Ao marcar este custo como pago, um novo será criado automaticamente para daqui a {recurrenceDays}{" "}
+                    dias.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>
