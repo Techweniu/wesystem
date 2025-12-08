@@ -1,6 +1,6 @@
 "use client"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -45,10 +45,10 @@ export function ClientCommercialCard({ upsell }: { upsell: Upsell }) {
   }
 
   const statusColors: Record<string, string> = {
-    identified: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
-    negotiating: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300",
-    closed: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
-    lost: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
+    identified: "bg-blue-100 text-blue-900 dark:bg-blue-800 dark:text-blue-100",
+    negotiating: "bg-yellow-100 text-yellow-900 dark:bg-yellow-700 dark:text-yellow-100",
+    closed: "bg-green-100 text-green-900 dark:bg-green-800 dark:text-green-100",
+    lost: "bg-red-100 text-red-900 dark:bg-red-800 dark:text-red-100",
   }
 
   return (
@@ -96,9 +96,9 @@ export function ClientCommercialCard({ upsell }: { upsell: Upsell }) {
 
             <div className="flex items-center justify-end gap-2">
               <span className="text-xs font-medium">Status:</span>
-              <Select 
-                defaultValue={upsell.status} 
-                onValueChange={handleStatusChange} 
+              <Select
+                defaultValue={upsell.status}
+                onValueChange={handleStatusChange}
                 disabled={!canEdit} // --- ALTERAÇÃO: Desabilita select
               >
                 <SelectTrigger className={`w-[140px] h-8 text-xs border-0 ${statusColors[upsell.status] || ""}`}>
@@ -115,9 +115,7 @@ export function ClientCommercialCard({ upsell }: { upsell: Upsell }) {
           </div>
 
           {upsell.notes && (
-            <div className="bg-muted/30 p-2 rounded text-xs text-muted-foreground mt-1">
-              {upsell.notes}
-            </div>
+            <div className="bg-muted/30 p-2 rounded text-xs text-muted-foreground mt-1">{upsell.notes}</div>
           )}
         </div>
       </CardContent>

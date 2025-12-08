@@ -8,13 +8,7 @@ import { format, parseISO, differenceInDays } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { deleteCommercialGoal } from "@/app/dashboard/commercial/actions"
 import { toast } from "sonner"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { updateCommercialGoal } from "@/app/dashboard/commercial/actions"
@@ -33,7 +27,7 @@ interface Goal {
 export function CommercialGoalCard({ goal }: { goal: Goal }) {
   const userRole = useRole() // --- ALTERAÇÃO
   const [isEditOpen, setIsEditOpen] = useState(false)
-  
+
   const percentage = Math.min(100, Math.max(0, (goal.current_value / goal.target_value) * 100))
   const daysLeft = differenceInDays(parseISO(goal.deadline), new Date())
 
@@ -88,8 +82,12 @@ export function CommercialGoalCard({ goal }: { goal: Goal }) {
           <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2 border-t">
             <Calendar className="h-3 w-3" />
             <span>
-              {daysLeft > 0 ? `${daysLeft} dias restantes` : "Prazo encerrado"} (
-              {format(parseISO(goal.deadline), "dd/MM", { locale: ptBR })})
+              {daysLeft > 0 ? (
+                <span className="text-foreground font-medium">{daysLeft} dias restantes</span>
+              ) : (
+                <span className="text-destructive font-medium">Prazo encerrado</span>
+              )}{" "}
+              ({format(parseISO(goal.deadline), "dd/MM", { locale: ptBR })})
             </span>
           </div>
 
@@ -110,7 +108,7 @@ export function CommercialGoalCard({ goal }: { goal: Goal }) {
                     <input type="hidden" name="title" value={goal.title} />
                     <input type="hidden" name="type" value={goal.type} />
                     <input type="hidden" name="deadline" value={goal.deadline} />
-                    
+
                     <div className="grid grid-cols-2 gap-4">
                       <div className="grid gap-2">
                         <Label>Valor Atual</Label>
@@ -121,7 +119,9 @@ export function CommercialGoalCard({ goal }: { goal: Goal }) {
                         <Input name="target_value" type="number" defaultValue={goal.target_value} step="0.01" />
                       </div>
                     </div>
-                    <Button type="submit" className="w-full">Salvar Alterações</Button>
+                    <Button type="submit" className="w-full">
+                      Salvar Alterações
+                    </Button>
                   </form>
                 </DialogContent>
               </Dialog>

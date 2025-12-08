@@ -203,7 +203,7 @@ export default async function ClientsPage({ searchParams }: { searchParams?: { n
     if (days === null) return <span className="text-muted-foreground">Indet.</span>
     if (days < 0) return <Badge variant="destructive">Expirado</Badge>
     if (days <= 30) return <Badge variant="secondary">{days} dias</Badge>
-    return <span className="text-foreground">{days} dias</span>
+    return <span className="text-foreground font-medium">{days} dias</span>
   }
 
   return (

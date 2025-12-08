@@ -11,38 +11,38 @@
   --popover-foreground: oklch(0.145 0 0);
 
   /* Verde fluorescente Weniu para elementos primários */
-  --primary: 143 95% 43%; /* #03D967 */
+  --primary: oklch(0.72 0.22 145);
   --primary-foreground: oklch(0.145 0 0);
 
   /* Azul escuro Weniu como secundária */
-  --secondary: 220 100% 18%; /* #001B5E */
-  --secondary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.25 0.08 260);
+  --secondary-foreground: oklch(0.98 0 0);
 
   --muted: oklch(0.96 0 0);
   /* Improved contrast for muted-foreground - darker for better readability */
   --muted-foreground: oklch(0.4 0 0);
 
   /* Verde fluorescente como accent */
-  --accent: 143 95% 43%;
+  --accent: oklch(0.72 0.22 145);
   --accent-foreground: oklch(0.145 0 0);
 
   --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: rgb(210, 210, 210);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(0.85 0 0);
   --input: oklch(0.92 0 0);
-  --ring: 143 95% 43%;
+  --ring: oklch(0.72 0.22 145);
 
   /* Charts - cores otimizadas para tema claro */
-  --chart-1: 143 95% 43%; /* Verde Weniu */
-  --chart-2: 220 100% 35%; /* Azul mais claro para melhor visibilidade */
-  --chart-3: 45 100% 45%; /* Amarelo/Laranja para neutros */
-  --chart-4: 220 100% 29%;
-  --chart-5: 0 70% 50%; /* Vermelho para detratores */
+  --chart-1: oklch(0.72 0.22 145); /* Verde Weniu */
+  --chart-2: oklch(0.45 0.18 260); /* Azul */
+  --chart-3: oklch(0.75 0.18 85); /* Amarelo para neutros */
+  --chart-4: oklch(0.55 0.15 230); /* Ciano */
+  --chart-5: oklch(0.55 0.22 25); /* Vermelho para detratores */
 
-  /* Novas variáveis semânticas para status */
-  --success: 143 95% 35%;
-  --success-foreground: oklch(0.985 0 0);
-  --warning: 45 100% 45%;
+  /* Variáveis semânticas para status */
+  --success: oklch(0.65 0.2 145);
+  --success-foreground: oklch(0.98 0 0);
+  --warning: oklch(0.75 0.18 85);
   --warning-foreground: oklch(0.145 0 0);
 
   --radius: 0.625rem;
@@ -50,12 +50,12 @@
   /* Sidebar */
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: 143 95% 43%;
+  --sidebar-primary: oklch(0.72 0.22 145);
   --sidebar-primary-foreground: oklch(0.145 0 0);
-  --sidebar-accent: 143 95% 43%;
+  --sidebar-accent: oklch(0.72 0.22 145);
   --sidebar-accent-foreground: oklch(0.145 0 0);
   --sidebar-border: oklch(0.89 0 0);
-  --sidebar-ring: 143 95% 43%;
+  --sidebar-ring: oklch(0.72 0.22 145);
 }
 
 /* Dark theme completamente revisado para contraste */
@@ -67,49 +67,49 @@
   --popover: oklch(0.17 0.015 260);
   --popover-foreground: oklch(0.93 0 0);
 
-  /* Verde fluorescente Weniu - mantido para consistência */
-  --primary: 143 95% 50%;
+  /* Verde fluorescente Weniu - mais brilhante no dark */
+  --primary: oklch(0.78 0.22 145);
   --primary-foreground: oklch(0.145 0 0);
 
-  /* Azul escuro ajustado para dark mode */
-  --secondary: 220 50% 40%;
-  --secondary-foreground: oklch(0.93 0 0);
+  /* Azul ajustado para dark mode - mais claro */
+  --secondary: oklch(0.45 0.12 260);
+  --secondary-foreground: oklch(0.98 0 0);
 
   --muted: oklch(0.24 0.015 260);
   /* muted-foreground mais claro para melhor legibilidade no dark */
   --muted-foreground: oklch(0.72 0 0);
 
-  --accent: 143 95% 50%;
+  --accent: oklch(0.78 0.22 145);
   --accent-foreground: oklch(0.145 0 0);
 
   --destructive: oklch(0.65 0.25 25);
-  --destructive-foreground: oklch(0.93 0 0);
+  --destructive-foreground: oklch(0.98 0 0);
   --border: oklch(0.32 0.015 260);
   --input: oklch(0.24 0.015 260);
-  --ring: 143 95% 50%;
+  --ring: oklch(0.78 0.22 145);
 
   /* Charts - cores MUITO mais vibrantes para dark mode */
-  --chart-1: 143 100% 55%; /* Verde brilhante */
-  --chart-2: 210 100% 65%; /* Azul vibrante - alta visibilidade */
-  --chart-3: 45 100% 60%; /* Amarelo/Laranja para neutros */
-  --chart-4: 200 90% 60%; /* Ciano */
-  --chart-5: 0 85% 65%; /* Vermelho vibrante para detratores */
+  --chart-1: oklch(0.78 0.22 145); /* Verde brilhante */
+  --chart-2: oklch(0.7 0.15 240); /* Azul vibrante */
+  --chart-3: oklch(0.8 0.18 85); /* Amarelo para neutros */
+  --chart-4: oklch(0.7 0.12 200); /* Ciano */
+  --chart-5: oklch(0.7 0.2 25); /* Vermelho vibrante */
 
   /* Variáveis semânticas para status no dark */
-  --success: 143 95% 55%;
+  --success: oklch(0.75 0.2 145);
   --success-foreground: oklch(0.145 0 0);
-  --warning: 45 100% 55%;
+  --warning: oklch(0.8 0.18 85);
   --warning-foreground: oklch(0.145 0 0);
 
   /* Sidebar dark */
   --sidebar: oklch(0.15 0.015 260);
   --sidebar-foreground: oklch(0.93 0 0);
-  --sidebar-primary: 143 95% 50%;
+  --sidebar-primary: oklch(0.78 0.22 145);
   --sidebar-primary-foreground: oklch(0.145 0 0);
   --sidebar-accent: oklch(0.24 0.015 260);
   --sidebar-accent-foreground: oklch(0.93 0 0);
   --sidebar-border: oklch(0.28 0.015 260);
-  --sidebar-ring: 143 95% 50%;
+  --sidebar-ring: oklch(0.78 0.22 145);
 }
 
 @theme inline {
@@ -137,7 +137,6 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-  /* Adicionando tokens de sucesso e warning */
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);

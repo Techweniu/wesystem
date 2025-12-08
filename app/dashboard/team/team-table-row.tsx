@@ -16,7 +16,7 @@ const renderPaymentStatus = (days: number | null) => {
   if (days === null) return <Badge variant="outline">A definir</Badge>
   if (days < 0) return <Badge variant="destructive">Vencido</Badge>
   if (days <= 7) return <Badge variant="secondary">{days} dias</Badge>
-  return <span className="text-foreground">{days} dias</span>
+  return <span className="text-foreground font-medium">{days} dias</span>
 }
 
 export function TeamTableRow({ employee, allEmployees }: { employee: Employee; allEmployees: Employee[] }) {
@@ -37,11 +37,11 @@ export function TeamTableRow({ employee, allEmployees }: { employee: Employee; a
               <Tooltip>
                 <TooltipTrigger>
                   {employee.work_model === "home_office" ? (
-                    <div className="bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 p-1 rounded-full">
+                    <div className="bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 p-1 rounded-full">
                       <Home className="h-3 w-3" />
                     </div>
                   ) : employee.work_model === "presential" ? (
-                    <div className="bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 p-1 rounded-full">
+                    <div className="bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300 p-1 rounded-full">
                       <MapPin className="h-3 w-3" />
                     </div>
                   ) : null}
@@ -60,17 +60,12 @@ export function TeamTableRow({ employee, allEmployees }: { employee: Employee; a
           <p className="text-xs text-muted-foreground flex items-center gap-1">
             {employee.role}
             {employee.office_location && (
-              <span className="text-[10px] bg-muted text-muted-foreground px-1 rounded ml-1">
-                {employee.office_location}
-              </span>
+              <span className="text-[10px] bg-muted text-foreground px-1 rounded ml-1">{employee.office_location}</span>
             )}
           </p>
         </TableCell>
         <TableCell>
-          <Badge
-            variant={employee.status === "active" ? "default" : "outline"}
-            className={employee.status === "active" ? "bg-primary text-primary-foreground" : ""}
-          >
+          <Badge variant={employee.status === "active" ? "default" : "outline"}>
             {employee.status === "active" ? "Ativo" : "Inativo"}
           </Badge>
         </TableCell>
