@@ -2,7 +2,7 @@
 @import "tw-animate-css";
 
 :root {
-  /* Aplicando paleta de cores da Weniu com melhor contraste */
+  /* Paleta Weniu - Tema Claro */
   --background: oklch(0.99 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -10,44 +10,92 @@
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
 
-  /* Verde fluorescente Weniu mais vibrante para botões e elementos ativos */
-  --primary: 143 95% 43%; /* Verde fluorescente original da Weniu #03D967 */
-  --primary-foreground: oklch(0.145 0 0); /* Texto escuro para melhor contraste */
+  /* Verde fluorescente Weniu para elementos primários */
+  --primary: 143 95% 43%; /* #03D967 */
+  --primary-foreground: oklch(0.145 0 0);
 
   /* Azul escuro Weniu como secundária */
   --secondary: 220 100% 18%; /* #001B5E */
   --secondary-foreground: oklch(0.985 0 0);
 
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.456 0 0);
+  --muted: oklch(0.96 0 0);
+  /* Improved contrast for muted-foreground - darker gray for better readability */
+  --muted-foreground: oklch(0.35 0 0);
 
-  /* Verde fluorescente também como accent para elementos ativos */
-  --accent: 143 95% 43%; /* Verde fluorescente da Weniu */
-  --accent-foreground: oklch(0.145 0 0); /* Texto escuro para contraste */
+  /* Verde fluorescente como accent */
+  --accent: 143 95% 43%;
+  --accent-foreground: oklch(0.145 0 0);
 
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.985 0 0);
-  --border: rgb(190, 190, 190);
-  --input: oklch(0.89 0 0);
-  --ring: 143 95% 43%; /* Verde para focus rings */
+  --border: rgb(210, 210, 210);
+  --input: oklch(0.92 0 0);
+  --ring: 143 95% 43%;
 
-  /* Charts usando paleta Weniu */
-  --chart-1: 143 95% 43%; /* Verde fluorescente */
-  --chart-2: 220 100% 18%; /* Azul escuro */
-  --chart-3: 168 100% 14%; /* Verde escuro */
-  --chart-4: 220 100% 29%; /* Azul */
-  --chart-5: 193 30% 70%; /* Cinza */
+  /* Charts */
+  --chart-1: 143 95% 43%;
+  --chart-2: 220 100% 18%;
+  --chart-3: 168 100% 14%;
+  --chart-4: 220 100% 29%;
+  --chart-5: 193 30% 50%;
 
   --radius: 0.625rem;
 
-  /* Sidebar com verde fluorescente para itens ativos */
+  /* Sidebar */
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: 143 95% 43%; /* Verde fluorescente */
+  --sidebar-primary: 143 95% 43%;
   --sidebar-primary-foreground: oklch(0.145 0 0);
-  --sidebar-accent: 143 95% 43%; /* Verde fluorescente para itens ativos */
-  --sidebar-accent-foreground: oklch(0.145 0 0); /* Texto escuro para contraste */
+  --sidebar-accent: 143 95% 43%;
+  --sidebar-accent-foreground: oklch(0.145 0 0);
   --sidebar-border: oklch(0.89 0 0);
+  --sidebar-ring: 143 95% 43%;
+}
+
+/* Added complete dark theme */
+.dark {
+  --background: oklch(0.12 0.01 260);
+  --foreground: oklch(0.95 0 0);
+  --card: oklch(0.16 0.01 260);
+  --card-foreground: oklch(0.95 0 0);
+  --popover: oklch(0.16 0.01 260);
+  --popover-foreground: oklch(0.95 0 0);
+
+  /* Verde fluorescente Weniu - mantido para consistência */
+  --primary: 143 95% 43%;
+  --primary-foreground: oklch(0.145 0 0);
+
+  /* Azul escuro ajustado para dark mode */
+  --secondary: 220 60% 30%;
+  --secondary-foreground: oklch(0.95 0 0);
+
+  --muted: oklch(0.22 0.01 260);
+  --muted-foreground: oklch(0.65 0 0);
+
+  --accent: 143 95% 43%;
+  --accent-foreground: oklch(0.145 0 0);
+
+  --destructive: oklch(0.65 0.25 25);
+  --destructive-foreground: oklch(0.95 0 0);
+  --border: oklch(0.28 0.01 260);
+  --input: oklch(0.22 0.01 260);
+  --ring: 143 95% 43%;
+
+  /* Charts - cores mais vibrantes para dark mode */
+  --chart-1: 143 95% 50%;
+  --chart-2: 220 80% 50%;
+  --chart-3: 168 80% 40%;
+  --chart-4: 220 70% 55%;
+  --chart-5: 193 40% 60%;
+
+  /* Sidebar dark */
+  --sidebar: oklch(0.14 0.01 260);
+  --sidebar-foreground: oklch(0.95 0 0);
+  --sidebar-primary: 143 95% 43%;
+  --sidebar-primary-foreground: oklch(0.145 0 0);
+  --sidebar-accent: oklch(0.22 0.01 260);
+  --sidebar-accent-foreground: oklch(0.95 0 0);
+  --sidebar-border: oklch(0.25 0.01 260);
   --sidebar-ring: 143 95% 43%;
 }
 
@@ -99,7 +147,7 @@
   }
 }
 
-/* Custom scrollbar */
+/* Custom scrollbar - light mode */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -116,4 +164,17 @@
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-muted-foreground);
+}
+
+/* Dark mode scrollbar */
+.dark ::-webkit-scrollbar-track {
+  background: oklch(0.12 0.01 260);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: oklch(0.35 0.01 260);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.45 0.01 260);
 }
