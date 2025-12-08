@@ -44,8 +44,8 @@ export function NpsScoreSummaryTable({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Classificação</TableHead>
-              <TableHead className="text-right">Quantidade</TableHead>
+              <TableHead className="text-foreground">Classificação</TableHead>
+              <TableHead className="text-right text-foreground">Quantidade</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -74,12 +74,12 @@ export function NpsScoreSummaryTable({
 
         {/* Lista Ranqueada */}
         <div>
-          <h4 className="mb-2 text-sm font-medium">Clientes que Precisam de Atenção</h4>
+          <h4 className="mb-2 text-sm font-medium text-foreground">Clientes que Precisam de Atenção</h4>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Cliente</TableHead>
-                <TableHead className="text-right">Último NPS</TableHead>
+                <TableHead className="text-foreground">Cliente</TableHead>
+                <TableHead className="text-right text-foreground">Último NPS</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -87,7 +87,7 @@ export function NpsScoreSummaryTable({
                 rankedClients.slice(0, 3).map((client) => (
                   <TableRow key={client.id}>
                     <TableCell className="font-medium">
-                      <Link href={`/dashboard/clients/${client.id}`} className="hover:underline">
+                      <Link href={`/dashboard/clients/${client.id}`} className="hover:underline text-foreground">
                         {client.name}
                       </Link>
                     </TableCell>
