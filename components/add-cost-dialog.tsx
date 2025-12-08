@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -30,6 +30,7 @@ export function AddCostDialog({ employees, costCategories }: AddCostDialogProps)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isRecurring, setIsRecurring] = useState(false)
   const [proofFile, setProofFile] = useState<File | null>(null)
+  const formRef = useRef<HTMLFormElement>(null)
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -49,7 +50,7 @@ export function AddCostDialog({ employees, costCategories }: AddCostDialogProps)
 
     if (result.success) {
       toast.success("Custo adicionado com sucesso!")
-      e.currentTarget.reset()
+      formRef.current?.reset()
       setIsRecurring(false)
       setProofFile(null)
       setOpen(false)
@@ -94,7 +95,7 @@ export function AddCostDialog({ employees, costCategories }: AddCostDialogProps)
           <DialogTitle>Adicionar Novo Custo</DialogTitle>
           <DialogDescription>Preencha os detalhes do custo e anexe o comprovante.</DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit}>
+        <form ref={formRef} onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
