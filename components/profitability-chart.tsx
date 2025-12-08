@@ -1,7 +1,13 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from "@/components/ui/chart"
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+} from "@/components/ui/chart"
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 
 interface ProfitabilityChartProps {
@@ -16,21 +22,19 @@ interface ProfitabilityChartProps {
 
 export function ProfitabilityChart({ data }: ProfitabilityChartProps) {
   // Pega os top 5 ou bottom 5, dependendo de como os dados vêm ordenados.
-  // Vamos assumir que queremos ver os 5 com menor lucro (prejuízo) ou maior receita, 
+  // Vamos assumir que queremos ver os 5 com menor lucro (prejuízo) ou maior receita,
   // mas aqui vou mostrar os dados como vierem (já filtrados pela página pai).
   const chartData = data.map((item) => ({
     name: item.name.length > 15 ? item.name.substring(0, 15) + "..." : item.name,
     receita: item.revenue,
-    custo: item.cost
+    custo: item.cost,
   }))
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Receita vs. Custo (Top Clientes)</CardTitle>
-        <CardDescription>
-          Comparativo financeiro direto.
-        </CardDescription>
+        <CardDescription>Comparativo financeiro direto.</CardDescription>
       </CardHeader>
       <CardContent>
         <ChartContainer
@@ -48,22 +52,15 @@ export function ProfitabilityChart({ data }: ProfitabilityChartProps) {
         >
           <BarChart data={chartData} barGap={0}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border" />
-            <XAxis 
-              dataKey="name" 
-              className="text-xs" 
-              tick={{ fill: "hsl(var(--muted-foreground))" }} 
-              interval={0}
+            <XAxis dataKey="name" className="text-xs" tick={{ fill: "hsl(var(--foreground))" }} interval={0} />
+            <YAxis
+              className="text-xs"
+              tick={{ fill: "hsl(var(--foreground))" }}
+              tickFormatter={(value) => new Intl.NumberFormat("pt-BR", { notation: "compact" }).format(value)}
             />
-            <YAxis 
-              className="text-xs" 
-              tick={{ fill: "hsl(var(--muted-foreground))" }}
-              tickFormatter={(value) => 
-                new Intl.NumberFormat("pt-BR", { notation: "compact" }).format(value)
-              } 
-            />
-            <ChartTooltip 
+            <ChartTooltip
               content={
-                <ChartTooltipContent 
+                <ChartTooltipContent
                   formatter={(value, name) => (
                     <div className="flex min-w-[130px] items-center text-xs text-muted-foreground">
                       {name === "receita" ? "Receita" : "Custo"}:
@@ -73,7 +70,7 @@ export function ProfitabilityChart({ data }: ProfitabilityChartProps) {
                     </div>
                   )}
                 />
-              } 
+              }
             />
             <ChartLegend content={<ChartLegendContent />} />
             <Bar dataKey="receita" fill="var(--color-receita)" radius={[4, 4, 0, 0]} />

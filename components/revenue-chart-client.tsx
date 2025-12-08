@@ -7,8 +7,8 @@ import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts"
 type RevenueData = {
   month: string
   receita: number // Realizada
-  custos: number  // Realizado
-  lucro: number   // Realizado
+  custos: number // Realizado
+  lucro: number // Realizado
   receita_estimada: number
   custo_estimado: number
 }
@@ -44,10 +44,10 @@ export function RevenueChartClient({ data }: { data: RevenueData[] }) {
     >
       <AreaChart data={data}>
         <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-        <XAxis dataKey="month" className="text-xs" tick={{ fill: "hsl(var(--muted-foreground))" }} />
-        <YAxis className="text-xs" tick={{ fill: "hsl(var(--muted-foreground))" }} />
+        <XAxis dataKey="month" className="text-xs" tick={{ fill: "hsl(var(--foreground))" }} />
+        <YAxis className="text-xs" tick={{ fill: "hsl(var(--foreground))" }} />
         <ChartTooltip content={<ChartTooltipContent />} />
-        
+
         {/* --- ÁREAS REALIZADAS (Sólidas, com sombra) --- */}
         <Area
           type="monotone"
@@ -77,14 +77,14 @@ export function RevenueChartClient({ data }: { data: RevenueData[] }) {
           dataKey="receita_estimada"
           stroke="hsl(var(--chart-1))"
           strokeDasharray="5 5" // <-- Linha pontilhada
-          fillOpacity={0}         // <-- Sem sombra
+          fillOpacity={0} // <-- Sem sombra
         />
         <Area
           type="monotone"
           dataKey="custo_estimado"
           stroke="hsl(var(--chart-5))"
           strokeDasharray="5 5" // <-- Linha pontilhada
-          fillOpacity={0}         // <-- Sem sombra
+          fillOpacity={0} // <-- Sem sombra
         />
       </AreaChart>
     </ChartContainer>
