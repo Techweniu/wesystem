@@ -19,7 +19,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { useState } from "react"
-import { useRole } from "@/app/dashboard/layout" // --- ALTERAÇÃO
+import { useRole } from "@/app/dashboard/layout"
 
 interface Upsell {
   id: string
@@ -35,7 +35,7 @@ interface ClientUpsellsSectionProps {
 }
 
 export function ClientUpsellsSection({ clientId, upsells }: ClientUpsellsSectionProps) {
-  const userRole = useRole() // --- ALTERAÇÃO
+  const userRole = useRole()
   const [open, setOpen] = useState(false)
 
   async function handleStatusChange(upsellId: string, newStatus: string) {
@@ -66,7 +66,6 @@ export function ClientUpsellsSection({ clientId, upsells }: ClientUpsellsSection
           Oportunidades de Upsell
         </CardTitle>
         
-        {/* --- ALTERAÇÃO: Esconde botão se limitado --- */}
         {userRole !== "limited" && (
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
@@ -81,7 +80,6 @@ export function ClientUpsellsSection({ clientId, upsells }: ClientUpsellsSection
             </DialogContent>
           </Dialog>
         )}
-        {/* ------------------------------------------- */}
       </CardHeader>
       <CardContent>
         {upsells.length === 0 ? (
@@ -110,13 +108,11 @@ export function ClientUpsellsSection({ clientId, upsells }: ClientUpsellsSection
                     )}
                   </div>
                   
-                  {/* --- ALTERAÇÃO: Esconde botão de deletar se limitado --- */}
                   {userRole !== "limited" && (
                     <Button variant="ghost" size="icon" onClick={() => handleDelete(upsell.id)} className="h-8 w-8">
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   )}
-                  {/* --------------------------------------------------- */}
                 </div>
 
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -129,9 +125,7 @@ export function ClientUpsellsSection({ clientId, upsells }: ClientUpsellsSection
                   <Select 
                     value={upsell.status} 
                     onValueChange={(value) => handleStatusChange(upsell.id, value)}
-                    // --- ALTERAÇÃO: Desabilita se limitado ---
                     disabled={userRole === "limited"}
-                    // ---------------------------------------
                   >
                     <SelectTrigger className="w-[180px] h-8">
                       <SelectValue />
