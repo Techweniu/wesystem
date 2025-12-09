@@ -20,6 +20,12 @@ import Link from "next/link"
 import { MarkServiceReceivedButton } from "@/components/mark-service-received-button"
 import { cookies } from "next/headers"
 
+// CONFIGURAÇÃO DE CACHE:
+// force-dynamic: Impede geração estática no build
+// revalidate = 0: Garante que o cache seja invalidado imediatamente a cada request
+export const dynamic = "force-dynamic"
+export const revalidate = 0
+
 // Função auxiliar para calcular o período
 function getDateRange(period: string) {
   const today = new Date()
