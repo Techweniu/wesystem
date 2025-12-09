@@ -9,6 +9,12 @@ import { ptBR } from "date-fns/locale"
 import { TeamTableRow } from "./team-table-row"
 import { TeamFilters } from "@/components/team-filters"
 
+// CONFIGURAÇÃO DE CACHE:
+// Força a página a ser dinâmica e não usar cache estático.
+// Isso garante que os dados exibidos sejam sempre os atuais do banco.
+export const dynamic = "force-dynamic"
+export const revalidate = 0
+
 async function getTeamData({ name, status }: { name?: string; status?: string }) {
   const supabase = await createClient()
   const today = new Date()
