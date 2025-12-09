@@ -33,7 +33,7 @@ async function getDashboardData() {
       name, 
       status,
       health_status,
-      contracts ( monthly_value, status, start_date, end_date ),
+      contracts ( valor_mensal, status, start_date, end_date ),
       nps_responses ( score, response_date ),
       assigned_assessor_id,
       assigned_videomaker_id,
@@ -47,7 +47,7 @@ async function getDashboardData() {
   }
 
   // Filtrar no código para maior controle
-  const clients = clientsData?.filter((c) => c.status === "active" || c.status === "prospect") || []
+  const clients = clientsData?.filter(c => c.status === 'active' || c.status === 'prospect') || []
 
   // 2. Buscar Funcionários
   const { data: employees } = await supabase
@@ -56,17 +56,19 @@ async function getDashboardData() {
     .eq("status", "active")
 
   // 3. Buscar Upsells para o Funil
-  const { data: upsells } = await supabase.from("client_upsells").select("status")
+  const { data: upsells } = await supabase
+    .from("client_upsells")
+    .select("status")
 
   // --- PROCESSAMENTO ---
 
   // A. Saúde da Carteira
   const healthCounts = { green: 0, yellow: 0, red: 0 }
-  clients.forEach((c) => {
-    if (c.status === "active") {
-      if (c.health_status === "green") healthCounts.green++
-      else if (c.health_status === "yellow") healthCounts.yellow++
-      else if (c.health_status === "red") healthCounts.red++
+  clients.forEach(c => {
+    if (c.status === 'active') {
+      if (c.health_status === 'green') healthCounts.green++
+      else if (c.health_status === 'yellow') healthCounts.yellow++
+      else if (c.health_status === 'red') healthCounts.red++
     }
   })
 
@@ -78,10 +80,10 @@ async function getDashboardData() {
 
   // B. Funil Comercial
   const funnelCounts = { identified: 0, negotiating: 0, closed: 0 }
-  upsells?.forEach((u) => {
-    if (u.status === "identified") funnelCounts.identified++
-    if (u.status === "negotiating") funnelCounts.negotiating++
-    if (u.status === "closed") funnelCounts.closed++
+  upsells?.forEach(u => {
+    if (u.status === 'identified') funnelCounts.identified++
+    if (u.status === 'negotiating') funnelCounts.negotiating++
+    if (u.status === 'closed') funnelCounts.closed++
   })
 
   const funnelData = [
@@ -98,55 +100,49 @@ async function getDashboardData() {
   const npsSummary = { detractors: 0, passives: 0, promoters: 0 }
   const clientsWithNpsAndRevenue: any[] = []
 
-  clients.forEach((client) => {
+  clients.forEach(client => {
     // Carga de Equipe (apenas ativos)
-    if (client.status === "active") {
+    if (client.status === 'active') {
       const roles = [
-        client.assigned_assessor_id,
-        client.assigned_videomaker_id,
-        client.assigned_relationship_manager_id,
-        client.assigned_editor_id,
+        client.assigned_assessor_id, client.assigned_videomaker_id,
+        client.assigned_relationship_manager_id, client.assigned_editor_id
       ]
-      roles.forEach((empId) => {
+      roles.forEach(empId => {
         if (empId) employeeLoad[empId] = (employeeLoad[empId] || 0) + 1
       })
     }
 
     // NPS Recente
     const responses = client.nps_responses || []
-    const latestResponse = responses.sort(
-      (a, b) => new Date(b.response_date).getTime() - new Date(a.response_date).getTime(),
+    const latestResponse = responses.sort((a, b) => 
+      new Date(b.response_date).getTime() - new Date(a.response_date).getTime()
     )[0]
     const latestNps = latestResponse?.score
 
-    if (typeof latestNps === "number") {
+    if (typeof latestNps === 'number') {
       if (latestNps <= 7) npsSummary.detractors++
       else if (latestNps === 8) npsSummary.passives++
       else npsSummary.promoters++
     }
 
     // Receita (MRR)
-    const revenue =
-      client.contracts
-        ?.filter((c) => c.status === "active" && isContractVigent(c))
-        .reduce((sum, c) => sum + Number(c.monthly_value), 0) || 0
-
+    const revenue = client.contracts?.filter(c => c.status === 'active' && isContractVigent(c))
+      .reduce((sum, c) => sum + Number(c.valor_mensal), 0) || 0
+    
     totalRevenue += revenue
 
     // Custo Estimado
     let clientCost = 0
-    if (employees && client.status === "active") {
+    if (employees && client.status === 'active') {
       const roles = [
-        client.assigned_assessor_id,
-        client.assigned_videomaker_id,
-        client.assigned_relationship_manager_id,
-        client.assigned_editor_id,
+        client.assigned_assessor_id, client.assigned_videomaker_id,
+        client.assigned_relationship_manager_id, client.assigned_editor_id
       ].filter(Boolean)
-      roles.forEach((empId) => {
-        const emp = employees.find((e) => e.id === empId)
+      roles.forEach(empId => {
+        const emp = employees.find(e => e.id === empId)
         // Load fictício de 1 se ainda não calculado para evitar divisão por zero
         const load = employeeLoad[empId] || 1
-        if (emp?.salary) clientCost += emp.salary / load
+        if (emp?.salary) clientCost += (emp.salary / load)
       })
       totalCost += clientCost
       if (revenue > 0 && revenue < clientCost) clientsInLoss++
@@ -159,19 +155,21 @@ async function getDashboardData() {
       latestNps,
       revenue,
       cost: clientCost,
-      profit: revenue - clientCost,
+      profit: revenue - clientCost
     })
   })
 
   // D. Preparar Gráficos Específicos
   const npsData = clientsWithNpsAndRevenue
-    .filter((d) => typeof d.latestNps === "number")
-    .map((d) => ({ name: d.name, nps: d.latestNps, revenue: d.revenue }))
+    .filter(d => typeof d.latestNps === 'number')
+    .map(d => ({ name: d.name, nps: d.latestNps, revenue: d.revenue }))
 
-  const profitabilityData = clientsWithNpsAndRevenue.sort((a, b) => a.profit - b.profit).slice(-10) // Top 10 ou Bottom 10
+  const profitabilityData = clientsWithNpsAndRevenue
+    .sort((a, b) => a.profit - b.profit)
+    .slice(-10) // Top 10 ou Bottom 10
 
   const rankedClients = clientsWithNpsAndRevenue
-    .filter((d) => typeof d.latestNps === "number")
+    .filter(d => typeof d.latestNps === 'number')
     .sort((a, b) => a.latestNps - b.latestNps)
 
   return {
@@ -183,14 +181,15 @@ async function getDashboardData() {
     profitabilityData,
     npsSummary,
     rankedClients,
-    kpis: { totalRevenue, totalCost, clientsInLoss },
+    kpis: { totalRevenue, totalCost, clientsInLoss }
   }
 }
 
 export default async function DashboardPage() {
   const data = await getDashboardData()
-  const avgMargin =
-    data.kpis.totalRevenue > 0 ? ((data.kpis.totalRevenue - data.kpis.totalCost) / data.kpis.totalRevenue) * 100 : 0
+  const avgMargin = data.kpis.totalRevenue > 0 
+    ? ((data.kpis.totalRevenue - data.kpis.totalCost) / data.kpis.totalRevenue) * 100 
+    : 0
 
   return (
     <div className="space-y-6">
@@ -230,11 +229,9 @@ export default async function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", notation: "compact" }).format(
-                data.kpis.totalCost,
-              )}
+              {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", notation: "compact" }).format(data.kpis.totalCost)}
             </div>
-            <p className="text-xs text-muted-foreground">Mensal estimado</p>
+             <p className="text-xs text-muted-foreground">Mensal estimado</p>
           </CardContent>
         </Card>
         <Card>
@@ -244,11 +241,9 @@ export default async function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", notation: "compact" }).format(
-                data.kpis.totalRevenue,
-              )}
+               {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", notation: "compact" }).format(data.kpis.totalRevenue)}
             </div>
-            <p className="text-xs text-muted-foreground">Mensal confirmada</p>
+             <p className="text-xs text-muted-foreground">Mensal confirmada</p>
           </CardContent>
         </Card>
       </div>
@@ -261,13 +256,13 @@ export default async function DashboardPage() {
             <CardDescription>Identifique clientes de alto valor em risco (NPS baixo e MRR alto).</CardDescription>
           </CardHeader>
           <CardContent>
-            {data.npsData.length > 0 ? (
-              <NpsQuadrantChart data={data.npsData} />
-            ) : (
-              <div className="flex h-[300px] items-center justify-center text-muted-foreground border border-dashed rounded-lg">
-                <p className="text-sm">Sem dados de NPS.</p>
-              </div>
-            )}
+             {data.npsData.length > 0 ? (
+               <NpsQuadrantChart data={data.npsData} />
+             ) : (
+               <div className="flex h-[300px] items-center justify-center text-muted-foreground border border-dashed rounded-lg">
+                 <p className="text-sm">Sem dados de NPS.</p>
+               </div>
+             )}
           </CardContent>
         </Card>
 
@@ -277,7 +272,7 @@ export default async function DashboardPage() {
             <CardDescription>Análise financeira dos principais clientes.</CardDescription>
           </CardHeader>
           <CardContent>
-            <ProfitabilityChart data={data.profitabilityData} />
+            <ProfitabilityChart data={data.profitabilityData} /> 
           </CardContent>
         </Card>
       </div>
@@ -290,12 +285,12 @@ export default async function DashboardPage() {
 
       {/* Linha 3: Operacional */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <TeamAllocationChart
-          data={data.employees.map((e) => ({
+        <TeamAllocationChart 
+          data={data.employees.map(e => ({
             name: e.name,
             role: e.role,
-            clients: data.employeeLoad[e.id] || 0,
-          }))}
+            clients: data.employeeLoad[e.id] || 0
+          }))} 
         />
         <NpsScoreSummaryTable data={data.npsSummary} rankedClients={data.rankedClients} />
       </div>

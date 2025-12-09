@@ -10,7 +10,10 @@ import { ClientPaymentsTable } from "@/components/client-payments-table"
 import { FinancialSummaryCards } from "@/components/financial-summary-cards"
 import { EmployeePaymentsTable } from "@/components/employee-payments-table"
 import { parseISO, format, startOfMonth, endOfMonth, subDays, startOfYear, endOfYear } from "date-fns"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { ptBR } from "date-fns/locale"
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
@@ -34,11 +37,11 @@ function getDateRange(period: string) {
     end = endOfYear(today)
   }
 
-  return {
-    start: start.toISOString(),
+  return { 
+    start: start.toISOString(), 
     end: end.toISOString(),
     startObj: start,
-    endObj: end,
+    endObj: end
   }
 }
 
@@ -54,30 +57,15 @@ async function getFinancialData(period: string) {
     { data: employeePayments },
     { data: activeContracts },
     { data: activeEmployees },
-    { data: costCategories },
+    { data: costCategories }
   ] = await Promise.all([
     supabase.from("costs").select("*").gte("date", start).lte("date", end).order("date", { ascending: false }),
-    supabase
-      .from("one_time_services")
-      .select("*, clients(name)")
-      .gte("date", start)
-      .lte("date", end)
-      .order("date", { ascending: false }),
-    supabase
-      .from("client_payments")
-      .select("*, clients(name)")
-      .gte("payment_date", start)
-      .lte("payment_date", end)
-      .order("payment_date", { ascending: false }),
-    supabase
-      .from("employee_payments")
-      .select("*, employees(name)")
-      .gte("payment_date", start)
-      .lte("payment_date", end)
-      .order("payment_date", { ascending: false }),
-    supabase.from("contracts").select("id, name, monthly_value, client_id, clients(name)").eq("status", "active"),
+    supabase.from("one_time_services").select("*, clients(name)").gte("date", start).lte("date", end).order("date", { ascending: false }),
+    supabase.from("client_payments").select("*, clients(name)").gte("payment_date", start).lte("payment_date", end).order("payment_date", { ascending: false }),
+    supabase.from("employee_payments").select("*, employees(name)").gte("payment_date", start).lte("payment_date", end).order("payment_date", { ascending: false }),
+    supabase.from("contracts").select("id, name, valor_mensal, client_id, clients(name)").eq("status", "active"),
     supabase.from("employees").select("id, name, salary, payment_day").eq("status", "active"),
-    supabase.from("cost_categories").select("*").order("name"),
+    supabase.from("cost_categories").select("*").order("name")
   ])
 
   const safeCosts = costs || []
@@ -89,15 +77,15 @@ async function getFinancialData(period: string) {
 
   // --- CÁLCULOS DE RECEITA ---
   const contractsReceived = safeClientPayments.reduce((sum, p) => sum + Number(p.amount), 0)
-  const totalMrrExpected = safeContracts.reduce((sum, c) => sum + Number(c.monthly_value), 0)
+  const totalMrrExpected = safeContracts.reduce((sum, c) => sum + Number(c.valor_mensal), 0)
   const contractsPending = Math.max(0, totalMrrExpected - contractsReceived)
 
   const servicesRevenue = safeServices
-    .filter((s) => s.status === "completed" || s.received_date)
+    .filter(s => s.status === 'completed' || s.received_date)
     .reduce((sum, s) => sum + Number(s.value), 0)
-
+  
   const servicesPending = safeServices
-    .filter((s) => s.status === "pending" && !s.received_date)
+    .filter(s => s.status === 'pending' && !s.received_date)
     .reduce((sum, s) => sum + Number(s.value), 0)
 
   // --- CÁLCULOS DE CUSTOS ---
@@ -105,47 +93,51 @@ async function getFinancialData(period: string) {
   const totalSalariesExpected = safeEmployees.reduce((sum, e) => sum + Number(e.salary), 0)
   const salariesPending = Math.max(0, totalSalariesExpected - salariesPaid)
 
-  const otherCostsPaid = safeCosts.filter((c) => c.status === "paid").reduce((sum, c) => sum + Number(c.value), 0)
-
-  const otherCostsPending = safeCosts.filter((c) => c.status === "pending").reduce((sum, c) => sum + Number(c.value), 0)
+  const otherCostsPaid = safeCosts
+    .filter(c => c.status === 'paid')
+    .reduce((sum, c) => sum + Number(c.value), 0)
+  
+  const otherCostsPending = safeCosts
+    .filter(c => c.status === 'pending')
+    .reduce((sum, c) => sum + Number(c.value), 0)
 
   // --- PREPARAÇÃO PARA TABELAS E GRÁFICOS ---
   const costsByCategory: Record<string, number> = {}
-  safeCosts.forEach((c) => {
-    const cat = c.category || "Outros"
+  safeCosts.forEach(c => {
+    const cat = c.category || 'Outros'
     costsByCategory[cat] = (costsByCategory[cat] || 0) + Number(c.value)
   })
   if (salariesPaid + salariesPending > 0) {
-    costsByCategory["Salários"] = salariesPaid + salariesPending
+    costsByCategory['Salários'] = salariesPaid + salariesPending
   }
 
-  const clientPaymentsData = safeContracts.map((contract) => {
-    const payment = safeClientPayments.find((p) => p.client_id === contract.client_id)
+  const clientPaymentsData = safeContracts.map(contract => {
+    const payment = safeClientPayments.find(p => p.client_id === contract.client_id)
     const isPaid = !!payment
     const today = new Date()
-    const nextDate = new Date(today.getFullYear(), today.getMonth(), 10)
+    let nextDate = new Date(today.getFullYear(), today.getMonth(), 10)
     if (isPaid) {
-      nextDate.setMonth(nextDate.getMonth() + 1)
+       nextDate.setMonth(nextDate.getMonth() + 1)
     }
-
+    
     return {
       clientId: contract.client_id,
       clientName: contract.clients?.name || "Cliente Desconhecido",
-      expectedAmount: contract.monthly_value,
+      expectedAmount: contract.valor_mensal,
       isPaidThisMonth: isPaid,
       nextPaymentDate: format(nextDate, "dd/MM/yyyy"),
       activeContracts: [{ id: contract.id, name: contract.name }],
-      proofUrl: payment?.proof_url,
+      proofUrl: payment?.proof_url
     }
   })
 
   const uniqueClientPaymentsMap = new Map()
-  clientPaymentsData.forEach((item) => {
+  clientPaymentsData.forEach(item => {
     if (uniqueClientPaymentsMap.has(item.clientId)) {
       const existing = uniqueClientPaymentsMap.get(item.clientId)
       existing.expectedAmount += item.expectedAmount
       existing.activeContracts.push(...item.activeContracts)
-      existing.isPaidThisMonth = existing.isPaidThisMonth || item.isPaidThisMonth
+      existing.isPaidThisMonth = existing.isPaidThisMonth || item.isPaidThisMonth 
       if (item.proofUrl) existing.proofUrl = item.proofUrl
     } else {
       uniqueClientPaymentsMap.set(item.clientId, item)
@@ -153,15 +145,15 @@ async function getFinancialData(period: string) {
   })
   const uniqueClientPayments = Array.from(uniqueClientPaymentsMap.values())
 
-  const employeePaymentsData = safeEmployees.map((emp) => {
-    const payment = safeEmployeePayments.find((p) => p.employee_id === emp.id)
+  const employeePaymentsData = safeEmployees.map(emp => {
+    const payment = safeEmployeePayments.find(p => p.employee_id === emp.id)
     const isPaid = !!payment
-
+    
     let nextDate = null
     if (emp.payment_day) {
-      const today = new Date()
-      nextDate = new Date(today.getFullYear(), today.getMonth(), emp.payment_day)
-      if (isPaid) nextDate.setMonth(nextDate.getMonth() + 1)
+        const today = new Date()
+        nextDate = new Date(today.getFullYear(), today.getMonth(), emp.payment_day)
+        if (isPaid) nextDate.setMonth(nextDate.getMonth() + 1)
     }
 
     return {
@@ -170,7 +162,7 @@ async function getFinancialData(period: string) {
       salary: emp.salary,
       isPaidThisMonth: isPaid,
       nextPaymentDate: nextDate ? format(nextDate, "dd/MM/yyyy") : "Não definido",
-      proofUrl: payment?.proof_url,
+      proofUrl: payment?.proof_url
     }
   })
 
@@ -192,7 +184,7 @@ async function getFinancialData(period: string) {
     employeePayments: employeePaymentsData,
     services: safeServices,
     employees: safeEmployees,
-    costCategories: costCategories || [],
+    costCategories: costCategories || []
   }
 }
 
@@ -215,10 +207,12 @@ export default async function FinancialPage({
         </div>
         <div className="flex items-center gap-4">
           <PeriodSelector currentPeriod={period} />
-          {!isLimited && <AddCostDialog employees={data.employees} costCategories={data.costCategories} />}
+          {!isLimited && (
+            <AddCostDialog employees={data.employees} costCategories={data.costCategories} />
+          )}
         </div>
       </div>
-
+      
       <FinancialSummaryCards
         contractsReceived={data.contractsReceived}
         contractsPending={data.contractsPending}
@@ -229,34 +223,30 @@ export default async function FinancialPage({
         otherCostsPaid={data.otherCostsPaid}
         otherCostsPending={data.otherCostsPending}
       />
-
+      
       <FinancialCharts costs={data.costs} costsByCategory={data.costsByCategory} />
-
+      
       <Tabs defaultValue="costs" className="space-y-4">
         <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="clientPayments">
-            <Users className="mr-2 h-4 w-4" /> Pagamentos de Clientes
-          </TabsTrigger>
-          <TabsTrigger value="employeePayments">
-            <Users className="mr-2 h-4 w-4" /> Pagamentos de Funcionários
-          </TabsTrigger>
+          <TabsTrigger value="clientPayments"><Users className="mr-2 h-4 w-4" /> Pagamentos de Clientes</TabsTrigger>
+          <TabsTrigger value="employeePayments"><Users className="mr-2 h-4 w-4" /> Pagamentos de Funcionários</TabsTrigger>
           <TabsTrigger value="costs">Custos Detalhados</TabsTrigger>
           <TabsTrigger value="services">Serviços Pontuais</TabsTrigger>
           <TabsTrigger value="analysis">Análise por Categoria</TabsTrigger>
         </TabsList>
-
+        
         <TabsContent value="clientPayments">
           <ClientPaymentsTable clientPayments={data.clientPayments} />
         </TabsContent>
-
+        
         <TabsContent value="employeePayments">
           <EmployeePaymentsTable employeePayments={data.employeePayments} />
         </TabsContent>
-
+        
         <TabsContent value="costs">
           <FinancialTable costs={data.costs} />
         </TabsContent>
-
+        
         <TabsContent value="services">
           <Card>
             <CardHeader>
@@ -334,33 +324,20 @@ export default async function FinancialPage({
             </CardContent>
           </Card>
         </TabsContent>
-
+        
         <TabsContent value="analysis">
-          <Card>
-            <CardHeader>
-              <CardTitle>Análise por Categoria (Incluindo Salários)</CardTitle>
-            </CardHeader>
+           <Card>
+            <CardHeader><CardTitle>Análise por Categoria (Incluindo Salários)</CardTitle></CardHeader>
             <CardContent>
               <div className="space-y-4">
                 {Object.entries(data.costsByCategory).length > 0 ? (
-                  Object.entries(data.costsByCategory)
-                    .sort(([, a], [, b]) => b - a)
-                    .map(([category, value]) => (
+                  Object.entries(data.costsByCategory).sort(([, a], [, b]) => b - a).map(([category, value]) => (
                       <div key={category} className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium">{category}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {data.totalCosts > 0 ? ((value / data.totalCosts) * 100).toFixed(1) : 0}% do total
-                          </p>
-                        </div>
-                        <p className="text-lg font-bold">
-                          {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value)}
-                        </p>
+                        <div><p className="font-medium">{category}</p><p className="text-sm text-muted-foreground">{data.totalCosts > 0 ? ((value / data.totalCosts) * 100).toFixed(1) : 0}% do total</p></div>
+                        <p className="text-lg font-bold">{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value)}</p>
                       </div>
                     ))
-                ) : (
-                  <p className="text-center text-muted-foreground py-8">Nenhum custo registrado no período</p>
-                )}
+                ) : (<p className="text-center text-muted-foreground py-8">Nenhum custo registrado no período</p>)}
               </div>
             </CardContent>
           </Card>
