@@ -77,15 +77,15 @@ const categoryLabelMap: Record<string, string> = {
 export async function addNpsResponse(formData: FormData) {
   const rawData = Object.fromEntries(formData.entries())
   const validatedFields = npsSchema.safeParse(rawData)
-
+  
   if (!validatedFields.success) {
-    console.error("Zod Validation Error:", validatedFields.error)
+    console.error("Zod Validation Error:", validatedFields.error);
     const firstError = Object.values(validatedFields.error.flatten().fieldErrors).flat()[0]
     return { error: firstError || "Dados inválidos. Verifique as notas." }
   }
 
   const { clientId, observations, ...slugScores } = validatedFields.data
-
+  
   // Reconstrói o objeto category_scores com os nomes legíveis para o banco
   const categoryScores: Record<string, number> = {}
   let totalScore = 0
@@ -136,12 +136,7 @@ const updateClientSchema = z.object({
   ads_running: z.preprocess((val) => val === "on", z.boolean()).optional(),
   assigned_assessor_id: z.string().uuid("ID de assessor inválido.").or(z.literal("null")).optional().nullable(),
   assigned_videomaker_id: z.string().uuid("ID de videomaker inválido.").or(z.literal("null")).optional().nullable(),
-  assigned_relationship_manager_id: z
-    .string()
-    .uuid("ID de gestor inválido.")
-    .or(z.literal("null"))
-    .optional()
-    .nullable(),
+  assigned_relationship_manager_id: z.string().uuid("ID de gestor inválido.").or(z.literal("null")).optional().nullable(),
   assigned_editor_id: z.string().uuid("ID de editor inválido.").or(z.literal("null")).optional().nullable(),
 })
 
@@ -203,7 +198,10 @@ export async function updateClient(formData: FormData) {
     previousEditorId = previousClientData.assigned_editor_id
   }
 
-  const { error } = await supabaseAdmin.from("clients").update(dataToUpdate).eq("id", clientId)
+  const { error } = await supabaseAdmin
+    .from("clients")
+    .update(dataToUpdate)
+    .eq("id", clientId)
 
   if (error) {
     console.error("Erro Supabase (updateClient):", error)
@@ -216,14 +214,15 @@ export async function updateClient(formData: FormData) {
   if (assigned_videomaker_id) revalidatePath(`/dashboard/team/${assigned_videomaker_id}`)
   if (assigned_relationship_manager_id) revalidatePath(`/dashboard/team/${assigned_relationship_manager_id}`)
   if (assigned_editor_id) revalidatePath(`/dashboard/team/${assigned_editor_id}`)
-
+  
   if (previousAssessorId && previousAssessorId !== assigned_assessor_id)
     revalidatePath(`/dashboard/team/${previousAssessorId}`)
   if (previousVideomakerId && previousVideomakerId !== assigned_videomaker_id)
     revalidatePath(`/dashboard/team/${previousVideomakerId}`)
   if (previousManagerId && previousManagerId !== assigned_relationship_manager_id)
     revalidatePath(`/dashboard/team/${previousManagerId}`)
-  if (previousEditorId && previousEditorId !== assigned_editor_id) revalidatePath(`/dashboard/team/${previousEditorId}`)
+  if (previousEditorId && previousEditorId !== assigned_editor_id)
+    revalidatePath(`/dashboard/team/${previousEditorId}`)
 
   return { success: "Cliente atualizado com sucesso!" }
 }
@@ -258,7 +257,7 @@ export async function updateClientNotes(formData: FormData) {
 const addContractSchema = z.object({
   clientId: z.string().uuid(),
   contract_name: z.string().min(3, "O nome do contrato é obrigatório."),
-  monthly_value: z.coerce.number().min(0, "O valor mensal não pode ser negativo.").optional(),
+  valor_mensal: z.coerce.number().min(0, "O valor mensal não pode ser negativo.").optional(),
   start_date: z.string().min(1, "A data de início é obrigatória."),
   end_date: z.string().optional().or(z.literal("")),
   contract_file: z.instanceof(File).optional(),
@@ -269,7 +268,7 @@ export async function addContract(formData: FormData) {
   const rawFormData = {
     clientId: formData.get("clientId"),
     contract_name: formData.get("contract_name"),
-    monthly_value: formData.get("monthly_value"),
+    valor_mensal: formData.get("valor_mensal"),
     start_date: formData.get("start_date"),
     end_date: formData.get("end_date"),
     contract_file: formData.get("contract_file"),
@@ -281,7 +280,7 @@ export async function addContract(formData: FormData) {
     const firstError = Object.values(validatedFields.error.flatten().fieldErrors).flat()[0]
     return { error: firstError || "Dados inválidos." }
   }
-  const { clientId, contract_name, monthly_value, start_date, end_date, contract_file, services } = validatedFields.data
+  const { clientId, contract_name, valor_mensal, start_date, end_date, contract_file, services } = validatedFields.data
 
   const servicesArray = services ? JSON.parse(services) : []
 
@@ -309,7 +308,7 @@ export async function addContract(formData: FormData) {
   const insertData: any = {
     client_id: clientId,
     name: contract_name,
-    monthly_value: monthly_value || 0,
+    valor_mensal: valor_mensal || 0,
     storage_path: contractPath,
     start_date: start_date,
     end_date: end_date || null,
@@ -411,7 +410,10 @@ export async function updateServiceStatus(data: {
   }
   const { serviceId, clientId, status } = validatedFields.data
   const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-  const { error } = await supabaseAdmin.from("one_time_services").update({ status: status }).eq("id", serviceId)
+  const { error } = await supabaseAdmin
+    .from("one_time_services")
+    .update({ status: status })
+    .eq("id", serviceId)
   if (error) {
     console.error("Erro Supabase (updateServiceStatus):", error)
     return { error: `Não foi possível atualizar o status: ${error.message}` }
@@ -424,7 +426,7 @@ export async function updateServiceStatus(data: {
 const updateContractSchema = z.object({
   contractId: z.string().uuid(),
   name: z.string().min(3, "O nome do contrato é obrigatório."),
-  monthly_value: z.coerce.number().min(0).optional(),
+  valor_mensal: z.coerce.number().min(0).optional(),
   start_date: z.string().min(1, "A data de início é obrigatória."),
   end_date: z.string().optional().or(z.literal("")),
   status: z.enum(["active", "inactive"]),
@@ -437,7 +439,7 @@ export async function updateContract(formData: FormData) {
     const firstError = Object.values(validatedFields.error.flatten().fieldErrors).flat()[0]
     return { error: firstError || "Dados inválidos." }
   }
-  const { contractId, name, monthly_value, start_date, end_date, status } = validatedFields.data
+  const { contractId, name, valor_mensal, start_date, end_date, status } = validatedFields.data
 
   const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
@@ -456,7 +458,7 @@ export async function updateContract(formData: FormData) {
     .from("contracts")
     .update({
       name,
-      monthly_value: monthly_value || 0,
+      valor_mensal: valor_mensal || 0,
       start_date,
       end_date: end_date || null,
       status,

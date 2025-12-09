@@ -16,12 +16,12 @@ const clientSchema = z.object({
   credit_risk: z.string().optional().or(z.literal("")),
   client_notes: z.string().optional().or(z.literal("")),
   objectives: z.string().optional().or(z.literal("")),
-
+  
   // Campos de Tráfego
   has_traffic_service: z.preprocess((val) => val === "on" || val === "true", z.boolean()).optional(),
   ad_account_organized: z.preprocess((val) => val === "on" || val === "true", z.boolean()).optional(),
   ads_running: z.preprocess((val) => val === "on" || val === "true", z.boolean()).optional(),
-
+  
   // Campos de Equipe
   assigned_assessor_id: z.string().uuid().optional().or(z.literal("null")).nullable(),
   assigned_videomaker_id: z.string().uuid().optional().or(z.literal("null")).nullable(),
@@ -34,14 +34,14 @@ const clientSchema = z.object({
   contract_start_date: z.string().optional().or(z.literal("")),
   contract_end_date: z.string().optional().or(z.literal("")),
   contract_file: z.instanceof(File).optional(),
-
+  
   // Serviços
   services: z.string().optional(), // JSON string
 })
 
 export async function addClient(formData: FormData) {
   const rawData = Object.fromEntries(formData.entries())
-
+  
   // Tratamento de campos 'null' vindos do Select
   if (rawData.assigned_assessor_id === "null") rawData.assigned_assessor_id = null
   if (rawData.assigned_videomaker_id === "null") rawData.assigned_videomaker_id = null
@@ -59,7 +59,10 @@ export async function addClient(formData: FormData) {
   const data = validatedFields.data
   const servicesArray = data.services ? JSON.parse(data.services) : []
 
-  const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+  const supabaseAdmin = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
 
   // 1. Criar Cliente
   const { data: clientData, error: clientError } = await supabaseAdmin
@@ -83,7 +86,7 @@ export async function addClient(formData: FormData) {
       assigned_videomaker_id: data.assigned_videomaker_id,
       assigned_relationship_manager_id: data.assigned_relationship_manager_id,
       assigned_editor_id: data.assigned_editor_id,
-
+      
       health_status: "green",
     })
     .select("id")
@@ -107,7 +110,9 @@ export async function addClient(formData: FormData) {
       const newFileName = `${Date.now()}.${fileExtension}`
       const filePath = `${clientId}/${newFileName}`
 
-      const { error: uploadError } = await supabase.storage.from("contracts").upload(filePath, data.contract_file)
+      const { error: uploadError } = await supabase.storage
+        .from("contracts")
+        .upload(filePath, data.contract_file)
 
       if (uploadError) {
         console.error("Erro Upload Contrato:", uploadError)
@@ -122,12 +127,12 @@ export async function addClient(formData: FormData) {
       .insert({
         client_id: clientId,
         name: data.contract_name,
-        monthly_value: data.contract_value || 0,
+        valor_mensal: data.contract_value || 0,
         start_date: data.contract_start_date,
         end_date: data.contract_end_date || null,
         status: "active",
         storage_path: contractPath,
-        services: servicesArray,
+        services: servicesArray, 
       })
       .select("id")
       .single()
@@ -137,7 +142,7 @@ export async function addClient(formData: FormData) {
     } else if (contractData) {
       // 3. Gerar entregáveis para serviços não recorrentes
       const nonRecurringServices = servicesArray.filter((service: string) => isNonRecurringService(service))
-
+      
       if (nonRecurringServices.length > 0) {
         const deliverables = nonRecurringServices.map((service: string) => ({
           contract_id: contractData.id,

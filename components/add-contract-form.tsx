@@ -37,13 +37,13 @@ function SubmitButton() {
 }
 
 export function AddContractForm({ clientId }: AddContractFormProps) {
-  const userRole = useRole() // --- ALTERAÇÃO
+  const userRole = useRole(); // --- ALTERAÇÃO
   const [open, setOpen] = useState(false)
   const [fileName, setFileName] = useState<string | null>(null)
   const formRef = useRef<HTMLFormElement>(null)
 
   // --- ALTERAÇÃO ---
-  if (userRole === "limited") return null
+  if (userRole === "limited") return null;
   // ----------------
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -87,14 +87,14 @@ export function AddContractForm({ clientId }: AddContractFormProps) {
         </DialogHeader>
         <form ref={formRef} action={handleFormSubmit}>
           <div className="grid gap-4 py-4">
-            {/* ... campos do form ... */}
-            <div className="grid gap-2">
+             {/* ... campos do form ... */}
+             <div className="grid gap-2">
               <Label htmlFor="contract_name">Nome do Contrato*</Label>
               <Input id="contract_name" name="contract_name" placeholder="Ex: Aditivo de Contrato Q4" required />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="monthly_value">Valor Mensal (R$)</Label>
-              <Input id="monthly_value" name="monthly_value" type="number" step="0.01" min="0" placeholder="5000.00" />
+              <Label htmlFor="valor_mensal">Valor Mensal (R$)</Label>
+              <Input id="valor_mensal" name="valor_mensal" type="number" step="0.01" min="0" placeholder="5000.00" />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">

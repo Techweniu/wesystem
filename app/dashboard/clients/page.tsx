@@ -49,7 +49,7 @@ async function getClients({ name, status }: { name?: string; status?: string }) 
     .select(
       `
       id, name, status, health_status,
-      contracts ( status, monthly_value, start_date, end_date ),
+      contracts ( status, valor_mensal, start_date, end_date ),
       one_time_services(value, status),
       nps_responses(score, response_date)
     `,
@@ -70,7 +70,7 @@ async function getClients({ name, status }: { name?: string; status?: string }) 
     const monthlyRevenue =
       client.contracts
         ?.filter((c) => c.status === "active" && isContractVigent(c))
-        .reduce((sum, c) => sum + Number(c.monthly_value), 0) || 0
+        .reduce((sum, c) => sum + Number(c.valor_mensal), 0) || 0
 
     const latestNps = client.nps_responses?.sort(
       (a, b) => new Date(b.response_date).getTime() - new Date(a.response_date).getTime(),
@@ -97,11 +97,11 @@ async function getClients({ name, status }: { name?: string; status?: string }) 
     }
 
     client.contracts?.forEach((contract) => {
-      if (contract.start_date && contract.monthly_value > 0) {
+      if (contract.start_date && contract.valor_mensal > 0) {
         const startDate = parseISO(contract.start_date)
         const daysPassed = differenceInDays(today, startDate)
         if (daysPassed >= 0) {
-          generatedValue += (contract.monthly_value / 30.44) * (daysPassed + 1)
+          generatedValue += (contract.valor_mensal / 30.44) * (daysPassed + 1)
         }
       }
     })
@@ -123,12 +123,12 @@ async function getAnalyticsData() {
 
   const { data: allContracts } = await supabase
     .from("contracts")
-    .select("monthly_value, status, start_date, end_date, clients(status)")
+    .select("valor_mensal, status, start_date, end_date, clients(status)")
 
   const monthlyRevenue =
     allContracts
       ?.filter((c) => c.clients?.status === "active" && c.status === "active" && isContractVigent(c))
-      .reduce((sum, c) => sum + Number(c.monthly_value), 0) || 0
+      .reduce((sum, c) => sum + Number(c.valor_mensal), 0) || 0
 
   const { data: services } = await supabase
     .from("one_time_services")
@@ -139,7 +139,7 @@ async function getAnalyticsData() {
 
   const { data: clientsData } = await supabase
     .from("clients")
-    .select(`name, contracts(monthly_value, status, start_date, end_date), nps_responses(score, response_date)`)
+    .select(`name, contracts(valor_mensal, status, start_date, end_date), nps_responses(score, response_date)`)
     .eq("status", "active")
     .order("response_date", { foreignTable: "nps_responses", ascending: false })
 
@@ -149,7 +149,7 @@ async function getAnalyticsData() {
         const latestNps = client.nps_responses[0]?.score
         const clientMrr = client.contracts
           .filter((c) => c.status === "active" && isContractVigent(c))
-          .reduce((sum, c) => sum + c.monthly_value, 0)
+          .reduce((sum, c) => sum + c.valor_mensal, 0)
         return { name: client.name, nps: latestNps, revenue: clientMrr }
       })
       .filter((c) => c.nps !== undefined) || []

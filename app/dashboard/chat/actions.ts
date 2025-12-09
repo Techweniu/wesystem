@@ -65,7 +65,7 @@ async function getFullBusinessContext() {
     supabaseAdmin
       .from("contracts")
       .select(`
-        id, name, client_id, start_date, end_date, status, monthly_value, services,
+        id, name, client_id, start_date, end_date, status, valor_mensal, services,
         contract_deliverables(service_name, delivery_date, delivered)
       `),
 
@@ -167,7 +167,7 @@ async function getFullBusinessContext() {
   const activeEmployees = employees.filter((e) => e.status === "active")
   const activeContracts = contracts.filter((c) => c.status === "active")
 
-  const mrrTotal = activeContracts.reduce((acc, c) => acc + Number(c.monthly_value || 0), 0)
+  const mrrTotal = activeContracts.reduce((acc, c) => acc + Number(c.valor_mensal || 0), 0)
   const totalCosts6Months = costs.reduce((acc, c) => acc + Number(c.value || 0), 0)
   const avgNps = npsResponses.length > 0 ? npsResponses.reduce((acc, n) => acc + n.score, 0) / npsResponses.length : 0
   const totalSalaries = activeEmployees.reduce((acc, e) => acc + Number(e.salary || 0), 0)
@@ -206,7 +206,7 @@ async function getFullBusinessContext() {
     inicio: c.start_date,
     fim: c.end_date,
     status: c.status,
-    valor_mensal: c.monthly_value,
+    valor_mensal: c.valor_mensal,
     servicos: c.services,
     entregas: c.contract_deliverables,
   }))
@@ -292,7 +292,7 @@ async function getFullBusinessContext() {
       cliente: clientMap.get(c.client_id),
       contrato: c.name,
       vencimento: c.end_date,
-      valor: c.monthly_value,
+      valor: c.valor_mensal,
     }))
 
   return {

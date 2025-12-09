@@ -17,7 +17,7 @@ import {
   ThumbsDown,
   BlendIcon as ClientIcon,
   Video,
-  Film,
+  Film, 
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AddServiceForm } from "@/components/add-service-form"
@@ -33,7 +33,7 @@ import { Button } from "@/components/ui/button"
 import { ServiceStatusChanger } from "@/components/service-status-changer"
 import { Separator } from "@/components/ui/separator"
 import { ClientContactsManager } from "@/components/client-contacts-manager"
-import { ClientUpsellsSection } from "@/components/client-upsells-section"
+import { ClientUpsellsSection } from "@/components/client-upsells-section" 
 import Link from "next/link"
 import {
   Breadcrumb,
@@ -82,7 +82,7 @@ async function getClientDetails(id: string) {
       assigned_videomaker:assigned_videomaker_id ( id, name ),
       assigned_relationship_manager:assigned_relationship_manager_id ( id, name ),
       assigned_editor:assigned_editor_id ( id, name ) 
-    `)
+    `) 
     .eq("id", id)
     .order("created_at", { foreignTable: "contracts", ascending: false })
     .order("response_date", { foreignTable: "nps_responses", ascending: false })
@@ -99,7 +99,7 @@ async function getClientDetails(id: string) {
   if (clientData.contracts) {
     for (const contract of clientData.contracts) {
       if (contract.storage_path) {
-        const { data: urlData } = await supabase.storage.from("contracts").createSignedUrl(contract.storage_path, 3600)
+        const { data: urlData } = await supabase.storage.from("contracts").createSignedUrl(contract.storage_path, 3600) 
         ;(contract as any).downloadUrl = urlData?.signedUrl
       }
 
@@ -165,19 +165,19 @@ const isContractVigent = (contract: { start_date: string | null; end_date: strin
 
 const getNpsBadgeVariant = (nps: number | undefined): "destructive" | "secondary" | "default" | "outline" => {
   if (nps === undefined) return "outline"
-  if (nps <= 7) return "destructive"
+  if (nps <= 7) return "destructive" 
   if (nps === 8) return "secondary"
   return "default"
 }
 
-export default async function ClientDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
+export default async function ClientDetailPage({ params }: { params: { id: string } }) {
+  const { id } = params
   const clientData = await getClientDetails(id)
 
   if (!clientData) {
     notFound()
-  }
-
+  } 
+  
   const { potentialAssessors, potentialVideomakers, potentialManagers, potentialEditors, ...client } = clientData
 
   const today = new Date()
@@ -185,18 +185,18 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
   // Cálculos Financeiros
   const monthlyRevenue =
     client.contracts
-      ?.filter((c) => c.status === "active" && isContractVigent(c))
-      .reduce((sum, c) => sum + Number(c.monthly_value), 0) || 0
-
+      ?.filter((c) => c.status === "active" && isContractVigent(c)) 
+      .reduce((sum, c) => sum + Number(c.valor_mensal), 0) || 0
+  
   const completedServices = client.one_time_services?.filter((s: any) => s.status === "completed") || []
   const totalServicesRevenue = completedServices.reduce((sum, s: any) => sum + Number(s.value), 0) || 0
-
+  
   // Cálculos de NPS
   const npsScores = client.nps_responses?.map((n: any) => n.score) || []
   const avgNps = npsScores.length > 0 ? npsScores.reduce((a: number, b: number) => a + b, 0) / npsScores.length : 0
   const latestNpsResponse = client.nps_responses?.[0] as NpsResponse | undefined
   const latestNpsScore = latestNpsResponse?.score
-
+  
   let worstNpsCategories: { category: string; score: number }[] = []
   if (latestNpsResponse?.category_scores) {
     worstNpsCategories = Object.entries(latestNpsResponse.category_scores)
@@ -209,28 +209,27 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
   // Cálculo de Valor Gerado e Tempo de Parceria
   let generatedValue = 0
   client.contracts?.forEach((contract) => {
-    if (contract.start_date && contract.monthly_value && contract.monthly_value > 0) {
+    if (contract.start_date && contract.valor_mensal && contract.valor_mensal > 0) {
       const startDate = parseISO(contract.start_date)
       const daysPassed = Math.max(0, differenceInDays(today, startDate) + 1)
-      generatedValue += (contract.monthly_value / 30.44) * daysPassed
+      generatedValue += (contract.valor_mensal / 30.44) * daysPassed
     }
   })
   generatedValue += totalServicesRevenue
 
-  let firstContractDate = client.created_at
+  let firstContractDate = client.created_at 
   let furthestEndDate: string | null = null
 
   const allContracts = client.contracts || []
-
+  
   const contractsWithStartDate = allContracts.filter((c) => c.start_date)
   if (contractsWithStartDate.length > 0) {
     const earliestStartDate = contractsWithStartDate.reduce((earliest, current) =>
       parseISO(current.start_date!) < parseISO(earliest.start_date!) ? current : earliest,
     ).start_date
-
+    
     if (earliestStartDate) {
-      firstContractDate =
-        parseISO(earliestStartDate) < parseISO(firstContractDate) ? earliestStartDate : firstContractDate
+      firstContractDate = parseISO(earliestStartDate) < parseISO(firstContractDate) ? earliestStartDate : firstContractDate
     }
   }
 
@@ -240,7 +239,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
       parseISO(current.end_date!) > parseISO(furthest.end_date!) ? current : furthest,
     ).end_date
   }
-
+  
   const partnershipTime = firstContractDate
     ? formatDistanceToNowStrict(parseISO(firstContractDate), { locale: ptBR })
     : "-"
@@ -271,7 +270,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
           assessors={potentialAssessors}
           videomakers={potentialVideomakers}
           relationshipManagers={potentialManagers}
-          editors={potentialEditors}
+          editors={potentialEditors} 
         />
       </div>
 
@@ -330,12 +329,14 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex items-center justify-between">
-                <div className="text-2xl font-bold">{avgNps.toFixed(1)}</div>
+                <div className="text-2xl font-bold">
+                  {avgNps.toFixed(1)}
+                </div>
                 <Badge variant={getNpsBadgeVariant(Math.round(avgNps))}>
                   {npsScores.length} {npsScores.length === 1 ? "Avaliação" : "Avaliações"}
                 </Badge>
               </div>
-
+              
               {latestNpsResponse && (
                 <>
                   <Separator />
@@ -348,9 +349,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
                       <ul className="space-y-1">
                         {worstNpsCategories.map((item) => (
                           <li key={item.category} className="flex justify-between items-center text-xs">
-                            <span className="text-muted-foreground truncate" title={item.category}>
-                              {item.category}
-                            </span>
+                            <span className="text-muted-foreground truncate" title={item.category}>{item.category}</span>
                             <Badge variant={getNpsBadgeVariant(item.score)} className="text-xs">
                               {item.score}
                             </Badge>
@@ -358,9 +357,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
                         ))}
                       </ul>
                     ) : (
-                      <p className="text-xs text-muted-foreground italic">
-                        Nenhuma categoria pontuada na última avaliação.
-                      </p>
+                      <p className="text-xs text-muted-foreground italic">Nenhuma categoria pontuada na última avaliação.</p>
                     )}
                   </div>
                 </>
@@ -544,7 +541,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
               </ul>
             </CardContent>
           </Card>
-
+          
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
