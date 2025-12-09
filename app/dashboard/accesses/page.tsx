@@ -1,6 +1,12 @@
 import { createAdminClient } from "@/lib/supabase/server"; // Admin Client
 import { AccessesClientPage } from "./accesses-client-page";
 
+// CONFIGURAÇÃO DE CACHE:
+// Força a página a ser dinâmica e não usar cache estático.
+// Isso garante que os dados exibidos sejam sempre os atuais do banco.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export type PlatformAccess = {
   id: string;
   platform_name: string;
