@@ -7,7 +7,11 @@ import { CommercialGoalCard } from "@/components/commercial-goal-card"
 import { ClientCommercialCard } from "@/components/client-commercial-card"
 import { cookies } from "next/headers"
 
+// CONFIGURAÇÃO DE CACHE:
+// force-dynamic: Impede geração estática no build
+// revalidate = 0: Garante que o cache seja invalidado imediatamente a cada request
 export const dynamic = "force-dynamic"
+export const revalidate = 0
 
 async function getCommercialData() {
   const supabase = createAdminClient() // Busca com privilégios
