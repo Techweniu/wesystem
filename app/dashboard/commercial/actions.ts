@@ -3,7 +3,7 @@
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
-import { cookies } from "next/headers" // Necessário para ler o cookie de segurança
+import { cookies } from "next/headers" 
 
 // --- FUNÇÃO AUXILIAR DE SEGURANÇA ---
 async function checkAdminPermission() {
@@ -164,7 +164,7 @@ export async function addClientUpsell(formData: FormData) {
     const { error } = await supabaseAdmin.from("client_upsells").insert({
       client_id: validatedFields.data.client_id,
       status: validatedFields.data.status,
-      services: serviceNames, // Salva nomes, mas idealmente seria relação N:N
+      services: serviceNames, // Salva nomes
       notes: validatedFields.data.notes,
       identified_date: validatedFields.data.identified_date,
     })
