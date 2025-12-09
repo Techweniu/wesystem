@@ -13,6 +13,22 @@ import { parseISO, isPast, format } from "date-fns"
 
 export const dynamic = "force-dynamic"
 
+// Definição das Regras de Capacidade (Clientes por Profissional)
+const CAPACITY_RULES: Record<string, number> = {
+  editor: 10,
+  videomaker: 15,
+  assessor: 15,
+  relationship_manager: 20, // Assumindo 20 para Gerentes se houver, ou fallback
+}
+
+// Mapeamento de nomes amigáveis
+const ROLE_LABELS: Record<string, string> = {
+  editor: "Editores",
+  videomaker: "Videomakers",
+  assessor: "Assessores",
+  relationship_manager: "Gerentes de Conta",
+}
+
 const isContractVigent = (contract: { start_date: string | null; end_date: string | null }) => {
   const today = new Date()
   const hasStarted = contract.start_date
@@ -24,10 +40,9 @@ const isContractVigent = (contract: { start_date: string | null; end_date: strin
 }
 
 async function getDashboardData() {
-  // Usando AdminClient para bypassar RLS e garantir visualização
   const supabase = createAdminClient()
 
-  // 1. Buscar TODOS os Clientes (sem filtrar status no banco para evitar falsos negativos)
+  // 1. Buscar Clientes
   const { data: clientsData, error } = await supabase
     .from("clients")
     .select(`
@@ -48,8 +63,8 @@ async function getDashboardData() {
     console.error("Erro crítico ao buscar dados:", error)
   }
 
-  // Filtrar no código para maior controle
   const clients = clientsData?.filter(c => c.status === 'active' || c.status === 'prospect') || []
+  const activeClientsCount = clients.filter(c => c.status === 'active').length
 
   // 2. Buscar Funcionários
   const { data: employees } = await supabase
@@ -57,14 +72,61 @@ async function getDashboardData() {
     .select("id, name, role, salary, status")
     .eq("status", "active")
 
-  // 3. Buscar Upsells para o Funil
+  // 3. Buscar Upsells
   const { data: upsells } = await supabase
     .from("client_upsells")
     .select("status")
 
   // --- PROCESSAMENTO ---
 
-  // A. Saúde da Carteira
+  // A. Cálculo de Capacidade Operacional
+  const employeesByRole: Record<string, number> = {}
+  
+  // Conta funcionários ativos por cargo
+  employees?.forEach(emp => {
+    // Normaliza o role para lowercase para garantir match
+    const roleKey = emp.role?.toLowerCase().trim() || 'unknown'
+    employeesByRole[roleKey] = (employeesByRole[roleKey] || 0) + 1
+  })
+
+  // Gera métricas para os cargos críticos definidos
+  const capacityMetrics = Object.entries(CAPACITY_RULES).map(([roleKey, capacityPerPerson]) => {
+    // Se não tiver ninguém contratado, assume 0
+    const totalEmployees = employeesByRole[roleKey] || 0
+    
+    // Se não houver funcionários, a capacidade é 0
+    const maxCapacity = totalEmployees * capacityPerPerson
+    
+    // Porcentagem de uso (evita divisão por zero)
+    let usagePercent = 0
+    if (maxCapacity > 0) {
+      usagePercent = (activeClientsCount / maxCapacity) * 100
+    } else if (activeClientsCount > 0) {
+      usagePercent = 1000 // Valor alto para indicar crítico se não tem equipe
+    }
+
+    // Lógica de contratação
+    const surplusClients = activeClientsCount - maxCapacity
+    const hireNeeded = surplusClients > 0 ? Math.ceil(surplusClients / capacityPerPerson) : 0
+
+    let status: "healthy" | "warning" | "critical" = "healthy"
+    if (usagePercent > 100 || (totalEmployees === 0 && activeClientsCount > 0)) status = "critical"
+    else if (usagePercent > 85) status = "warning"
+
+    return {
+      roleName: ROLE_LABELS[roleKey] || roleKey,
+      currentLoad: activeClientsCount,
+      capacityPerPerson,
+      totalEmployees,
+      maxCapacity,
+      usagePercent,
+      status,
+      hireNeeded
+    }
+  }).filter(m => ["Editores", "Videomakers", "Assessores"].includes(m.roleName)) 
+  // Filtro opcional: Mostra apenas os cargos mencionados na regra (ou remova o .filter para mostrar todos configurados)
+
+  // B. Outros KPIs (Mantidos do anterior)
   const healthCounts = { green: 0, yellow: 0, red: 0 }
   clients.forEach(c => {
     if (c.status === 'active') {
@@ -80,7 +142,6 @@ async function getDashboardData() {
     { status: "Crítico", count: healthCounts.red, fill: "hsl(0, 84%, 60%)" },
   ]
 
-  // B. Funil Comercial
   const funnelCounts = { identified: 0, negotiating: 0, closed: 0 }
   upsells?.forEach(u => {
     if (u.status === 'identified') funnelCounts.identified++
@@ -94,7 +155,6 @@ async function getDashboardData() {
     { stage: "Fechado", count: funnelCounts.closed, fill: "hsl(var(--chart-3))" },
   ]
 
-  // C. Carga e Financeiro
   const employeeLoad: Record<string, number> = {}
   let totalRevenue = 0
   let totalCost = 0
@@ -102,12 +162,7 @@ async function getDashboardData() {
   const npsSummary = { detractors: 0, passives: 0, promoters: 0 }
   const clientsWithNpsAndRevenue: any[] = []
 
-  // Variáveis para cálculo de média geral NPS
-  let totalNpsSum = 0;
-  let totalNpsCount = 0;
-
   clients.forEach(client => {
-    // Carga de Equipe (apenas ativos)
     if (client.status === 'active') {
       const roles = [
         client.assigned_assessor_id, client.assigned_videomaker_id,
@@ -118,7 +173,6 @@ async function getDashboardData() {
       })
     }
 
-    // NPS Recente
     const responses = client.nps_responses || []
     const latestResponse = responses.sort((a, b) => 
       new Date(b.response_date).getTime() - new Date(a.response_date).getTime()
@@ -129,18 +183,13 @@ async function getDashboardData() {
       if (latestNps <= 7) npsSummary.detractors++
       else if (latestNps === 8) npsSummary.passives++
       else npsSummary.promoters++
-      
-      totalNpsSum += latestNps;
-      totalNpsCount++;
     }
 
-    // Receita (MRR)
     const revenue = client.contracts?.filter(c => c.status === 'active' && isContractVigent(c))
       .reduce((sum, c) => sum + Number(c.valor_mensal), 0) || 0
     
     totalRevenue += revenue
 
-    // Custo Estimado
     let clientCost = 0
     if (employees && client.status === 'active') {
       const roles = [
@@ -149,7 +198,6 @@ async function getDashboardData() {
       ].filter(Boolean)
       roles.forEach(empId => {
         const emp = employees.find(e => e.id === empId)
-        // Load fictício de 1 se ainda não calculado para evitar divisão por zero
         const load = employeeLoad[empId] || 1
         if (emp?.salary) clientCost += (emp.salary / load)
       })
@@ -157,7 +205,6 @@ async function getDashboardData() {
       if (revenue > 0 && revenue < clientCost) clientsInLoss++
     }
 
-    // Dados para os gráficos
     clientsWithNpsAndRevenue.push({
       id: client.id,
       name: client.name,
@@ -168,30 +215,17 @@ async function getDashboardData() {
     })
   })
 
-  // D. Preparar Gráficos Específicos
   const npsData = clientsWithNpsAndRevenue
     .filter(d => typeof d.latestNps === 'number')
     .map(d => ({ name: d.name, nps: d.latestNps, revenue: d.revenue }))
 
   const profitabilityData = clientsWithNpsAndRevenue
     .sort((a, b) => a.profit - b.profit)
-    .slice(-10) // Top 10 ou Bottom 10
+    .slice(-10)
 
   const rankedClients = clientsWithNpsAndRevenue
     .filter(d => typeof d.latestNps === 'number')
     .sort((a, b) => a.latestNps - b.latestNps)
-
-  // Cálculo para o Card de Saúde da Operação
-  const averageNps = totalNpsCount > 0 ? totalNpsSum / totalNpsCount : 0;
-  const criticalClients = healthCounts.red;
-  
-  // Lógica simples para definir o status da operação
-  let operationStatus: "healthy" | "warning" | "critical" = "healthy";
-  if (criticalClients > 0 || averageNps < 5) {
-    operationStatus = "critical";
-  } else if (healthCounts.yellow > 3 || averageNps < 8) {
-    operationStatus = "warning";
-  }
 
   return {
     healthData,
@@ -204,11 +238,8 @@ async function getDashboardData() {
     rankedClients,
     kpis: { totalRevenue, totalCost, clientsInLoss },
     operationMetrics: {
-        status: operationStatus,
-        details: {
-            criticalClients: criticalClients,
-            nps: averageNps
-        }
+      metrics: capacityMetrics,
+      totalActiveClients: activeClientsCount
     }
   }
 }
@@ -228,16 +259,16 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* Linha Topo: Insights e Saúde da Operação */}
+      {/* Linha Topo: Insights e Saúde da Operação (Capacidade) */}
       <div className="grid gap-6 md:grid-cols-2">
         <AiInsightsPanel />
         <OperationHealthCard 
-            status={data.operationMetrics.status} 
-            details={data.operationMetrics.details} 
+            metrics={data.operationMetrics.metrics} 
+            totalActiveClients={data.operationMetrics.totalActiveClients} 
         />
       </div>
 
-      {/* Cards de Resumo */}
+      {/* Cards de Resumo KPI */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
