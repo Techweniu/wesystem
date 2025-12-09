@@ -5,6 +5,12 @@ import { PlusCircle } from "lucide-react"
 import { OrgChartTree } from "@/components/org-chart-tree"
 import { AddOrgPositionForm } from "@/components/add-org-position-form"
 
+// CONFIGURAÇÃO DE CACHE:
+// Força a página a ser dinâmica e não usar cache estático.
+// Isso garante que os dados exibidos sejam sempre os atuais do banco.
+export const dynamic = "force-dynamic"
+export const revalidate = 0
+
 async function getOrgChartData(): Promise<{ roots: any[]; allPositions: any[] }> {
   const supabase = createAdminClient() // Busca com privilégios
 
