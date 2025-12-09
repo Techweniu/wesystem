@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/lib/supabase/server" // USANDO ADMIN CLIENT PARA GARANTIR DADOS
+import { createAdminClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { NpsQuadrantChart } from "@/components/nps-quadrant-chart"
 import { TeamAllocationChart } from "@/components/team-allocation-chart"
@@ -6,6 +6,8 @@ import { ProfitabilityChart } from "@/components/profitability-chart"
 import { NpsScoreSummaryTable } from "@/components/nps-score-summary-table"
 import { ClientHealthChart } from "@/components/client-health-chart"
 import { CommercialFunnelChart } from "@/components/commercial-funnel-chart"
+import { AiInsightsPanel } from "@/components/ai-insights-panel"
+import { OperationHealthCard } from "@/components/operation-health-card"
 import { BarChart3, TrendingUp, Users, AlertTriangle } from "lucide-react"
 import { parseISO, isPast, format } from "date-fns"
 
@@ -100,6 +102,10 @@ async function getDashboardData() {
   const npsSummary = { detractors: 0, passives: 0, promoters: 0 }
   const clientsWithNpsAndRevenue: any[] = []
 
+  // Variáveis para cálculo de média geral NPS
+  let totalNpsSum = 0;
+  let totalNpsCount = 0;
+
   clients.forEach(client => {
     // Carga de Equipe (apenas ativos)
     if (client.status === 'active') {
@@ -123,6 +129,9 @@ async function getDashboardData() {
       if (latestNps <= 7) npsSummary.detractors++
       else if (latestNps === 8) npsSummary.passives++
       else npsSummary.promoters++
+      
+      totalNpsSum += latestNps;
+      totalNpsCount++;
     }
 
     // Receita (MRR)
@@ -172,6 +181,18 @@ async function getDashboardData() {
     .filter(d => typeof d.latestNps === 'number')
     .sort((a, b) => a.latestNps - b.latestNps)
 
+  // Cálculo para o Card de Saúde da Operação
+  const averageNps = totalNpsCount > 0 ? totalNpsSum / totalNpsCount : 0;
+  const criticalClients = healthCounts.red;
+  
+  // Lógica simples para definir o status da operação
+  let operationStatus: "healthy" | "warning" | "critical" = "healthy";
+  if (criticalClients > 0 || averageNps < 5) {
+    operationStatus = "critical";
+  } else if (healthCounts.yellow > 3 || averageNps < 8) {
+    operationStatus = "warning";
+  }
+
   return {
     healthData,
     funnelData,
@@ -181,7 +202,14 @@ async function getDashboardData() {
     profitabilityData,
     npsSummary,
     rankedClients,
-    kpis: { totalRevenue, totalCost, clientsInLoss }
+    kpis: { totalRevenue, totalCost, clientsInLoss },
+    operationMetrics: {
+        status: operationStatus,
+        details: {
+            criticalClients: criticalClients,
+            nps: averageNps
+        }
+    }
   }
 }
 
@@ -193,9 +221,20 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Visão Geral</h1>
-        <p className="text-muted-foreground">Indicadores chave de performance.</p>
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Visão Geral</h1>
+          <p className="text-muted-foreground">Indicadores chave de performance.</p>
+        </div>
+      </div>
+
+      {/* Linha Topo: Insights e Saúde da Operação */}
+      <div className="grid gap-6 md:grid-cols-2">
+        <AiInsightsPanel />
+        <OperationHealthCard 
+            status={data.operationMetrics.status} 
+            details={data.operationMetrics.details} 
+        />
       </div>
 
       {/* Cards de Resumo */}
