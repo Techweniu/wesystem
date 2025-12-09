@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Check, Undo2, Loader2 } from "lucide-react"
 import { markCostAsPaid, undoCostPayment } from "@/app/dashboard/financial/actions"
 import { toast } from "sonner"
-import { useRole } from "@/app/dashboard/layout" // --- ALTERAÇÃO
+import { useRole } from "@/app/dashboard/layout"
 
 interface MarkCostPaymentButtonProps {
   costId: string
@@ -17,18 +17,17 @@ interface MarkCostPaymentButtonProps {
 }
 
 export function MarkCostPaymentButton({ costId, amount, isPaid }: MarkCostPaymentButtonProps) {
-  const userRole = useRole(); // --- ALTERAÇÃO
+  const userRole = useRole();
   const [isLoading, setIsLoading] = useState(false)
   const [showDialog, setShowDialog] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
-  // --- ALTERAÇÃO: Se limitado, mostra apenas status texto ---
+  // Se limitado, mostra apenas status texto
   if (userRole === "limited") {
     return isPaid 
       ? <span className="text-sm text-green-600 font-medium">Pago</span>
       : <span className="text-sm text-muted-foreground">Pendente</span>;
   }
-  // ---------------------------------------------------------
 
   async function handleMarkAsPaid() {
     if (!selectedFile) {
