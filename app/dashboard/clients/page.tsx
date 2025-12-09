@@ -13,6 +13,12 @@ import { NpsScoreSummaryTable } from "@/components/nps-score-summary-table"
 import { differenceInDays, parseISO, isPast, startOfMonth, format } from "date-fns"
 import { LowNpsAlertCard } from "@/components/low-nps-alert-card"
 
+// CONFIGURAÇÃO DE CACHE:
+// Força a página a ser dinâmica e não usar cache estático.
+// Isso garante que os dados exibidos sejam sempre os atuais do banco.
+export const dynamic = "force-dynamic"
+export const revalidate = 0
+
 const isContractVigent = (contract: { start_date: string | null; end_date: string | null }) => {
   const today = new Date()
   const hasStarted = contract.start_date
@@ -222,8 +228,6 @@ export default async function ClientsPage({ searchParams }: { searchParams?: { n
           editors={teamData.editors}
         />
       </div>
-
-      {/* ... (Resto do JSX igual, omitido para brevidade, mantenha o que já existe) ... */}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
