@@ -3,16 +3,13 @@
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
-import { cookies } from "next/headers"
+import { cookies } from "next/headers" // Necessário para ler o cookie de segurança
 
 // --- FUNÇÃO AUXILIAR DE SEGURANÇA ---
 async function checkAdminPermission() {
   const cookieStore = await cookies()
   const role = cookieStore.get("user_role")?.value
-  // Verifica se o papel é admin
   if (role !== "admin") {
-    // Em produção, seria ideal verificar também a assinatura do token/cookie para evitar falsificação
-    // Mas mantendo a lógica original solicitada:
     throw new Error("Acesso negado: Você não tem permissão para realizar operações comerciais.")
   }
 }
@@ -27,15 +24,11 @@ const goalSchema = z.object({
   deadline: z.string().min(1, "A data limite é obrigatória."),
 })
 
-// Schema atualizado com os novos campos restaurados (Migração 022)
 const upsellSchema = z.object({
   client_id: z.string().uuid("ID do cliente inválido."),
   status: z.enum(["identified", "negotiating", "closed", "lost"]),
-  services: z.union([z.string(), z.array(z.string())]).optional(), // Aceita string JSON ou array
+  services: z.array(z.string()).optional(),
   notes: z.string().optional(),
-  description: z.string().optional(), // Novo campo
-  estimated_value: z.coerce.number().optional(), // Novo campo
-  next_action: z.string().optional(), // Novo campo
   identified_date: z.string().min(1, "Data é obrigatória."),
 })
 
@@ -135,41 +128,14 @@ export async function addClientUpsell(formData: FormData) {
   try {
     await checkAdminPermission() // <--- PROTEÇÃO
 
-    // Tratamento robusto para os serviços (compatível com MultiSelect)
-    const servicesRaw = formData.get("services")
-    let servicesArray: string[] = []
-
-    if (servicesRaw && typeof servicesRaw === 'string') {
-        // Tenta detectar se é JSON string (ex: '["Design", "SEO"]')
-        if (servicesRaw.trim().startsWith('[')) {
-            try {
-                servicesArray = JSON.parse(servicesRaw)
-            } catch (e) {
-                console.error("Erro ao parsear serviços JSON", e)
-                // Fallback: considera string única
-                servicesArray = [servicesRaw]
-            }
-        } else if (servicesRaw.includes(',')) {
-            // Lista separada por vírgula
-            servicesArray = servicesRaw.split(',').map(s => s.trim()).filter(Boolean)
-        } else if (servicesRaw.length > 0) {
-            // Item único
-            servicesArray = [servicesRaw]
-        }
-    } else {
-        // Fallback para FormData.getAll se o componente enviar múltiplos inputs com mesmo nome
-        const servicesMulti = formData.getAll("services") as string[]
-        if (servicesMulti.length > 0) servicesArray = servicesMulti
-    }
+    // Processa os serviços (checkboxes múltiplos)
+    const services = formData.getAll("service_ids[]") as string[]
 
     const rawData = {
       client_id: formData.get("client_id"),
       status: formData.get("status"),
-      services: servicesArray,
+      services: services,
       notes: formData.get("notes"),
-      description: formData.get("description"), // <--- NOVO
-      estimated_value: formData.get("estimated_value"), // <--- NOVO
-      next_action: formData.get("next_action"), // <--- NOVO
       identified_date: formData.get("identified_date"),
     }
 
@@ -185,15 +151,21 @@ export async function addClientUpsell(formData: FormData) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
     )
 
-    // Inserção com os novos campos
+    // Busca nomes dos serviços para salvar no array de texto (simplificação)
+    let serviceNames: string[] = []
+    if (services.length > 0) {
+      const { data: servicesData } = await supabaseAdmin.from("services").select("name").in("id", services)
+
+      if (servicesData) {
+        serviceNames = servicesData.map((s) => s.name)
+      }
+    }
+
     const { error } = await supabaseAdmin.from("client_upsells").insert({
       client_id: validatedFields.data.client_id,
       status: validatedFields.data.status,
-      services: servicesArray, // Salva o array de strings diretamente
+      services: serviceNames, // Salva nomes, mas idealmente seria relação N:N
       notes: validatedFields.data.notes,
-      description: validatedFields.data.description || validatedFields.data.notes, // Usa notes como fallback se description vier vazio
-      estimated_value: validatedFields.data.estimated_value || null,
-      next_action: validatedFields.data.next_action,
       identified_date: validatedFields.data.identified_date,
     })
 
@@ -204,7 +176,6 @@ export async function addClientUpsell(formData: FormData) {
     revalidatePath(`/dashboard/clients/${validatedFields.data.client_id}`)
     return { success: true, message: "Oportunidade adicionada!" }
   } catch (error) {
-    console.error(error)
     return { success: false, error: error instanceof Error ? error.message : "Erro desconhecido" }
   }
 }

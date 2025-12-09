@@ -27,7 +27,11 @@ export function NpsQuadrantChart({ data }: NpsQuadrantChartProps) {
           config={{
             revenueNpsScatter: {
               label: "Clientes",
-              color: "#3b82f6", // Azul
+              color: "hsl(var(--chart-2))",
+            },
+            referenceLines: {
+              label: "Médias",
+              color: "hsl(var(--chart-1))",
             },
           }}
           className="h-[450px]"
@@ -72,7 +76,7 @@ export function NpsQuadrantChart({ data }: NpsQuadrantChartProps) {
                   formatter={(value, name, props) => {
                     if (name === "revenue")
                       return [
-                        `${props.payload.name} - Receita: ${new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(value))}`,
+                        `${props.payload.name} - Receita: ${new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value)}`,
                       ]
                     if (name === "nps") return [`NPS: ${value}`]
                     return value
@@ -82,28 +86,22 @@ export function NpsQuadrantChart({ data }: NpsQuadrantChartProps) {
               }
             />
 
-            {/* Linhas de Referência (Médias) - Verde */}
-            <ReferenceLine y={averageNps} stroke="#22c55e" strokeWidth={2} strokeDasharray="3 3">
-              <Label value="Média NPS" position="insideTopLeft" fill="#22c55e" fontSize={12} fontWeight="bold" />
+            <ReferenceLine y={averageNps} stroke="hsl(var(--chart-1))" strokeWidth={1}>
+              <Label value="Média NPS" position="insideTopLeft" fill="hsl(var(--chart-1))" fontSize={10} />
             </ReferenceLine>
-            
-            <ReferenceLine x={averageRevenue} stroke="#22c55e" strokeWidth={2} strokeDasharray="3 3">
+            <ReferenceLine x={averageRevenue} stroke="hsl(var(--chart-1))" strokeWidth={1}>
               <Label
                 value="Média Receita"
                 position="insideTopLeft"
-                fill="#22c55e"
-                fontSize={12}
-                fontWeight="bold"
+                fill="hsl(var(--chart-1))"
+                fontSize={10}
                 angle={-90}
-                dx={-10}
-                dy={20}
+                dy={-10}
               />
             </ReferenceLine>
 
-            {/* Scatter (Bolinhas) - Azul */}
-            <Scatter name="Clientes" data={data} fill="#3b82f6">
-              {/* Labels dos Clientes - Verde */}
-              <LabelList dataKey="name" position="top" offset={8} fontSize={10} fill="#22c55e" fontWeight={500} />
+            <Scatter data={data} fill="hsl(var(--chart-2))">
+              <LabelList dataKey="name" position="top" offset={8} fontSize={10} fill="hsl(var(--chart-1))" />
             </Scatter>
           </ScatterChart>
         </ChartContainer>

@@ -25,7 +25,7 @@ export function CommercialFunnelChart({ data }: CommercialFunnelChartProps) {
             config={{
               count: {
                 label: "Oportunidades",
-                color: "#3b82f6", // Azul explícito
+                color: "hsl(var(--primary))",
               },
             }}
             className="h-[300px]"
@@ -46,7 +46,7 @@ export function CommercialFunnelChart({ data }: CommercialFunnelChartProps) {
                 cursor={false}
                 content={<ChartTooltipContent hideLabel />}
               />
-              <Bar dataKey="count" fill="#3b82f6" radius={8}>
+              <Bar dataKey="count" fill="var(--color-count)" radius={8}>
                 <LabelList
                   position="top"
                   offset={12}
