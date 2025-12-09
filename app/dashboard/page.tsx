@@ -11,7 +11,11 @@ import { OperationHealthCard } from "@/components/operation-health-card"
 import { BarChart3, TrendingUp, Users, AlertTriangle } from "lucide-react"
 import { parseISO, isPast, format } from "date-fns"
 
+// CONFIGURAÇÕES DE CACHE (CRÍTICO PARA DADOS EM TEMPO REAL)
+// force-dynamic: Impede geração estática no build
+// revalidate = 0: Garante que o cache seja invalidado imediatamente a cada request
 export const dynamic = "force-dynamic"
+export const revalidate = 0
 
 // Definição das Regras de Capacidade (Clientes por Profissional)
 const CAPACITY_RULES: Record<string, number> = {
