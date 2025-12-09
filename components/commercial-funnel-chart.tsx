@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
-import { Bar, BarChart, CartesianGrid, XAxis, LabelList } from "recharts"
+import { Bar, BarChart, CartesianGrid, XAxis, LabelList, Cell } from "recharts"
 
 interface CommercialFunnelChartProps {
   data: Array<{
@@ -11,6 +11,9 @@ interface CommercialFunnelChartProps {
     fill: string
   }>
 }
+
+// Cores fixas para garantir visualização (Azul -> Amarelo -> Verde)
+const FUNNEL_COLORS = ["#3b82f6", "#f59e0b", "#22c55e"]
 
 export function CommercialFunnelChart({ data }: CommercialFunnelChartProps) {
   return (
@@ -25,7 +28,7 @@ export function CommercialFunnelChart({ data }: CommercialFunnelChartProps) {
             config={{
               count: {
                 label: "Oportunidades",
-                color: "#3b82f6", // Azul explícito
+                color: "#3b82f6",
               },
             }}
             className="h-[300px]"
@@ -34,20 +37,28 @@ export function CommercialFunnelChart({ data }: CommercialFunnelChartProps) {
               data={data}
               margin={{ top: 20 }}
             >
-              <CartesianGrid vertical={false} />
+              <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-muted" />
               <XAxis
                 dataKey="stage"
                 tickLine={false}
                 tickMargin={10}
                 axisLine={false}
                 className="text-xs"
+                tick={{ fill: "hsl(var(--foreground))" }}
               />
               <ChartTooltip
-                cursor={false}
+                cursor={{ fill: "transparent" }}
                 content={<ChartTooltipContent hideLabel />}
               />
-              <Bar dataKey="count" fill="#3b82f6" radius={8}>
+              <Bar dataKey="count" radius={[8, 8, 0, 0]}>
+                {data.map((entry, index) => (
+                  <Cell 
+                    key={`cell-${index}`} 
+                    fill={FUNNEL_COLORS[index % FUNNEL_COLORS.length]} 
+                  />
+                ))}
                 <LabelList
+                  dataKey="count"
                   position="top"
                   offset={12}
                   className="fill-foreground"
