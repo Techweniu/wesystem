@@ -170,8 +170,8 @@ const getNpsBadgeVariant = (nps: number | undefined): "destructive" | "secondary
   return "default"
 }
 
-export default async function ClientDetailPage({ params }: { params: { id: string } }) {
-  const { id } = params
+export default async function ClientDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const clientData = await getClientDetails(id)
 
   if (!clientData) {
