@@ -10,7 +10,7 @@ import { Toaster } from "@/components/ui/sonner"
 import { ClientFilters } from "@/components/client-filters"
 import { NpsQuadrantChart } from "@/components/nps-quadrant-chart"
 import { NpsScoreSummaryTable } from "@/components/nps-score-summary-table"
-import { differenceInDays, parseISO, isPast, startOfMonth, format } from "date-fns"
+import { differenceInDays, parseISO, isPast, startOfMonth, format, startOfDay, endOfDay } from "date-fns"
 import { LowNpsAlertCard } from "@/components/low-nps-alert-card"
 import { cookies } from "next/headers"
 import { formatCurrency } from "@/lib/utils"
@@ -27,7 +27,8 @@ const isContractVigent = (contract: { start_date: string | null; end_date: strin
     ? isPast(parseISO(contract.start_date)) ||
       format(parseISO(contract.start_date), "yyyy-MM-dd") === format(today, "yyyy-MM-dd")
     : true
-  const hasNotEnded = contract.end_date ? !isPast(parseISO(contract.end_date)) : true
+  // CORREÇÃO: Usa endOfDay para garantir que o contrato vale até o fim do dia
+  const hasNotEnded = contract.end_date ? !isPast(endOfDay(parseISO(contract.end_date))) : true
   return hasStarted && hasNotEnded
 }
 
@@ -72,7 +73,9 @@ async function getClients({ name, status }: { name?: string; status?: string }) 
   }
 
   const { data: clients } = await query
-  const today = new Date()
+  
+  // CORREÇÃO: Normaliza a data de hoje para 00:00:00 para cálculos precisos de dias
+  const today = startOfDay(new Date())
 
   return clients?.map((client) => {
     const monthlyRevenue =
@@ -92,11 +95,13 @@ async function getClients({ name, status }: { name?: string; status?: string }) 
     if (activeContracts && activeContracts.length > 0) {
       const contractsWithEndDate = activeContracts.filter((c) => c.end_date)
       if (contractsWithEndDate.length > 0) {
-        const futureContracts = contractsWithEndDate.filter((c) => !isPast(parseISO(c.end_date!)))
+        // CORREÇÃO: Usa endOfDay para verificar contratos futuros
+        const futureContracts = contractsWithEndDate.filter((c) => !isPast(endOfDay(parseISO(c.end_date!))))
         if (futureContracts.length > 0) {
           const furthestEndDate = futureContracts.reduce((furthest, current) =>
             parseISO(current.end_date!) > parseISO(furthest.end_date!) ? current : furthest,
           ).end_date!
+          // CORREÇÃO: Cálculo de dias restantes com datas normalizadas
           daysRemaining = differenceInDays(parseISO(furthestEndDate), today)
         } else {
           daysRemaining = -1
@@ -107,6 +112,7 @@ async function getClients({ name, status }: { name?: string; status?: string }) 
     client.contracts?.forEach((contract) => {
       if (contract.start_date && contract.valor_mensal > 0) {
         const startDate = parseISO(contract.start_date)
+        // CORREÇÃO: Cálculo de dias passados com datas normalizadas
         const daysPassed = differenceInDays(today, startDate)
         if (daysPassed >= 0) {
           generatedValue += (contract.valor_mensal / 30.44) * (daysPassed + 1)
