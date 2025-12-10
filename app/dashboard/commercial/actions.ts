@@ -13,6 +13,18 @@ async function checkAdminPermission() {
     throw new Error("Acesso negado: Você não tem permissão para realizar operações comerciais.")
   }
 }
+
+// --- FUNÇÃO AUXILIAR PARA TRATAMENTO DE ERROS ---
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message
+  }
+  // Trata erros do Supabase/Postgrest que são objetos mas não instâncias de Error
+  if (typeof error === "object" && error !== null && "message" in error) {
+    return (error as { message: string }).message
+  }
+  return "Erro desconhecido"
+}
 // ------------------------------------
 
 // Schemas Zod
@@ -67,7 +79,7 @@ export async function addCommercialGoal(formData: FormData) {
     revalidatePath("/dashboard/commercial")
     return { success: true, message: "Meta criada com sucesso!" }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : "Erro desconhecido" }
+    return { success: false, error: getErrorMessage(error) }
   }
 }
 
@@ -99,7 +111,7 @@ export async function updateCommercialGoal(goalId: string, formData: FormData) {
     revalidatePath("/dashboard/commercial")
     return { success: true, message: "Meta atualizada com sucesso!" }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : "Erro desconhecido" }
+    return { success: false, error: getErrorMessage(error) }
   }
 }
 
@@ -118,7 +130,7 @@ export async function deleteCommercialGoal(goalId: string) {
     revalidatePath("/dashboard/commercial")
     return { success: true, message: "Meta removida com sucesso!" }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : "Erro desconhecido" }
+    return { success: false, error: getErrorMessage(error) }
   }
 }
 
@@ -176,7 +188,7 @@ export async function addClientUpsell(formData: FormData) {
     revalidatePath(`/dashboard/clients/${validatedFields.data.client_id}`)
     return { success: true, message: "Oportunidade adicionada!" }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : "Erro desconhecido" }
+    return { success: false, error: getErrorMessage(error) }
   }
 }
 
@@ -197,7 +209,7 @@ export async function updateUpsellStatus(upsellId: string, newStatus: string) {
     revalidatePath("/dashboard/clients")
     return { success: true, message: "Status atualizado!" }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : "Erro desconhecido" }
+    return { success: false, error: getErrorMessage(error) }
   }
 }
 
@@ -218,6 +230,6 @@ export async function deleteClientUpsell(upsellId: string) {
     revalidatePath("/dashboard/clients")
     return { success: true, message: "Oportunidade removida!" }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : "Erro desconhecido" }
+    return { success: false, error: getErrorMessage(error) }
   }
 }
