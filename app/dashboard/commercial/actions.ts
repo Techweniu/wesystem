@@ -48,7 +48,7 @@ export async function addCommercialGoal(formData: FormData) {
   try {
     await checkAdminPermission() 
 
-    let initialCurrentValue = Number(formData.get("current_value")) || 0;
+    let initialCurrentValue = 0;
     const type = formData.get("type") as string;
 
     const supabaseAdmin = createAdminClient(
@@ -56,9 +56,9 @@ export async function addCommercialGoal(formData: FormData) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
     )
 
-    // --- LÓGICA DE AUTO-PREENCHIMENTO ---
+    // --- CÁLCULO AUTOMÁTICO PARA TODAS AS CATEGORIAS ---
     if (type === 'revenue') {
-        // Calcular MRR Atual
+        // Soma MRR (Contratos Ativos)
         const { data: contracts } = await supabaseAdmin
             .from('contracts')
             .select('valor_mensal')
@@ -67,24 +67,51 @@ export async function addCommercialGoal(formData: FormData) {
         if (contracts) {
             initialCurrentValue = contracts.reduce((acc, curr) => acc + (Number(curr.valor_mensal) || 0), 0);
         }
+
     } else if (type === 'clients') {
-        // Calcular Clientes Ativos
+        // Contagem Clientes Ativos
         const { count } = await supabaseAdmin
             .from('clients')
             .select('*', { count: 'exact', head: true })
             .eq('status', 'active');
         
-        if (count !== null) {
-            initialCurrentValue = count;
+        initialCurrentValue = count || 0;
+
+    } else if (type === 'upsell_value') {
+        // Soma Upsells Fechados
+        const { data: upsells } = await supabaseAdmin
+            .from('client_upsells')
+            .select('estimated_value')
+            .eq('status', 'closed');
+
+        if (upsells) {
+            initialCurrentValue = upsells.reduce((acc, curr) => acc + (Number(curr.estimated_value) || 0), 0);
+        }
+
+    } else if (type === 'churn_rate') {
+        // Cálculo Simples de Churn: (Inativos / Total) * 100
+        const { count: activeCount } = await supabaseAdmin
+            .from('clients')
+            .select('*', { count: 'exact', head: true })
+            .eq('status', 'active');
+            
+        const { count: inactiveCount } = await supabaseAdmin
+            .from('clients')
+            .select('*', { count: 'exact', head: true })
+            .eq('status', 'inactive');
+        
+        const total = (activeCount || 0) + (inactiveCount || 0);
+        if (total > 0) {
+            initialCurrentValue = ((inactiveCount || 0) / total) * 100;
         }
     }
-    // -------------------------------------
+    // ----------------------------------------------------
 
     const rawData = {
       title: formData.get("title"),
       type: type,
       target_value: formData.get("target_value"),
-      current_value: initialCurrentValue, // Usa o valor calculado ou o do form
+      current_value: initialCurrentValue,
       deadline: formData.get("deadline"),
     }
 
@@ -112,11 +139,15 @@ export async function updateCommercialGoal(goalId: string, formData: FormData) {
   try {
     await checkAdminPermission() 
 
+    // Nota: Em uma atualização manual, ainda permitimos editar valores se necessário,
+    // mas o ideal seria recalcular. Por enquanto, mantemos a edição manual ou
+    // o valor atual do banco.
+    
     const rawData = {
       title: formData.get("title"),
       type: formData.get("type"),
       target_value: formData.get("target_value"),
-      current_value: formData.get("current_value"),
+      current_value: formData.get("current_value"), // Pode vir da edição manual
       deadline: formData.get("deadline"),
     }
 
