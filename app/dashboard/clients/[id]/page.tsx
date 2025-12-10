@@ -25,7 +25,7 @@ import { AddNpsForm } from "@/components/add-nps-form"
 import { AddContractForm } from "@/components/add-contract-form"
 import { EditContractForm } from "@/components/edit-contract-form"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
-import { format, parseISO, differenceInDays, isPast, formatDistanceToNowStrict } from "date-fns"
+import { format, parseISO, differenceInDays, isPast, formatDistanceToNowStrict, startOfDay, endOfDay } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { EditClientInfoForm } from "@/components/edit-client-info-form"
 import { EditClientNotesForm } from "@/components/edit-client-notes-form"
@@ -161,7 +161,8 @@ const isContractVigent = (contract: { start_date: string | null; end_date: strin
     ? isPast(parseISO(contract.start_date)) ||
       format(parseISO(contract.start_date), "yyyy-MM-dd") === format(today, "yyyy-MM-dd")
     : true
-  const hasNotEnded = contract.end_date ? !isPast(parseISO(contract.end_date)) : true
+  // CORREÇÃO: Usa endOfDay para garantir que o contrato vale até o fim do dia
+  const hasNotEnded = contract.end_date ? !isPast(endOfDay(parseISO(contract.end_date))) : true
   return hasStarted && hasNotEnded
 }
 
@@ -182,7 +183,8 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
 
   const { potentialAssessors, potentialVideomakers, potentialManagers, potentialEditors, ...client } = clientData
 
-  const today = new Date()
+  // CORREÇÃO: Normaliza a data de hoje para 00:00:00
+  const today = startOfDay(new Date())
   const cookieStore = cookies()
   const userRole = cookieStore.get("user_role")?.value
   const isLimited = userRole === "limited"
@@ -216,6 +218,7 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
   client.contracts?.forEach((contract) => {
     if (contract.start_date && contract.valor_mensal && contract.valor_mensal > 0) {
       const startDate = parseISO(contract.start_date)
+      // CORREÇÃO: Cálculo com datas normalizadas
       const daysPassed = Math.max(0, differenceInDays(today, startDate) + 1)
       generatedValue += (contract.valor_mensal / 30.44) * daysPassed
     }
