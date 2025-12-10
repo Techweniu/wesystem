@@ -74,10 +74,12 @@ export function AccessesClientPage({ initialAccesses }: AccessesClientPageProps)
 
   const visibleTabs = useMemo(() => {
     if (userRole === "limited") {
+      // Exibe todas as abas EXCETO Diretoria e Tecnologia
       return allTabs.filter(
-        (tab) => tab.value !== "diretoria" && tab.value !== "marketing" && tab.value !== "tecnologia",
+        (tab) => tab.value !== "diretoria" && tab.value !== "tecnologia",
       )
     }
+    // Admin/Unlimited vê todas
     return allTabs 
   }, [userRole, allAccesses, searchTerm]) 
 
@@ -141,7 +143,13 @@ export function AccessesClientPage({ initialAccesses }: AccessesClientPageProps)
       )}
 
       <Tabs defaultValue={getDefaultTab()} className="space-y-4">
-        <TabsList className={`grid w-full grid-cols-${visibleTabs.length}`}>
+        {/* CORREÇÃO: Classes dinâmicas do Tailwind (ex: grid-cols-6) não funcionam se não forem safelisted.
+          Substituído por style inline para garantir o grid correto independente do número de abas.
+        */}
+        <TabsList 
+          className="grid w-full" 
+          style={{ gridTemplateColumns: `repeat(${visibleTabs.length}, minmax(0, 1fr))` }}
+        >
           {visibleTabs.map((tab) => (
             <TabsTrigger value={tab.value} key={tab.value}>
               <tab.icon className="mr-2 h-4 w-4" /> {tab.label} ({tab.data.length})
