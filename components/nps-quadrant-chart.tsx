@@ -52,7 +52,7 @@ export function NpsQuadrantChart({ data }: NpsQuadrantChartProps) {
                 )
               }
               className="text-xs"
-              tick={{ fill: "hsl(var(--foreground))" }}
+              tick={{ fill: "#888888" }}
             />
 
             <YAxis
@@ -62,7 +62,7 @@ export function NpsQuadrantChart({ data }: NpsQuadrantChartProps) {
               domain={[0, 10]}
               tickCount={11}
               className="text-xs"
-              tick={{ fill: "hsl(var(--foreground))" }}
+              tick={{ fill: "#888888" }}
             />
 
             <Tooltip
