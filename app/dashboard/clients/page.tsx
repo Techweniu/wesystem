@@ -12,6 +12,8 @@ import { NpsQuadrantChart } from "@/components/nps-quadrant-chart"
 import { NpsScoreSummaryTable } from "@/components/nps-score-summary-table"
 import { differenceInDays, parseISO, isPast, startOfMonth, format } from "date-fns"
 import { LowNpsAlertCard } from "@/components/low-nps-alert-card"
+import { cookies } from "next/headers"
+import { formatCurrency } from "@/lib/utils"
 
 // CONFIGURAÇÃO DE CACHE:
 // Força a página a ser dinâmica e não usar cache estático.
@@ -190,6 +192,12 @@ export default async function ClientsPage({ searchParams }: { searchParams?: { n
     getEmployeesByRole(),
   ])
 
+  // --- SEGURANÇA: Verificação de Role ---
+  const cookieStore = cookies()
+  const userRole = cookieStore.get("user_role")?.value
+  const isLimited = userRole === "limited"
+  // --------------------------------------
+
   const rankedClients =
     clients
       ?.filter((c) => c.latestNps !== undefined && c.status === "active")
@@ -221,12 +229,14 @@ export default async function ClientsPage({ searchParams }: { searchParams?: { n
           <h1 className="text-3xl font-bold tracking-tight">Clientes</h1>
           <p className="text-muted-foreground">Gerencie e analise sua base de clientes</p>
         </div>
-        <AddClientForm
-          assessors={teamData.assessors}
-          videomakers={teamData.videomakers}
-          managers={teamData.managers}
-          editors={teamData.editors}
-        />
+        {!isLimited && (
+          <AddClientForm
+            assessors={teamData.assessors}
+            videomakers={teamData.videomakers}
+            managers={teamData.managers}
+            editors={teamData.editors}
+          />
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -237,11 +247,11 @@ export default async function ClientsPage({ searchParams }: { searchParams?: { n
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(analytics.monthlyRevenue)}
+              {formatCurrency(analytics.monthlyRevenue, isLimited)}
             </div>
             <p className="text-xs text-muted-foreground">
               +{" "}
-              {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(analytics.oneTimeRevenue)}{" "}
+              {formatCurrency(analytics.oneTimeRevenue, isLimited)}{" "}
               em serviços pontuais no mês
             </p>
           </CardContent>
@@ -312,14 +322,10 @@ export default async function ClientsPage({ searchParams }: { searchParams?: { n
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
-                        client.monthlyRevenue,
-                      )}
+                      {formatCurrency(client.monthlyRevenue, isLimited)}
                     </TableCell>
                     <TableCell className="text-right font-semibold">
-                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
-                        client.generatedValue,
-                      )}
+                      {formatCurrency(client.generatedValue, isLimited)}
                     </TableCell>
                     <TableCell className="text-right">
                       <Link href={`/dashboard/clients/${client.id}`}>
