@@ -8,14 +8,17 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Search, ExternalLink, Receipt, CreditCard } from "lucide-react"
 import { MarkCostPaymentButton } from "@/components/mark-cost-payment-button"
+import { formatCurrency } from "@/lib/utils"
 
 interface FinancialTableProps {
   costs: any[]
+  userRole?: "admin" | "limited" | null
 }
 
-export function FinancialTable({ costs }: FinancialTableProps) {
+export function FinancialTable({ costs, userRole }: FinancialTableProps) {
   const [searchTerm, setSearchTerm] = useState("")
   const [filterCategory, setFilterCategory] = useState("all")
+  const isLimited = userRole === "limited"
 
   const uniqueCategories = Array.from(new Set(costs.map((c) => c.category).filter(Boolean)))
 
@@ -85,10 +88,14 @@ export function FinancialTable({ costs }: FinancialTableProps) {
                   </TableCell>
                   <TableCell>{new Date(cost.date).toLocaleDateString("pt-BR")}</TableCell>
                   <TableCell className="text-right font-medium">
-                    {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cost.value)}
+                    {formatCurrency(cost.value, isLimited)}
                   </TableCell>
                   <TableCell>
-                    <MarkCostPaymentButton costId={cost.id} amount={cost.value} isPaid={cost.status === "paid"} />
+                    {!isLimited ? (
+                        <MarkCostPaymentButton costId={cost.id} amount={cost.value} isPaid={cost.status === "paid"} />
+                    ) : (
+                        <span className="text-xs text-muted-foreground">Acesso restrito</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-center">
                     {cost.proof_url ? (
