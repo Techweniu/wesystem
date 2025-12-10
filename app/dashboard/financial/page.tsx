@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { MarkServiceReceivedButton } from "@/components/mark-service-received-button"
 import { cookies } from "next/headers"
+import { formatCurrency } from "@/lib/utils"
 
 // CONFIGURAÇÃO DE CACHE:
 // force-dynamic: Impede geração estática no build
@@ -200,9 +201,28 @@ export default async function FinancialPage({
   searchParams: { period?: string }
 }) {
   const period = searchParams.period || "month"
-  const data = await getFinancialData(period)
+  const rawData = await getFinancialData(period)
+  
   const userRole = cookies().get("user_role")?.value
   const isLimited = userRole === "limited"
+
+  // SECURITY: Sanitiza os dados se o usuário for limitado.
+  // Isso garante que os valores reais NÃO sejam enviados ao navegador.
+  const data = isLimited ? {
+    ...rawData,
+    contractsReceived: 0,
+    contractsPending: 0,
+    servicesRevenue: 0,
+    servicesPending: 0,
+    salariesPaid: 0,
+    salariesPending: 0,
+    otherCostsPaid: 0,
+    otherCostsPending: 0,
+    totalCosts: 0,
+    costs: rawData.costs.map(c => ({ ...c, value: 0 })), // Zera valores individuais
+    services: rawData.services.map(s => ({ ...s, value: 0 })), // Zera valores de serviços
+    // Se precisar sanitizar outros arrays, faça aqui
+  } : rawData
 
   return (
     <div className="space-y-6">
@@ -228,8 +248,10 @@ export default async function FinancialPage({
         salariesPending={data.salariesPending}
         otherCostsPaid={data.otherCostsPaid}
         otherCostsPending={data.otherCostsPending}
+        userRole={userRole as "admin" | "limited" | null}
       />
       
+      {/* Se quiser esconder os gráficos para limited, pode fazer renderização condicional aqui */}
       <FinancialCharts costs={data.costs} costsByCategory={data.costsByCategory} />
       
       <Tabs defaultValue="costs" className="space-y-4">
@@ -250,7 +272,7 @@ export default async function FinancialPage({
         </TabsContent>
         
         <TabsContent value="costs">
-          <FinancialTable costs={data.costs} />
+          <FinancialTable costs={data.costs} userRole={userRole as "admin" | "limited" | null} />
         </TabsContent>
         
         <TabsContent value="services">
@@ -284,10 +306,7 @@ export default async function FinancialPage({
                           </TableCell>
                           <TableCell>{format(parseISO(service.date), "dd/MM/yyyy")}</TableCell>
                           <TableCell className="text-right font-medium">
-                            {new Intl.NumberFormat("pt-BR", {
-                              style: "currency",
-                              currency: "BRL",
-                            }).format(service.value)}
+                            {formatCurrency(service.value, isLimited)}
                           </TableCell>
                           <TableCell className="text-center">
                             <Badge variant={service.received_date ? "default" : "secondary"}>
@@ -295,12 +314,15 @@ export default async function FinancialPage({
                             </Badge>
                           </TableCell>
                           <TableCell className="text-center">
-                            <MarkServiceReceivedButton
-                              serviceId={service.id}
-                              clientId={service.client_id}
-                              expectedAmount={service.value}
-                              isReceived={!!service.received_date}
-                            />
+                            {!isLimited && (
+                              <MarkServiceReceivedButton
+                                serviceId={service.id}
+                                clientId={service.client_id}
+                                expectedAmount={service.value}
+                                isReceived={!!service.received_date}
+                              />
+                            )}
+                            {isLimited && <span className="text-muted-foreground text-xs">Acesso restrito</span>}
                           </TableCell>
                           <TableCell className="text-center">
                             {service.payment_proof_url ? (
@@ -340,7 +362,7 @@ export default async function FinancialPage({
                   Object.entries(data.costsByCategory).sort(([, a], [, b]) => b - a).map(([category, value]) => (
                       <div key={category} className="flex items-center justify-between">
                         <div><p className="font-medium">{category}</p><p className="text-sm text-muted-foreground">{data.totalCosts > 0 ? ((value / data.totalCosts) * 100).toFixed(1) : 0}% do total</p></div>
-                        <p className="text-lg font-bold">{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value)}</p>
+                        <p className="text-lg font-bold">{formatCurrency(value, isLimited)}</p>
                       </div>
                     ))
                 ) : (<p className="text-center text-muted-foreground py-8">Nenhum custo registrado no período</p>)}
