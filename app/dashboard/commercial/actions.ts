@@ -19,13 +19,11 @@ function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     return error.message
   }
-  // Trata erros do Supabase/Postgrest que são objetos mas não instâncias de Error
   if (typeof error === "object" && error !== null && "message" in error) {
     return (error as { message: string }).message
   }
   return "Erro desconhecido"
 }
-// ------------------------------------
 
 // Schemas Zod
 const goalSchema = z.object({
@@ -48,13 +46,45 @@ const upsellSchema = z.object({
 
 export async function addCommercialGoal(formData: FormData) {
   try {
-    await checkAdminPermission() // <--- PROTEÇÃO
+    await checkAdminPermission() 
+
+    let initialCurrentValue = Number(formData.get("current_value")) || 0;
+    const type = formData.get("type") as string;
+
+    const supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    )
+
+    // --- LÓGICA DE AUTO-PREENCHIMENTO ---
+    if (type === 'revenue') {
+        // Calcular MRR Atual
+        const { data: contracts } = await supabaseAdmin
+            .from('contracts')
+            .select('valor_mensal')
+            .eq('status', 'active');
+        
+        if (contracts) {
+            initialCurrentValue = contracts.reduce((acc, curr) => acc + (Number(curr.valor_mensal) || 0), 0);
+        }
+    } else if (type === 'clients') {
+        // Calcular Clientes Ativos
+        const { count } = await supabaseAdmin
+            .from('clients')
+            .select('*', { count: 'exact', head: true })
+            .eq('status', 'active');
+        
+        if (count !== null) {
+            initialCurrentValue = count;
+        }
+    }
+    // -------------------------------------
 
     const rawData = {
       title: formData.get("title"),
-      type: formData.get("type"),
+      type: type,
       target_value: formData.get("target_value"),
-      current_value: formData.get("current_value"),
+      current_value: initialCurrentValue, // Usa o valor calculado ou o do form
       deadline: formData.get("deadline"),
     }
 
@@ -63,11 +93,6 @@ export async function addCommercialGoal(formData: FormData) {
     if (!validatedFields.success) {
       return { success: false, error: "Dados inválidos. Verifique os campos." }
     }
-
-    const supabaseAdmin = createAdminClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    )
 
     const { error } = await supabaseAdmin.from("commercial_goals").insert({
       ...validatedFields.data,
@@ -85,7 +110,7 @@ export async function addCommercialGoal(formData: FormData) {
 
 export async function updateCommercialGoal(goalId: string, formData: FormData) {
   try {
-    await checkAdminPermission() // <--- PROTEÇÃO
+    await checkAdminPermission() 
 
     const rawData = {
       title: formData.get("title"),
@@ -117,7 +142,7 @@ export async function updateCommercialGoal(goalId: string, formData: FormData) {
 
 export async function deleteCommercialGoal(goalId: string) {
   try {
-    await checkAdminPermission() // <--- PROTEÇÃO
+    await checkAdminPermission() 
 
     const supabaseAdmin = createAdminClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -138,9 +163,8 @@ export async function deleteCommercialGoal(goalId: string) {
 
 export async function addClientUpsell(formData: FormData) {
   try {
-    await checkAdminPermission() // <--- PROTEÇÃO
+    await checkAdminPermission() 
 
-    // Processa os serviços (checkboxes múltiplos)
     const services = formData.getAll("service_ids[]") as string[]
 
     const rawData = {
@@ -163,11 +187,9 @@ export async function addClientUpsell(formData: FormData) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
     )
 
-    // Busca nomes dos serviços para salvar no array de texto (simplificação)
     let serviceNames: string[] = []
     if (services.length > 0) {
       const { data: servicesData } = await supabaseAdmin.from("services").select("name").in("id", services)
-
       if (servicesData) {
         serviceNames = servicesData.map((s) => s.name)
       }
@@ -176,7 +198,7 @@ export async function addClientUpsell(formData: FormData) {
     const { error } = await supabaseAdmin.from("client_upsells").insert({
       client_id: validatedFields.data.client_id,
       status: validatedFields.data.status,
-      services: serviceNames, // Salva nomes
+      services: serviceNames,
       notes: validatedFields.data.notes,
       identified_date: validatedFields.data.identified_date,
     })
@@ -194,7 +216,7 @@ export async function addClientUpsell(formData: FormData) {
 
 export async function updateUpsellStatus(upsellId: string, newStatus: string) {
   try {
-    await checkAdminPermission() // <--- PROTEÇÃO
+    await checkAdminPermission() 
 
     const supabaseAdmin = createAdminClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -215,7 +237,7 @@ export async function updateUpsellStatus(upsellId: string, newStatus: string) {
 
 export async function deleteClientUpsell(upsellId: string) {
   try {
-    await checkAdminPermission() // <--- PROTEÇÃO
+    await checkAdminPermission() 
 
     const supabaseAdmin = createAdminClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
