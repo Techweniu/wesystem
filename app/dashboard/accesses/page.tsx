@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/lib/supabase/server"; // Admin Client
+import { createClient } from "@supabase/supabase-js";
 import { AccessesClientPage } from "./accesses-client-page";
 
 // CONFIGURAÇÃO DE CACHE:
@@ -20,7 +20,13 @@ export type PlatformAccess = {
 };
 
 async function getAccessData() {
-  const supabase = createAdminClient(); // Busca com privilégios
+  // CORREÇÃO: Inicializa o cliente com a SERVICE_ROLE_KEY para ignorar o RLS (Row Level Security).
+  // Isso garante que todos os acessos sejam listados, independentemente das restrições do usuário logado.
+  // Resolve o problema onde "Produção" sumia mesmo para usuários da Diretoria.
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
 
   const { data, error } = await supabase
     .from("platform_access")
