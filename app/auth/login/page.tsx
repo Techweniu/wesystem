@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { toast } from "sonner"
 import { loginAction } from "./actions"
+import { GooeyText } from "@/components/ui/gooey-text-morphing"
 
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
@@ -19,9 +20,7 @@ export default function LoginPage() {
     try {
       const result = await loginAction(formData)
 
-      // Verificação de erro robusta (Evita o erro #130 do React)
       if (result?.error) {
-        // Garante que a mensagem seja sempre uma string
         const errorMessage = typeof result.error === 'string' 
           ? result.error 
           : "Ocorreu um erro desconhecido ao tentar fazer login."
@@ -32,12 +31,10 @@ export default function LoginPage() {
       } 
       
       if (result?.success) {
-        // Grava no localStorage para controle de UI (Menus)
         if (result.role) {
           localStorage.setItem("userRole", result.role)
         }
 
-        // Redirecionamento baseado no papel
         if (result.role === "admin") {
           toast.success("Login (Diretoria) realizado com sucesso!")
           router.push("/dashboard")
@@ -46,7 +43,6 @@ export default function LoginPage() {
           router.push("/dashboard/accesses")
         }
       } else {
-         // Caso de borda onde não há erro nem sucesso claro
          toast.error("Erro de comunicação com o servidor.")
          setIsLoading(false)
       }
@@ -60,10 +56,22 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen w-full items-center justify-center bg-background p-6">
       <div className="w-full max-w-sm">
-        <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold tracking-tight">Wesystem</h1>
-          <p className="mt-2 text-sm text-muted-foreground">Business Intelligence para sua agência</p>
+        <div className="mb-8 text-center flex flex-col items-center">
+          {/* Efeito Gooey Morphing substituindo o H1 estático */}
+          <div className="h-16 w-full flex items-center justify-center relative mb-2">
+            <GooeyText 
+              texts={["Wesystem", "Versão 1", "Está aqui!"]} 
+              morphTime={1}
+              cooldownTime={2.5}
+              textClassName="text-3xl font-bold tracking-tight text-primary" 
+            />
+          </div>
+          
+          <p className="mt-2 text-sm text-muted-foreground z-10 relative">
+            Business Intelligence para sua agência
+          </p>
         </div>
+        
         <Card>
           <CardHeader>
             <CardTitle className="text-2xl">Acesso Restrito</CardTitle>
