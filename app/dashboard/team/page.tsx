@@ -4,7 +4,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Users, DollarSign, PlusCircle, TrendingDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { EditEmployeeForm } from "@/components/edit-employee-form"
-import { differenceInDays, parseISO, format } from "date-fns"
+import { differenceInDays, parseISO, format, startOfDay } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { TeamTableRow } from "./team-table-row"
 import { TeamFilters } from "@/components/team-filters"
@@ -18,6 +18,7 @@ export const revalidate = 0
 async function getTeamData({ name, status }: { name?: string; status?: string }) {
   const supabase = await createClient()
   const today = new Date()
+  const todayNormalized = startOfDay(today) // Normaliza para 00:00:00
   const currentMonth = today.getMonth()
   const currentYear = today.getFullYear()
 
@@ -54,14 +55,20 @@ async function getTeamData({ name, status }: { name?: string; status?: string })
     const totalPaid = emp.employee_payments.reduce((sum, p) => sum + Number(p.amount), 0)
     let daysUntilPayment = null
     let nextPaymentDateFormatted = null
+    
     if (emp.payment_day) {
       const nextPaymentDate = new Date(currentYear, currentMonth, emp.payment_day)
-      if (today.getTime() > nextPaymentDate.getTime()) {
+      
+      // Usa data normalizada para comparação, evitando pular o dia atual se o script rodar à tarde
+      if (todayNormalized.getTime() > nextPaymentDate.getTime()) {
         nextPaymentDate.setMonth(nextPaymentDate.getMonth() + 1)
       }
-      daysUntilPayment = differenceInDays(nextPaymentDate, today)
+      
+      // Usa data normalizada para cálculo exato de dias de calendário
+      daysUntilPayment = differenceInDays(nextPaymentDate, todayNormalized)
       nextPaymentDateFormatted = format(nextPaymentDate, "dd/MM/yyyy - EEEE", { locale: ptBR })
     }
+
     const isPaidThisMonth = emp.employee_payments.some((p) => {
       const paymentDate = new Date(p.payment_date)
       return paymentDate.getMonth() === currentMonth && paymentDate.getFullYear() === currentYear
