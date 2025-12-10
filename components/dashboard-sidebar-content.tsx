@@ -125,7 +125,12 @@ export function DashboardSidebarContent({ userRole }: { userRole: UserRole }) {
                       </Link>
                     </SidebarMenuButton>
                     <CollapsibleTrigger asChild>
-                      <Button variant="ghost" size="icon" className="group size-8 shrink-0" disabled={isLoading}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="group size-8 shrink-0 group-data-[collapsible=icon]:hidden"
+                        disabled={isLoading}
+                      >
                         <ChevronDown className="transition-transform duration-200 group-data-[state=open]:rotate-180" />
                       </Button>
                     </CollapsibleTrigger>
