@@ -8,16 +8,14 @@ import { ClientCommercialCard } from "@/components/client-commercial-card"
 import { cookies } from "next/headers"
 
 // CONFIGURAÇÃO DE CACHE:
-// force-dynamic: Impede geração estática no build
-// revalidate = 0: Garante que o cache seja invalidado imediatamente a cada request
 export const dynamic = "force-dynamic"
 export const revalidate = 0
 
 async function getCommercialData() {
-  const supabase = createAdminClient() // Busca com privilégios
+  const supabase = createAdminClient()
 
   // 1. Buscar Metas
-  const { data: goals } = await supabase
+  const { data: goalsData } = await supabase
     .from("commercial_goals")
     .select("*")
     .order("deadline", { ascending: true })
@@ -31,7 +29,34 @@ async function getCommercialData() {
     `)
     .order("created_at", { ascending: false })
 
-  // 3. Calcular Métricas do Funil
+  // --- CÁLCULO AUTOMÁTICO DE MÉTRICAS REAIS (LIVE) ---
+  
+  // Calcular Clientes Ativos
+  const { count: activeClientsCount } = await supabase
+    .from("clients")
+    .select("*", { count: 'exact', head: true })
+    .eq("status", "active")
+
+  // Calcular MRR (Soma de contratos ativos)
+  const { data: activeContracts } = await supabase
+    .from("contracts")
+    .select("valor_mensal")
+    .eq("status", "active")
+
+  const currentMrr = activeContracts?.reduce((acc, contract) => acc + (Number(contract.valor_mensal) || 0), 0) || 0
+
+  // 4. Injetar valores reais nas metas
+  const goals = goalsData?.map(goal => {
+    if (goal.type === 'revenue') {
+      return { ...goal, current_value: currentMrr }
+    }
+    if (goal.type === 'clients') {
+      return { ...goal, current_value: activeClientsCount || 0 }
+    }
+    return goal
+  }) || []
+
+  // 5. Calcular Métricas do Funil
   const funnelStats = {
     identified: upsells?.filter((u) => u.status === "identified").length || 0,
     negotiating: upsells?.filter((u) => u.status === "negotiating").length || 0,
@@ -40,7 +65,7 @@ async function getCommercialData() {
   }
 
   return {
-    goals: goals || [],
+    goals: goals,
     upsells: upsells || [],
     funnelStats,
   }
