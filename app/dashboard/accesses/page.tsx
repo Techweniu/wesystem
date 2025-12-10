@@ -3,7 +3,6 @@ import { AccessesClientPage } from "./accesses-client-page";
 
 // CONFIGURAÇÃO DE CACHE:
 // Força a página a ser dinâmica e não usar cache estático.
-// Isso garante que os dados exibidos sejam sempre os atuais do banco.
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -20,9 +19,10 @@ export type PlatformAccess = {
 };
 
 async function getAccessData() {
-  // CORREÇÃO: Inicializa o cliente com a SERVICE_ROLE_KEY para ignorar o RLS (Row Level Security).
-  // Isso garante que todos os acessos sejam listados, independentemente das restrições do usuário logado.
-  // Resolve o problema onde "Produção" sumia mesmo para usuários da Diretoria.
+  // CORREÇÃO CRÍTICA:
+  // Usamos 'createClient' do pacote básico com a chave de serviço (SERVICE_ROLE_KEY).
+  // Isso ignora as regras de segurança (RLS) do banco, permitindo que a
+  // página liste TODOS os acessos (Produção, Mkt, etc.), não apenas os do seu departamento.
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
