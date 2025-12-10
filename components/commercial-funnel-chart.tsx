@@ -44,7 +44,7 @@ export function CommercialFunnelChart({ data }: CommercialFunnelChartProps) {
                 tickMargin={10}
                 axisLine={false}
                 className="text-xs"
-                tick={{ fill: "hsl(var(--foreground))" }}
+                tick={{ fill: "#888888" }}
               />
               <ChartTooltip
                 cursor={{ fill: "transparent" }}
