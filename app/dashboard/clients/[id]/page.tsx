@@ -45,6 +45,8 @@ import {
 } from "@/components/ui/breadcrumb"
 import { Label } from "@/components/ui/label"
 import { ContractServiceBadges } from "@/components/contract-service-badges"
+import { cookies } from "next/headers"
+import { formatCurrency } from "@/lib/utils"
 
 const LOOKER_STUDIO_URL =
   "https://lookerstudio.google.com/embed/reporting/dd2d13f5-60b6-4926-ba5d-afe9db7dbcd1/page/jCyaF"
@@ -181,6 +183,9 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
   const { potentialAssessors, potentialVideomakers, potentialManagers, potentialEditors, ...client } = clientData
 
   const today = new Date()
+  const cookieStore = cookies()
+  const userRole = cookieStore.get("user_role")?.value
+  const isLimited = userRole === "limited"
 
   // Cálculos Financeiros
   const monthlyRevenue =
@@ -317,7 +322,7 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(monthlyRevenue)}
+                {formatCurrency(monthlyRevenue, isLimited)}
               </div>
             </CardContent>
           </Card>
@@ -502,7 +507,7 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
               <CardTitle className="flex items-center gap-2">
                 <FileText className="h-5 w-5" /> Contratos
               </CardTitle>
-              <AddContractForm clientId={client.id} />
+              {!isLimited && <AddContractForm clientId={client.id} />}
             </CardHeader>
             <CardContent>
               <ul className="space-y-3">
@@ -533,7 +538,7 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
                             </Button>
                           </a>
                         )}
-                        <EditContractForm contract={contract} />
+                        {!isLimited && <EditContractForm contract={contract} />}
                       </div>
                     </div>
                   </li>
@@ -559,7 +564,7 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
               <div className="flex flex-col space-y-1">
                 <Label className="text-muted-foreground">Valor Gerado (Est.)</Label>
                 <p className="font-semibold">
-                  {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(generatedValue)}
+                  {formatCurrency(generatedValue, isLimited)}
                 </p>
               </div>
               <div className="flex flex-col space-y-1">
@@ -607,7 +612,7 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Serviços Pontuais</CardTitle>
-                <AddServiceForm clientId={client.id} />
+                {!isLimited && <AddServiceForm clientId={client.id} />}
               </CardHeader>
               <CardContent>
                 <Table>
@@ -630,7 +635,7 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
                           />
                         </TableCell>
                         <TableCell className="text-right">
-                          {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(service.value)}
+                          {formatCurrency(service.value, isLimited)}
                         </TableCell>
                       </TableRow>
                     ))}
