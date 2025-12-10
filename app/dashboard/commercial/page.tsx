@@ -29,34 +29,54 @@ async function getCommercialData() {
     `)
     .order("created_at", { ascending: false })
 
-  // --- CÁLCULO AUTOMÁTICO DE MÉTRICAS REAIS (LIVE) ---
+  // --- CÁLCULO LIVE DAS MÉTRICAS ---
   
-  // Calcular Clientes Ativos
+  // A. Clientes (Ativos e Inativos para Churn)
   const { count: activeClientsCount } = await supabase
     .from("clients")
     .select("*", { count: 'exact', head: true })
     .eq("status", "active")
 
-  // Calcular MRR (Soma de contratos ativos)
+  const { count: inactiveClientsCount } = await supabase
+    .from("clients")
+    .select("*", { count: 'exact', head: true })
+    .eq("status", "inactive")
+
+  // B. MRR
   const { data: activeContracts } = await supabase
     .from("contracts")
     .select("valor_mensal")
     .eq("status", "active")
-
   const currentMrr = activeContracts?.reduce((acc, contract) => acc + (Number(contract.valor_mensal) || 0), 0) || 0
 
-  // 4. Injetar valores reais nas metas
+  // C. Upsell Value (Closed)
+  const { data: closedUpsells } = await supabase
+    .from("client_upsells")
+    .select("estimated_value")
+    .eq("status", "closed")
+  const currentUpsellValue = closedUpsells?.reduce((acc, curr) => acc + (Number(curr.estimated_value) || 0), 0) || 0
+
+  // D. Churn Rate
+  const totalClients = (activeClientsCount || 0) + (inactiveClientsCount || 0)
+  const currentChurnRate = totalClients > 0 
+    ? ((inactiveClientsCount || 0) / totalClients) * 100 
+    : 0
+
+  // 4. Injetar valores reais nas metas para visualização
   const goals = goalsData?.map(goal => {
-    if (goal.type === 'revenue') {
-      return { ...goal, current_value: currentMrr }
-    }
-    if (goal.type === 'clients') {
-      return { ...goal, current_value: activeClientsCount || 0 }
-    }
-    return goal
+    let liveValue = goal.current_value // Fallback
+
+    if (goal.type === 'revenue') liveValue = currentMrr
+    else if (goal.type === 'clients') liveValue = activeClientsCount || 0
+    else if (goal.type === 'upsell_value') liveValue = currentUpsellValue
+    else if (goal.type === 'churn_rate') liveValue = currentChurnRate
+    
+    // Formata churn para ter no máximo 1 ou 2 casas decimais na visualização se desejar,
+    // mas aqui passamos o number puro.
+    return { ...goal, current_value: liveValue }
   }) || []
 
-  // 5. Calcular Métricas do Funil
+  // 5. Calcular Stats do Funil
   const funnelStats = {
     identified: upsells?.filter((u) => u.status === "identified").length || 0,
     negotiating: upsells?.filter((u) => u.status === "negotiating").length || 0,
