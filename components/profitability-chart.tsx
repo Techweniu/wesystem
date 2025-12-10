@@ -52,10 +52,15 @@ export function ProfitabilityChart({ data }: ProfitabilityChartProps) {
         >
           <BarChart data={chartData} barGap={0}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border" />
-            <XAxis dataKey="name" className="text-xs" tick={{ fill: "hsl(var(--foreground))" }} interval={0} />
+            <XAxis 
+              dataKey="name" 
+              className="text-xs" 
+              tick={{ fill: "#888888" }} 
+              interval={0} 
+            />
             <YAxis
               className="text-xs"
-              tick={{ fill: "hsl(var(--foreground))" }}
+              tick={{ fill: "#888888" }}
               tickFormatter={(value) => new Intl.NumberFormat("pt-BR", { notation: "compact" }).format(value)}
             />
             <ChartTooltip
