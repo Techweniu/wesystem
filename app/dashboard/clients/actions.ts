@@ -22,11 +22,11 @@ const clientSchema = z.object({
   ad_account_organized: z.preprocess((val) => val === "on" || val === "true", z.boolean()).optional(),
   ads_running: z.preprocess((val) => val === "on" || val === "true", z.boolean()).optional(),
   
-  // Campos de Equipe
-  assigned_assessor_id: z.string().uuid().optional().or(z.literal("null")).nullable(),
-  assigned_videomaker_id: z.string().uuid().optional().or(z.literal("null")).nullable(),
-  assigned_relationship_manager_id: z.string().uuid().optional().or(z.literal("null")).nullable(),
-  assigned_editor_id: z.string().uuid().optional().or(z.literal("null")).nullable(),
+  // Campos de Equipe - Agora aceita null explicitamente e strings vazias serão tratadas
+  assigned_assessor_id: z.string().uuid().nullable().optional(),
+  assigned_videomaker_id: z.string().uuid().nullable().optional(),
+  assigned_relationship_manager_id: z.string().uuid().nullable().optional(),
+  assigned_editor_id: z.string().uuid().nullable().optional(),
 
   // Campos de Contrato
   contract_name: z.string().optional().or(z.literal("")),
@@ -42,11 +42,18 @@ const clientSchema = z.object({
 export async function addClient(formData: FormData) {
   const rawData = Object.fromEntries(formData.entries())
   
-  // Tratamento de campos 'null' vindos do Select
-  if (rawData.assigned_assessor_id === "null") rawData.assigned_assessor_id = null
-  if (rawData.assigned_videomaker_id === "null") rawData.assigned_videomaker_id = null
-  if (rawData.assigned_relationship_manager_id === "null") rawData.assigned_relationship_manager_id = null
-  if (rawData.assigned_editor_id === "null") rawData.assigned_editor_id = null
+  // Função auxiliar para sanitizar IDs
+  // Converte "null" string ou "" string para null real, ou mantém o valor se for válido
+  const sanitizeId = (value: any) => {
+    if (!value || value === "null" || value === "") return null
+    return value
+  }
+
+  // Aplica a sanitização nos campos de ID antes da validação
+  rawData.assigned_assessor_id = sanitizeId(rawData.assigned_assessor_id)
+  rawData.assigned_videomaker_id = sanitizeId(rawData.assigned_videomaker_id)
+  rawData.assigned_relationship_manager_id = sanitizeId(rawData.assigned_relationship_manager_id)
+  rawData.assigned_editor_id = sanitizeId(rawData.assigned_editor_id)
 
   const validatedFields = clientSchema.safeParse(rawData)
 
@@ -81,11 +88,11 @@ export async function addClient(formData: FormData) {
       has_traffic_service: data.has_traffic_service || false,
       ad_account_organized: data.ad_account_organized || false,
       ads_running: data.ads_running || false,
-      // Equipe
-      assigned_assessor_id: data.assigned_assessor_id,
-      assigned_videomaker_id: data.assigned_videomaker_id,
-      assigned_relationship_manager_id: data.assigned_relationship_manager_id,
-      assigned_editor_id: data.assigned_editor_id,
+      // Equipe (Usa coalescência nula para garantir null se for undefined)
+      assigned_assessor_id: data.assigned_assessor_id || null,
+      assigned_videomaker_id: data.assigned_videomaker_id || null,
+      assigned_relationship_manager_id: data.assigned_relationship_manager_id || null,
+      assigned_editor_id: data.assigned_editor_id || null,
       
       health_status: "green",
     })
