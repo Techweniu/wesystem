@@ -2,11 +2,16 @@
 @import "tw-animate-css";
 
 :root {
-  /* Paleta Weniu - Tema Claro */
-  --background: oklch(0.99 0 0);
+  /* Paleta Weniu - Tema Claro (Modern Clean / Soft UI) */
+  
+  /* MUDANÇA 1: Fundo levemente cinza para dar contraste aos Cards brancos */
+  --background: oklch(0.985 0 0); 
   --foreground: oklch(0.145 0 0);
+
+  /* Cards permanecem brancos puros para o efeito "flutuante" */
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
+  
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
 
@@ -19,16 +24,17 @@
   --secondary-foreground: oklch(0.98 0 0);
 
   --muted: oklch(0.96 0 0);
-  /* Improved contrast for muted-foreground - darker for better readability */
-  --muted-foreground: oklch(0.4 0 0);
+  --muted-foreground: oklch(0.45 0 0); /* Suavizado */
 
   /* Verde fluorescente como accent */
-  --accent: oklch(0.72 0.22 145);
+  --accent: oklch(0.97 0 0); /* Accent mais sutil no light mode */
   --accent-foreground: oklch(0.145 0 0);
 
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.98 0 0);
-  --border: oklch(0.85 0 0);
+
+  /* MUDANÇA 2: Bordas muito mais sutis. O visual moderno confia em sombras. */
+  --border: oklch(0.92 0 0); 
   --input: oklch(0.92 0 0);
   --ring: oklch(0.72 0.22 145);
 
@@ -45,20 +51,21 @@
   --warning: oklch(0.75 0.18 85);
   --warning-foreground: oklch(0.145 0 0);
 
-  --radius: 0.625rem;
+  /* MUDANÇA 3: Raio aumentado para visual "Soft" */
+  --radius: 1rem;
 
-  /* Sidebar Dimensions - Aumentado para evitar cortes */
+  /* Sidebar Dimensions */
   --sidebar-width: 19rem;
   --sidebar-width-mobile: 20rem;
 
-  /* Sidebar Colors */
-  --sidebar: oklch(0.985 0 0);
+  /* Sidebar Colors - Ajustadas para combinar com o fundo Soft */
+  --sidebar: oklch(0.985 0 0); /* Mesmo tom do background */
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.72 0.22 145);
   --sidebar-primary-foreground: oklch(0.145 0 0);
-  --sidebar-accent: oklch(0.72 0.22 145);
+  --sidebar-accent: oklch(0.96 0 0); /* Leve destaque */
   --sidebar-accent-foreground: oklch(0.145 0 0);
-  --sidebar-border: oklch(0.89 0 0);
+  --sidebar-border: oklch(0.92 0 0); /* Borda sutil */
   --sidebar-ring: oklch(0.72 0.22 145);
 }
 
@@ -66,8 +73,11 @@
 .dark {
   --background: oklch(0.13 0.015 260);
   --foreground: oklch(0.93 0 0);
+  
+  /* Cards levemente mais claros que o fundo no dark mode */
   --card: oklch(0.17 0.015 260);
   --card-foreground: oklch(0.93 0 0);
+  
   --popover: oklch(0.17 0.015 260);
   --popover-foreground: oklch(0.93 0 0);
 
@@ -80,15 +90,15 @@
   --secondary-foreground: oklch(0.98 0 0);
 
   --muted: oklch(0.24 0.015 260);
-  /* muted-foreground mais claro para melhor legibilidade no dark */
   --muted-foreground: oklch(0.72 0 0);
 
-  --accent: oklch(0.78 0.22 145);
-  --accent-foreground: oklch(0.145 0 0);
+  --accent: oklch(0.24 0.015 260);
+  --accent-foreground: oklch(0.93 0 0);
 
   --destructive: oklch(0.65 0.25 25);
   --destructive-foreground: oklch(0.98 0 0);
-  --border: oklch(0.32 0.015 260);
+  
+  --border: oklch(0.25 0.015 260); /* Borda mais discreta */
   --input: oklch(0.24 0.015 260);
   --ring: oklch(0.78 0.22 145);
 
@@ -112,7 +122,7 @@
   --sidebar-primary-foreground: oklch(0.145 0 0);
   --sidebar-accent: oklch(0.24 0.015 260);
   --sidebar-accent-foreground: oklch(0.93 0 0);
-  --sidebar-border: oklch(0.28 0.015 260);
+  --sidebar-border: oklch(0.25 0.015 260);
   --sidebar-ring: oklch(0.78 0.22 145);
 }
 
