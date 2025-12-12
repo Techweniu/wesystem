@@ -25,6 +25,7 @@ import { EditEmployeeForm } from "@/components/edit-employee-form"
 import { AddObservationForm } from "@/components/add-observation-form"
 import { AddContributionForm } from "@/components/add-contribution-form"
 import { CareerPlanExpirationBadge } from "@/components/career-plan-expiration-badge"
+import { CareerPlanPanel } from "@/components/career-plan-panel" // Importando o novo componente
 
 async function getEmployeeData(id: string) {
   const supabase = createAdminClient()
@@ -150,7 +151,7 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value)
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-10">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -165,6 +166,7 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
               <Badge variant={employee.status === "active" ? "default" : "outline"}>
                 {employee.status === "active" ? "Ativo" : "Inativo"}
               </Badge>
+              {/* Mantemos o badge antigo no cabeçalho também para visibilidade imediata */}
               <CareerPlanExpirationBadge expirationDate={employee.career_plan_expiration_date} />
             </div>
             <p className="text-muted-foreground">
@@ -308,14 +310,14 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
               <div className="flex items-center gap-3">
                 <FileText className="h-4 w-4 text-muted-foreground" />
                 <div>
-                  <p className="text-sm font-medium">Plano de Carreira</p>
+                  <p className="text-sm font-medium">Arquivo de Plano</p>
                   <a
                     href={employee.career_plan_url}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-sm text-primary hover:underline"
                   >
-                    Ver documento
+                    Ver PDF original
                   </a>
                 </div>
               </div>
@@ -323,7 +325,7 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
           </CardContent>
         </Card>
 
-        {/* Tabs - Added Clientes tab */}
+        {/* Tabs */}
         <Card className="md:col-span-2">
           <Tabs defaultValue="observations" className="w-full">
             <CardHeader>
@@ -336,6 +338,7 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
               </TabsList>
             </CardHeader>
             <CardContent>
+              {/* [Conteúdo das Tabs mantido igual ao original, omitido aqui para brevidade pois não muda] */}
               <TabsContent value="observations" className="mt-0">
                 <div className="flex justify-end mb-4">
                   <AddObservationForm employeeId={employee.id} />
@@ -511,6 +514,14 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
           </Tabs>
         </Card>
       </div>
+
+      {/* PAINEL DE PLANO DE CARREIRA - NOVO */}
+      <CareerPlanPanel 
+        employeeId={employee.id}
+        initialContent={employee.career_plan_content}
+        initialGoals={employee.career_plan_goals || []}
+        initialExpirationDate={employee.career_plan_expiration_date}
+      />
     </div>
   )
 }
