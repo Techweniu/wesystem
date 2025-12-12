@@ -14,6 +14,20 @@ async function checkAdminPermission() {
     throw new Error("Acesso negado: Você não tem permissão para realizar esta operação financeira.")
   }
 }
+
+// --- FUNÇÃO AUXILIAR DE DATA (Brasil) ---
+// Retorna a data de hoje no formato YYYY-MM-DD respeitando o fuso do Brasil
+function getBrazilDateString() {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" })
+}
+
+// Soma dias a uma data string sem conversão de fuso (evita pular para dia anterior)
+function addDaysToDateString(dateStr: string, days: number): string {
+  // Cria a data definindo MEIO-DIA (T12:00:00) para evitar problemas de UTC midnight
+  const date = new Date(dateStr + "T12:00:00")
+  date.setDate(date.getDate() + days)
+  return date.toISOString().split("T")[0]
+}
 // ------------------------------------
 
 const costSchema = z.object({
@@ -30,7 +44,6 @@ export async function addCost(formData: FormData) {
   try {
     await checkAdminPermission()
 
-    // Validate proof file
     const proofFile = formData.get("proof_file") as File
     if (!proofFile || proofFile.size === 0) {
       return { success: false, error: "Comprovante é obrigatório." }
@@ -52,13 +65,10 @@ export async function addCost(formData: FormData) {
       return { success: false, error: firstError || "Dados inválidos." }
     }
 
-    // Upload proof file to Vercel Blob
     const fileExtension = proofFile.name.split(".").pop()
     const fileName = `costs/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExtension}`
 
-    const blob = await put(fileName, proofFile, {
-      access: "public",
-    })
+    const blob = await put(fileName, proofFile, { access: "public" })
 
     const supabaseAdmin = createAdminClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -131,7 +141,6 @@ export async function updateCost(id: string, formData: FormData) {
 export async function deleteCost(id: string) {
   try {
     await checkAdminPermission()
-
     if (!id) return { success: false, error: "ID inválido." }
 
     const supabaseAdmin = createAdminClient(
@@ -140,7 +149,6 @@ export async function deleteCost(id: string) {
     )
 
     const { error } = await supabaseAdmin.from("costs").delete().eq("id", id)
-
     if (error) throw error
 
     revalidatePath("/dashboard/financial")
@@ -161,14 +169,10 @@ export async function markClientPaymentAsPaid(formData: FormData) {
     await checkAdminPermission()
 
     const proofFile = formData.get("proof_file") as File
-    if (!proofFile || proofFile.size === 0) {
-      return { error: "Comprovante é obrigatório." }
-    }
+    if (!proofFile || proofFile.size === 0) return { error: "Comprovante é obrigatório." }
 
     const validatedFields = clientPaymentSchema.safeParse(Object.fromEntries(formData))
-    if (!validatedFields.success) {
-      return { error: "Dados inválidos." }
-    }
+    if (!validatedFields.success) return { error: "Dados inválidos." }
 
     const { clientId, amount } = validatedFields.data
     const supabaseAdmin = createAdminClient(
@@ -186,13 +190,12 @@ export async function markClientPaymentAsPaid(formData: FormData) {
     })
 
     if (uploadError) return { error: "Erro no upload do comprovante." }
-
     const { data: urlData } = supabaseAdmin.storage.from("financial-proofs").getPublicUrl(filePath)
 
     const { error } = await supabaseAdmin.from("client_payments").insert({
       client_id: clientId,
       amount: amount,
-      payment_date: new Date().toISOString(),
+      payment_date: getBrazilDateString(), // CORREÇÃO: Usa data Brasil
       proof_url: urlData.publicUrl,
     })
 
@@ -214,7 +217,6 @@ const undoClientPaymentSchema = z.object({
 export async function undoClientPayment(formData: FormData) {
   try {
     await checkAdminPermission()
-
     const validatedFields = undoClientPaymentSchema.safeParse(Object.fromEntries(formData))
     if (!validatedFields.success) return { error: "ID inválido." }
 
@@ -277,16 +279,13 @@ export async function markCostAsPaid(formData: FormData) {
 
     const fileExtension = proofFile.name.split(".").pop()
     const fileName = `cost-payments/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExtension}`
-
-    const blob = await put(fileName, proofFile, {
-      access: "public",
-    })
+    const blob = await put(fileName, proofFile, { access: "public" })
 
     // 1. Atualiza o custo ATUAL para PAGO
     const { error: paymentError } = await supabaseAdmin
       .from("costs")
       .update({
-        paid_date: new Date().toISOString().split("T")[0],
+        paid_date: getBrazilDateString(), // CORREÇÃO: Usa data Brasil
         status: "paid",
         payment_proof_url: blob.url,
       })
@@ -294,27 +293,23 @@ export async function markCostAsPaid(formData: FormData) {
 
     if (paymentError) return { error: paymentError.message }
 
-    // 2. Se for recorrente, CRIA A PRÓXIMA FATURA IMEDIATAMENTE
+    // 2. Se for recorrente, cria o PRÓXIMO custo
     if (cost.is_recurring) {
-      const recurrenceDays = cost.recurrence_days || 30 // fallback
-      
-      // Calcula a data da próxima fatura baseada na data original da fatura atual
-      const currentDueDate = new Date(cost.date)
-      const nextDate = new Date(currentDueDate)
-      nextDate.setDate(currentDueDate.getDate() + recurrenceDays)
+      const recurrenceDays = cost.recurrence_days || 30
+      // CORREÇÃO: Usa função segura que não altera o fuso horário
+      const nextDateString = addDaysToDateString(cost.date, recurrenceDays)
 
-      // Inserção imediata da nova linha no banco
       await supabaseAdmin.from("costs").insert({
         description: cost.description,
         value: cost.value,
         category: cost.category,
-        date: nextDate.toISOString().split("T")[0],
+        date: nextDateString,
         is_recurring: true,
         recurrence_days: recurrenceDays,
         paid_date: null,
         status: "pending",
-        proof_url: null, // Nasce sem comprovante (nota fiscal)
-        payment_proof_url: null, // Nasce sem comprovante de pagamento
+        proof_url: null,
+        payment_proof_url: null,
       })
     }
 
@@ -333,7 +328,6 @@ const undoCostPaymentSchema = z.object({
 export async function undoCostPayment(formData: FormData) {
   try {
     await checkAdminPermission()
-
     const validatedFields = undoCostPaymentSchema.safeParse(Object.fromEntries(formData))
     if (!validatedFields.success) return { error: "ID inválido." }
 
@@ -343,7 +337,6 @@ export async function undoCostPayment(formData: FormData) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
     )
 
-    // Reverte apenas o status do custo atual.
     const { error } = await supabaseAdmin
       .from("costs")
       .update({
@@ -371,7 +364,6 @@ const paymentSchema = z.object({
 export async function markPaymentAsPaid(formData: FormData) {
   try {
     await checkAdminPermission()
-
     const proofFile = formData.get("proof_file") as File
     if (!proofFile || proofFile.size === 0) return { error: "Comprovante obrigatório." }
 
@@ -393,13 +385,12 @@ export async function markPaymentAsPaid(formData: FormData) {
       upsert: false,
     })
     if (uploadError) return { error: "Erro no upload." }
-
     const { data: urlData } = supabaseAdmin.storage.from("financial-proofs").getPublicUrl(filePath)
 
     const { error } = await supabaseAdmin.from("employee_payments").insert({
       employee_id: employeeId,
       amount: amount,
-      payment_date: new Date().toISOString(),
+      payment_date: getBrazilDateString(), // CORREÇÃO: Usa data Brasil
       proof_url: urlData.publicUrl,
     })
 
@@ -421,7 +412,6 @@ const undoPaymentSchema = z.object({
 export async function undoEmployeePayment(formData: FormData) {
   try {
     await checkAdminPermission()
-
     const validatedFields = undoPaymentSchema.safeParse(Object.fromEntries(formData))
     if (!validatedFields.success) return { error: "ID inválido." }
 
@@ -467,7 +457,6 @@ const servicePaymentSchema = z.object({
 export async function markServiceAsReceived(formData: FormData) {
   try {
     await checkAdminPermission()
-
     const proofFile = formData.get("proof_file") as File
     if (!proofFile || proofFile.size === 0) return { error: "Comprovante obrigatório." }
 
@@ -488,13 +477,12 @@ export async function markServiceAsReceived(formData: FormData) {
       upsert: false,
     })
     if (uploadError) return { error: "Erro no upload." }
-
     const { data: urlData } = supabaseAdmin.storage.from("financial-proofs").getPublicUrl(fileName)
 
     const { error: updateError } = await supabaseAdmin
       .from("one_time_services")
       .update({
-        received_date: new Date().toISOString().split("T")[0],
+        received_date: getBrazilDateString(), // CORREÇÃO: Usa data Brasil
         payment_proof_url: urlData.publicUrl,
         status: "completed",
       })
@@ -519,7 +507,6 @@ const undoServiceReceiptSchema = z.object({
 export async function undoServiceReceipt(formData: FormData) {
   try {
     await checkAdminPermission()
-
     const validatedFields = undoServiceReceiptSchema.safeParse(Object.fromEntries(formData))
     if (!validatedFields.success) return { error: "Dados inválidos." }
 
