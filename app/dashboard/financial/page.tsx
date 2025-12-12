@@ -9,7 +9,7 @@ import { PeriodSelector } from "@/components/period-selector"
 import { ClientPaymentsTable } from "@/components/client-payments-table"
 import { FinancialSummaryCards } from "@/components/financial-summary-cards"
 import { EmployeePaymentsTable } from "@/components/employee-payments-table"
-import { parseISO, format, startOfMonth, endOfMonth, subDays, startOfYear, endOfYear } from "date-fns"
+import { parseISO, format, startOfMonth, endOfMonth, subDays, startOfYear, endOfYear, addMonths } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -22,8 +22,6 @@ import { cookies } from "next/headers"
 import { formatCurrency } from "@/lib/utils"
 
 // CONFIGURAÇÃO DE CACHE:
-// force-dynamic: Impede geração estática no build
-// revalidate = 0: Garante que o cache seja invalidado imediatamente a cada request
 export const dynamic = "force-dynamic"
 export const revalidate = 0
 
@@ -92,7 +90,7 @@ async function getFinancialData(period: string) {
   const safeContracts = activeContractsResult.data || []
   const safeEmployees = activeEmployeesResult.data || []
 
-  // --- CÁLCULOS DE RECEITA ---
+  // --- CÁLCULOS DE RECEITA (KPIs) ---
   const contractsReceived = safeClientPayments.reduce((sum, p) => sum + Number(p.amount), 0)
   const totalMrrExpected = safeContracts.reduce((sum, c) => sum + Number(c.valor_mensal), 0)
   const contractsPending = Math.max(0, totalMrrExpected - contractsReceived)
@@ -105,7 +103,7 @@ async function getFinancialData(period: string) {
     .filter(s => s.status === 'pending' && !s.received_date)
     .reduce((sum, s) => sum + Number(s.value), 0)
 
-  // --- CÁLCULOS DE CUSTOS ---
+  // --- CÁLCULOS DE CUSTOS (KPIs) ---
   const salariesPaid = safeEmployeePayments.reduce((sum, p) => sum + Number(p.amount), 0)
   const totalSalariesExpected = safeEmployees.reduce((sum, e) => sum + Number(e.salary), 0)
   const salariesPending = Math.max(0, totalSalariesExpected - salariesPaid)
@@ -118,7 +116,8 @@ async function getFinancialData(period: string) {
     .filter(c => c.status === 'pending')
     .reduce((sum, c) => sum + Number(c.value), 0)
 
-  // --- PREPARAÇÃO PARA TABELAS E GRÁFICOS ---
+  // --- PREPARAÇÃO DE DADOS PARA TABELAS (LÓGICA CUMULATIVA) ---
+
   const costsByCategory: Record<string, number> = {}
   safeCosts.forEach(c => {
     const cat = c.category || 'Outros'
@@ -128,59 +127,108 @@ async function getFinancialData(period: string) {
     costsByCategory['Salários'] = salariesPaid + salariesPending
   }
 
-  const clientPaymentsData = safeContracts.map(contract => {
-    const payment = safeClientPayments.find(p => p.client_id === contract.client_id)
-    const isPaid = !!payment
+  // --- LÓGICA DE CLIENTES (Histórico + Previsão) ---
+  const clientPaymentsData = [] as any[]
+  
+  // 1. Adicionar Histórico (Pagamentos já feitos no período)
+  safeClientPayments.forEach(payment => {
+    clientPaymentsData.push({
+      uniqueKey: payment.id,
+      clientId: payment.client_id,
+      clientName: payment.clients?.name || "Cliente Desconhecido",
+      amount: Number(payment.amount),
+      date: format(parseISO(payment.payment_date), "dd/MM/yyyy"),
+      status: 'paid',
+      proofUrl: payment.proof_url
+    })
+  })
+
+  // 2. Adicionar Previsão (Próximo pagamento pendente)
+  safeContracts.forEach(contract => {
+    // Verifica se já pagou neste mês (considerando o range selecionado)
+    const paidThisMonth = safeClientPayments.some(p => p.client_id === contract.client_id)
+    
+    // Define a data de vencimento (ex: dia 10)
     const today = new Date()
     let nextDate = new Date(today.getFullYear(), today.getMonth(), 10)
-    if (isPaid) {
-       nextDate.setMonth(nextDate.getMonth() + 1)
-    }
     
-    return {
+    // Se já pagou o atual, projeta o próximo
+    if (paidThisMonth) {
+       nextDate = addMonths(nextDate, 1)
+    }
+
+    // Se não pagou, a data é a deste mês.
+    
+    clientPaymentsData.push({
+      uniqueKey: `${contract.client_id}-pending`,
       clientId: contract.client_id,
       clientName: contract.clients?.name || "Cliente Desconhecido",
-      expectedAmount: contract.valor_mensal,
-      isPaidThisMonth: isPaid,
-      nextPaymentDate: format(nextDate, "dd/MM/yyyy"),
-      activeContracts: [{ id: contract.id, name: contract.name }],
-      proofUrl: payment?.proof_url
-    }
+      amount: Number(contract.valor_mensal),
+      date: format(nextDate, "dd/MM/yyyy"),
+      status: 'pending',
+      proofUrl: null
+    })
   })
 
-  const uniqueClientPaymentsMap = new Map()
-  clientPaymentsData.forEach(item => {
-    if (uniqueClientPaymentsMap.has(item.clientId)) {
-      const existing = uniqueClientPaymentsMap.get(item.clientId)
-      existing.expectedAmount += item.expectedAmount
-      existing.activeContracts.push(...item.activeContracts)
-      existing.isPaidThisMonth = existing.isPaidThisMonth || item.isPaidThisMonth 
-      if (item.proofUrl) existing.proofUrl = item.proofUrl
-    } else {
-      uniqueClientPaymentsMap.set(item.clientId, item)
-    }
+  // Ordenar por data (mais recente no topo para histórico, futuro no topo para pendentes? Vamos ordenar tudo por data)
+  clientPaymentsData.sort((a, b) => {
+    // Inverter datas para string sort YYYYMMDD ou converter
+    // Simplificando: vamos ordenar status pending primeiro se quiser, ou por data
+    // Vamos agrupar por Cliente para ficar mais organizado visualmente
+    return a.clientName.localeCompare(b.clientName) || (a.status === 'pending' ? 1 : -1)
   })
-  const uniqueClientPayments = Array.from(uniqueClientPaymentsMap.values())
 
-  const employeePaymentsData = safeEmployees.map(emp => {
-    const payment = safeEmployeePayments.find(p => p.employee_id === emp.id)
-    const isPaid = !!payment
+
+  // --- LÓGICA DE FUNCIONÁRIOS (Histórico + Previsão) ---
+  const employeePaymentsData = [] as any[]
+
+  // 1. Histórico de pagamentos (tabela employee_payments)
+  safeEmployeePayments.forEach(payment => {
+    employeePaymentsData.push({
+      uniqueKey: payment.id,
+      employeeId: payment.employee_id,
+      employeeName: payment.employees?.name || "Colaborador",
+      amount: Number(payment.amount),
+      date: format(parseISO(payment.payment_date), "dd/MM/yyyy"),
+      status: 'paid',
+      proofUrl: payment.proof_url
+    })
+  })
+
+  // 2. Previsão de pagamentos (baseado no cadastro)
+  safeEmployees.forEach(emp => {
+    // Verifica se já existe pagamento neste mês para este funcionário
+    const paidThisMonth = safeEmployeePayments.some(p => p.employee_id === emp.id)
     
-    let nextDate = null
     if (emp.payment_day) {
         const today = new Date()
-        nextDate = new Date(today.getFullYear(), today.getMonth(), emp.payment_day)
-        if (isPaid) nextDate.setMonth(nextDate.getMonth() + 1)
+        let nextDate = new Date(today.getFullYear(), today.getMonth(), emp.payment_day)
+        
+        // Se já pagou o deste mês, a previsão é para o próximo
+        if (paidThisMonth) {
+            nextDate = addMonths(nextDate, 1)
+        }
+        
+        employeePaymentsData.push({
+          uniqueKey: `${emp.id}-pending`,
+          employeeId: emp.id,
+          employeeName: emp.name,
+          amount: Number(emp.salary),
+          date: format(nextDate, "dd/MM/yyyy"),
+          status: 'pending',
+          proofUrl: null
+        })
     }
+  })
 
-    return {
-      employeeId: emp.id,
-      employeeName: emp.name,
-      salary: emp.salary,
-      isPaidThisMonth: isPaid,
-      nextPaymentDate: nextDate ? format(nextDate, "dd/MM/yyyy") : "Não definido",
-      proofUrl: payment?.proof_url
-    }
+  // Ordenar: Pendentes primeiro, depois Histórico, ou agrupar por nome
+  employeePaymentsData.sort((a, b) => {
+     // Agrupar por nome, depois colocar pendente por último (ou primeiro, dependendo da preferência)
+     // Vamos colocar Pendente NO TOPO se for a mesma pessoa, para ação rápida
+     if (a.employeeName === b.employeeName) {
+        return a.status === 'pending' ? -1 : 1
+     }
+     return a.employeeName.localeCompare(b.employeeName)
   })
 
   const totalCosts = salariesPaid + salariesPending + otherCostsPaid + otherCostsPending
@@ -197,7 +245,7 @@ async function getFinancialData(period: string) {
     totalCosts,
     costs: safeCosts, // Agora inclui custos atrasados
     costsByCategory,
-    clientPayments: uniqueClientPayments,
+    clientPayments: clientPaymentsData,
     employeePayments: employeePaymentsData,
     services: safeServices,
     employees: safeEmployees,
@@ -217,7 +265,6 @@ export default async function FinancialPage({
   const isLimited = userRole === "limited"
 
   // SECURITY: Sanitiza os dados se o usuário for limitado.
-  // Isso garante que os valores reais NÃO sejam enviados ao navegador.
   const data = isLimited ? {
     ...rawData,
     contractsReceived: 0,
@@ -229,9 +276,10 @@ export default async function FinancialPage({
     otherCostsPaid: 0,
     otherCostsPending: 0,
     totalCosts: 0,
-    costs: rawData.costs.map(c => ({ ...c, value: 0 })), // Zera valores individuais
-    services: rawData.services.map(s => ({ ...s, value: 0 })), // Zera valores de serviços
-    // Se precisar sanitizar outros arrays, faça aqui
+    costs: rawData.costs.map(c => ({ ...c, value: 0 })),
+    services: rawData.services.map(s => ({ ...s, value: 0 })),
+    employeePayments: rawData.employeePayments.map(e => ({ ...e, amount: 0 })),
+    clientPayments: rawData.clientPayments.map(c => ({ ...c, amount: 0 })),
   } : rawData
 
   return (
@@ -261,7 +309,6 @@ export default async function FinancialPage({
         userRole={userRole as "admin" | "limited" | null}
       />
       
-      {/* Se quiser esconder os gráficos para limited, pode fazer renderização condicional aqui */}
       <FinancialCharts costs={data.costs} costsByCategory={data.costsByCategory} />
       
       <Tabs defaultValue="costs" className="space-y-4">
@@ -344,7 +391,7 @@ export default async function FinancialPage({
                                 </a>
                               </Button>
                             ) : (
-                              <span className="text-sm text-muted-foreground">Sem comprovante</span>
+                              <span className="text-sm text-muted-foreground">-</span>
                             )}
                           </TableCell>
                         </TableRow>
