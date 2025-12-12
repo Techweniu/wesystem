@@ -277,12 +277,11 @@ export default async function FinancialPage({
       <FinancialCharts costs={data.costs} costsByCategory={data.costsByCategory} />
       
       <Tabs defaultValue="costs" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="clientPayments"><Users className="mr-2 h-4 w-4" /> Pagamentos de Clientes</TabsTrigger>
           <TabsTrigger value="employeePayments"><Users className="mr-2 h-4 w-4" /> Pagamentos de Funcionários</TabsTrigger>
           <TabsTrigger value="costs">Custos Detalhados</TabsTrigger>
           <TabsTrigger value="services">Serviços Pontuais</TabsTrigger>
-          <TabsTrigger value="analysis">Análise por Categoria</TabsTrigger>
         </TabsList>
         
         <TabsContent value="clientPayments">
@@ -376,23 +375,6 @@ export default async function FinancialPage({
           </Card>
         </TabsContent>
         
-        <TabsContent value="analysis">
-           <Card>
-            <CardHeader><CardTitle>Análise por Categoria (Incluindo Salários)</CardTitle></CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {Object.entries(data.costsByCategory).length > 0 ? (
-                  Object.entries(data.costsByCategory).sort(([, a], [, b]) => b - a).map(([category, value]) => (
-                      <div key={category} className="flex items-center justify-between">
-                        <div><p className="font-medium">{category}</p><p className="text-sm text-muted-foreground">{data.totalCosts > 0 ? ((value / data.totalCosts) * 100).toFixed(1) : 0}% do total</p></div>
-                        <p className="text-lg font-bold">{formatCurrency(value, isLimited)}</p>
-                      </div>
-                    ))
-                ) : (<p className="text-center text-muted-foreground py-8">Nenhum custo registrado no período</p>)}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
     </div>
   )
