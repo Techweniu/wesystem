@@ -25,6 +25,17 @@ import { formatCurrency } from "@/lib/utils"
 export const dynamic = "force-dynamic"
 export const revalidate = 0
 
+// --- HELPER DE DATA SEGURO ---
+const safeFormatDate = (dateStr: string | null | undefined) => {
+    if (!dateStr) return "-";
+    // Formata YYYY-MM-DD para DD/MM/YYYY na marra, sem Date object
+    const parts = dateStr.split("T")[0].split("-");
+    if (parts.length === 3) {
+        return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    return dateStr;
+}
+
 // Função auxiliar para calcular o período
 function getDateRange(period: string) {
   const today = new Date()
@@ -51,13 +62,12 @@ function getDateRange(period: string) {
 }
 
 async function getFinancialData(period: string) {
-  const supabase = createAdminClient() // Busca com privilégios
+  const supabase = createAdminClient()
   const { start, end, startObj, endObj } = getDateRange(period)
 
-  // 1. Buscar Dados em Paralelo
   const [
     costsInRangeResult,
-    allPendingCostsResult, // ALTERADO: Busca TODOS os pendentes (passado e futuro)
+    allPendingCostsResult,
     oneTimeServicesResult,
     clientPaymentsResult,
     employeePaymentsResult,
@@ -65,14 +75,8 @@ async function getFinancialData(period: string) {
     activeEmployeesResult,
     costCategoriesResult
   ] = await Promise.all([
-    // Custos dentro do período selecionado (pagos ou pendentes que caem no mês)
     supabase.from("costs").select("*").gte("date", start).lte("date", end).order("date", { ascending: false }),
-    
-    // ALTERAÇÃO CRÍTICA: Busca TODOS os custos pendentes, sem filtro de data.
-    // Isso garante que se eu pagar uma conta hoje e ela gerar uma para o mês que vem,
-    // a do mês que vem aparece aqui.
     supabase.from("costs").select("*").eq("status", "pending").order("date", { ascending: true }),
-    
     supabase.from("one_time_services").select("*, clients(name)").gte("date", start).lte("date", end).order("date", { ascending: false }),
     supabase.from("client_payments").select("*, clients(name)").gte("payment_date", start).lte("payment_date", end).order("payment_date", { ascending: false }),
     supabase.from("employee_payments").select("*, employees(name)").gte("payment_date", start).lte("payment_date", end).order("payment_date", { ascending: false }),
@@ -81,17 +85,11 @@ async function getFinancialData(period: string) {
     supabase.from("cost_categories").select("*").order("name")
   ])
 
-  // --- COMBINAÇÃO DE CUSTOS (Lógica Cumulativa) ---
+  // Lógica Cumulativa de Custos
   const safeCostsMap = new Map()
-
-  // 1. Adiciona custos do mês atual (Pagos e Pendentes da data)
   costsInRangeResult.data?.forEach(c => safeCostsMap.set(c.id, c))
-
-  // 2. Adiciona/Sobrescreve com TODOS os pendentes (Atrasados e Futuros)
-  // Isso garante que a "próxima conta" sempre apareça, mesmo se for mês que vem
   allPendingCostsResult.data?.forEach(c => safeCostsMap.set(c.id, c))
-
-  // 3. Converte para array e ordena (Mais recente/futuro no topo)
+  
   const safeCosts = Array.from(safeCostsMap.values()).sort((a, b) => {
     return new Date(b.date).getTime() - new Date(a.date).getTime()
   })
@@ -102,7 +100,7 @@ async function getFinancialData(period: string) {
   const safeContracts = activeContractsResult.data || []
   const safeEmployees = activeEmployeesResult.data || []
 
-  // --- CÁLCULOS DE RECEITA (KPIs) ---
+  // KPIs
   const contractsReceived = safeClientPayments.reduce((sum, p) => sum + Number(p.amount), 0)
   const totalMrrExpected = safeContracts.reduce((sum, c) => sum + Number(c.valor_mensal), 0)
   const contractsPending = Math.max(0, totalMrrExpected - contractsReceived)
@@ -110,30 +108,17 @@ async function getFinancialData(period: string) {
   const servicesRevenue = safeServices
     .filter(s => s.status === 'completed' || s.received_date)
     .reduce((sum, s) => sum + Number(s.value), 0)
-  
   const servicesPending = safeServices
     .filter(s => s.status === 'pending' && !s.received_date)
     .reduce((sum, s) => sum + Number(s.value), 0)
 
-  // --- CÁLCULOS DE CUSTOS (KPIs) ---
-  // Nota: Para os totais do dashboard (KPI cards), usamos apenas os dados DENTRO do período (range),
-  // para não distorcer o fluxo de caixa do mês com contas de 2025.
   const salariesPaid = safeEmployeePayments.reduce((sum, p) => sum + Number(p.amount), 0)
   const totalSalariesExpected = safeEmployees.reduce((sum, e) => sum + Number(e.salary), 0)
   const salariesPending = Math.max(0, totalSalariesExpected - salariesPaid)
 
-  // Filtra apenas custos DO MÊS para os cartões de resumo
   const costsForKpi = safeCosts.filter(c => c.date >= start && c.date <= end)
-
-  const otherCostsPaid = costsForKpi
-    .filter(c => c.status === 'paid')
-    .reduce((sum, c) => sum + Number(c.value), 0)
-  
-  const otherCostsPending = costsForKpi
-    .filter(c => c.status === 'pending')
-    .reduce((sum, c) => sum + Number(c.value), 0)
-
-  // --- PREPARAÇÃO DE DADOS PARA TABELAS ---
+  const otherCostsPaid = costsForKpi.filter(c => c.status === 'paid').reduce((sum, c) => sum + Number(c.value), 0)
+  const otherCostsPending = costsForKpi.filter(c => c.status === 'pending').reduce((sum, c) => sum + Number(c.value), 0)
 
   const costsByCategory: Record<string, number> = {}
   costsForKpi.forEach(c => {
@@ -152,7 +137,7 @@ async function getFinancialData(period: string) {
       clientId: payment.client_id,
       clientName: payment.clients?.name || "Cliente Desconhecido",
       amount: Number(payment.amount),
-      date: format(parseISO(payment.payment_date), "dd/MM/yyyy"),
+      date: safeFormatDate(payment.payment_date), // CORREÇÃO AQUI
       status: 'paid',
       proofUrl: payment.proof_url
     })
@@ -168,7 +153,7 @@ async function getFinancialData(period: string) {
       clientId: contract.client_id,
       clientName: contract.clients?.name || "Cliente Desconhecido",
       amount: Number(contract.valor_mensal),
-      date: format(nextDate, "dd/MM/yyyy"),
+      date: format(nextDate, "dd/MM/yyyy"), // Aqui é objeto Date criado localmente, ok usar format
       status: 'pending',
       proofUrl: null
     })
@@ -183,7 +168,7 @@ async function getFinancialData(period: string) {
       employeeId: payment.employee_id,
       employeeName: payment.employees?.name || "Colaborador",
       amount: Number(payment.amount),
-      date: format(parseISO(payment.payment_date), "dd/MM/yyyy"),
+      date: safeFormatDate(payment.payment_date), // CORREÇÃO AQUI
       status: 'paid',
       proofUrl: payment.proof_url
     })
@@ -223,7 +208,7 @@ async function getFinancialData(period: string) {
     otherCostsPaid,
     otherCostsPending,
     totalCosts,
-    costs: safeCosts, // AQUI: Lista completa incluindo futuros pendentes
+    costs: safeCosts, 
     costsByCategory,
     clientPayments: clientPaymentsData,
     employeePayments: employeePaymentsData,
@@ -309,6 +294,7 @@ export default async function FinancialPage({
         </TabsContent>
         
         <TabsContent value="costs">
+          {/* O componente FinancialTable agora cuida da formatação */}
           <FinancialTable costs={data.costs} userRole={userRole as "admin" | "limited" | null} />
         </TabsContent>
         
@@ -341,7 +327,7 @@ export default async function FinancialPage({
                               {service.clients?.name || "Cliente não encontrado"}
                             </Link>
                           </TableCell>
-                          <TableCell>{format(parseISO(service.date), "dd/MM/yyyy")}</TableCell>
+                          <TableCell>{safeFormatDate(service.date)}</TableCell>
                           <TableCell className="text-right font-medium">
                             {formatCurrency(service.value, isLimited)}
                           </TableCell>
