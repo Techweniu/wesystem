@@ -1,140 +1,201 @@
 "use client"
 
-import { useState } from "react"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Search, ExternalLink, Receipt, CreditCard } from "lucide-react"
-import { MarkCostPaymentButton } from "@/components/mark-cost-payment-button"
+import { FileText, ExternalLink, Pencil, Trash2 } from "lucide-react"
+import { MarkCostPaymentButton } from "./mark-cost-payment-button"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+import { deleteCost } from "@/app/dashboard/financial/actions"
+import { toast } from "sonner"
+import { EditCostDialog } from "@/components/edit-cost-dialog" // Assumindo que você tem este componente ou vai criar
+import { useState } from "react"
 import { formatCurrency } from "@/lib/utils"
 
+// --- FUNÇÃO DE FORMATAÇÃO SEGURA ---
+// Recebe "YYYY-MM-DD" e retorna "DD/MM/YYYY" sem alterar fuso horário
+const formatDateDisplay = (dateString: string) => {
+  if (!dateString) return "-";
+  // Quebra a string e remonta invertida. Simples e infalível contra timezone.
+  const parts = dateString.split("T")[0].split("-");
+  if (parts.length === 3) {
+      const [year, month, day] = parts;
+      return `${day}/${month}/${year}`;
+  }
+  return dateString;
+}
+
+interface Cost {
+  id: string
+  description: string
+  value: number
+  category: string
+  date: string
+  is_recurring: boolean
+  status: "pending" | "paid" | "overdue"
+  proof_url?: string | null
+  payment_proof_url?: string | null
+  paid_date?: string | null
+}
+
 interface FinancialTableProps {
-  costs: any[]
+  costs: Cost[]
   userRole?: "admin" | "limited" | null
 }
 
 export function FinancialTable({ costs, userRole }: FinancialTableProps) {
-  const [searchTerm, setSearchTerm] = useState("")
-  const [filterCategory, setFilterCategory] = useState("all")
-  const isLimited = userRole === "limited"
+  const [editingCost, setEditingCost] = useState<Cost | null>(null)
 
-  const uniqueCategories = Array.from(new Set(costs.map((c) => c.category).filter(Boolean)))
-
-  const filteredCosts = costs.filter((cost) => {
-    const matchesSearch =
-      cost.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      cost.category?.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesCategory = filterCategory === "all" || cost.category === filterCategory
-    return matchesSearch && matchesCategory
-  })
+  const handleDelete = async (id: string) => {
+    const result = await deleteCost(id)
+    if (result.success) {
+      toast.success("Custo deletado com sucesso!")
+    } else {
+      toast.error(result.error || "Erro ao deletar custo.")
+    }
+  }
 
   return (
-    <div className="space-y-4">
-      <div className="flex gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Buscar..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-        <Select value={filterCategory} onValueChange={setFilterCategory}>
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="Categoria" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas Categorias</SelectItem>
-            {uniqueCategories.map((cat) => (
-              <SelectItem key={cat} value={cat}>
-                {cat}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Descrição</TableHead>
-              <TableHead>Categoria</TableHead>
-              <TableHead>Tipo</TableHead>
-              <TableHead>Data</TableHead>
-              <TableHead className="text-right">Valor</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-center">Comprov. Custo</TableHead>
-              <TableHead className="text-center">Comprov. Pagamento</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredCosts.length > 0 ? (
-              filteredCosts.map((cost) => (
-                <TableRow key={cost.id}>
-                  <TableCell>
-                    <p className="font-medium">{cost.description}</p>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{cost.category || "Sem categoria"}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={cost.is_recurring ? "default" : "secondary"}>
-                      {cost.is_recurring ? "Recorrente" : "Pontual"}
+    <div className="rounded-md border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Descrição</TableHead>
+            <TableHead>Categoria</TableHead>
+            <TableHead>Vencimento</TableHead>
+            <TableHead>Pagamento</TableHead>
+            <TableHead className="text-right">Valor</TableHead>
+            <TableHead className="text-center">Status</TableHead>
+            <TableHead className="text-center">Ações</TableHead>
+            <TableHead className="text-center">Comprovantes</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {costs.length > 0 ? (
+            costs.map((cost) => (
+              <TableRow key={cost.id}>
+                <TableCell className="font-medium">
+                  {cost.description}
+                  {cost.is_recurring && (
+                    <Badge variant="outline" className="ml-2 text-xs">
+                      Recorrente
                     </Badge>
-                  </TableCell>
-                  <TableCell>{new Date(cost.date).toLocaleDateString("pt-BR")}</TableCell>
-                  <TableCell className="text-right font-medium">
-                    {formatCurrency(cost.value, isLimited)}
-                  </TableCell>
-                  <TableCell>
-                    {!isLimited ? (
-                        <MarkCostPaymentButton costId={cost.id} amount={cost.value} isPaid={cost.status === "paid"} />
-                    ) : (
-                        <span className="text-xs text-muted-foreground">Acesso restrito</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    {cost.proof_url ? (
-                      <Button variant="ghost" size="sm" asChild className="gap-1">
-                        <a href={cost.proof_url} target="_blank" rel="noopener noreferrer">
-                          <Receipt className="h-4 w-4" />
-                          <span className="hidden sm:inline">Ver</span>
-                          <ExternalLink className="h-3 w-3" />
+                  )}
+                </TableCell>
+                <TableCell>{cost.category}</TableCell>
+                
+                {/* AQUI ESTÁ A CORREÇÃO VISUAL: Usa formatDateDisplay */}
+                <TableCell>{formatDateDisplay(cost.date)}</TableCell>
+                
+                <TableCell>
+                  {cost.paid_date ? formatDateDisplay(cost.paid_date) : "-"}
+                </TableCell>
+
+                <TableCell className="text-right font-medium">
+                  {formatCurrency(cost.value, userRole === "limited")}
+                </TableCell>
+                <TableCell className="text-center">
+                  <Badge
+                    variant={
+                      cost.status === "paid"
+                        ? "default"
+                        : cost.status === "overdue"
+                        ? "destructive"
+                        : "secondary"
+                    }
+                  >
+                    {cost.status === "paid"
+                      ? "Pago"
+                      : cost.status === "overdue"
+                      ? "Atrasado"
+                      : "Pendente"}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-center">
+                  {userRole !== "limited" ? (
+                    <div className="flex items-center justify-center gap-2">
+                       <MarkCostPaymentButton
+                        costId={cost.id}
+                        amount={cost.value}
+                        isPaid={cost.status === "paid"}
+                      />
+                      
+                      {/* Botão de Editar (Simplificado) */}
+                      {/* Se você tiver o EditCostDialog, descomente e use aqui */}
+                      {/* <Button variant="ghost" size="icon" onClick={() => setEditingCost(cost)}>
+                           <Pencil className="h-4 w-4" />
+                         </Button> 
+                      */}
+
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive">
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Tem certeza?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Esta ação não pode ser desfeita. Isso excluirá permanentemente o custo.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => handleDelete(cost.id)}>
+                              Deletar
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">Restrito</span>
+                  )}
+                </TableCell>
+                <TableCell className="text-center">
+                   <div className="flex flex-col gap-1 items-center">
+                    {cost.proof_url && (
+                        <a href={cost.proof_url} target="_blank" rel="noopener noreferrer" className="text-xs flex items-center gap-1 hover:underline text-blue-600">
+                            <FileText className="h-3 w-3" /> Nota
                         </a>
-                      </Button>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">-</span>
                     )}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    {cost.payment_proof_url ? (
-                      <Button variant="ghost" size="sm" asChild className="gap-1">
-                        <a href={cost.payment_proof_url} target="_blank" rel="noopener noreferrer">
-                          <CreditCard className="h-4 w-4 text-green-600" />
-                          <span className="hidden sm:inline">Ver</span>
-                          <ExternalLink className="h-3 w-3" />
+                    {cost.payment_proof_url && (
+                        <a href={cost.payment_proof_url} target="_blank" rel="noopener noreferrer" className="text-xs flex items-center gap-1 hover:underline text-green-600">
+                             <FileText className="h-3 w-3" /> Pagto
                         </a>
-                      </Button>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">-</span>
                     )}
-                  </TableCell>
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
-                  Nenhum custo encontrado
+                    {!cost.proof_url && !cost.payment_proof_url && <span className="text-muted-foreground text-xs">-</span>}
+                   </div>
                 </TableCell>
               </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
+            ))
+          ) : (
+            <TableRow>
+              <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+                Nenhum custo encontrado.
+              </TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
     </div>
   )
 }
