@@ -1,7 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/server" // Admin Client
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Users, FileText, ExternalLink } from "lucide-react"
+import { Users, FileText, ExternalLink, ArrowDownCircle, ArrowUpCircle } from "lucide-react"
 import { AddCostDialog } from "@/components/add-cost-dialog"
 import { FinancialTable } from "@/components/financial-table"
 import { FinancialCharts } from "@/components/financial-charts"
@@ -9,6 +9,8 @@ import { PeriodSelector } from "@/components/period-selector"
 import { ClientPaymentsTable } from "@/components/client-payments-table"
 import { FinancialSummaryCards } from "@/components/financial-summary-cards"
 import { EmployeePaymentsTable } from "@/components/employee-payments-table"
+import { GeneralInflowsTable } from "@/components/general-inflows-table"
+import { GeneralOutflowsTable } from "@/components/general-outflows-table"
 import { parseISO, format, startOfMonth, endOfMonth, subDays, startOfYear, endOfYear, addMonths } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import {
@@ -34,6 +36,16 @@ const safeFormatDate = (dateStr: string | null | undefined) => {
         return `${parts[2]}/${parts[1]}/${parts[0]}`;
     }
     return dateStr;
+}
+
+// Helper para converter DD/MM/YYYY para Date para ordenação
+const parseBrDate = (dateStr: string) => {
+  if (!dateStr || dateStr === "-") return new Date(0);
+  const parts = dateStr.split("/");
+  if (parts.length === 3) {
+    return new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+  }
+  return new Date(0);
 }
 
 // Função auxiliar para calcular o período
@@ -137,7 +149,7 @@ async function getFinancialData(period: string) {
       clientId: payment.client_id,
       clientName: payment.clients?.name || "Cliente Desconhecido",
       amount: Number(payment.amount),
-      date: safeFormatDate(payment.payment_date), // CORREÇÃO AQUI
+      date: safeFormatDate(payment.payment_date), 
       status: 'paid',
       proofUrl: payment.proof_url
     })
@@ -153,7 +165,7 @@ async function getFinancialData(period: string) {
       clientId: contract.client_id,
       clientName: contract.clients?.name || "Cliente Desconhecido",
       amount: Number(contract.valor_mensal),
-      date: format(nextDate, "dd/MM/yyyy"), // Aqui é objeto Date criado localmente, ok usar format
+      date: format(nextDate, "dd/MM/yyyy"), 
       status: 'pending',
       proofUrl: null
     })
@@ -168,7 +180,7 @@ async function getFinancialData(period: string) {
       employeeId: payment.employee_id,
       employeeName: payment.employees?.name || "Colaborador",
       amount: Number(payment.amount),
-      date: safeFormatDate(payment.payment_date), // CORREÇÃO AQUI
+      date: safeFormatDate(payment.payment_date), 
       status: 'paid',
       proofUrl: payment.proof_url
     })
@@ -196,6 +208,52 @@ async function getFinancialData(period: string) {
      return a.employeeName.localeCompare(b.employeeName)
   })
 
+  // --- CONSTRUÇÃO DAS TABELAS GERAIS ---
+
+  // 1. Entradas Gerais (Contratos + Serviços)
+  const generalInflows = [
+    ...clientPaymentsData.map((p: any) => ({
+      id: p.uniqueKey,
+      description: p.clientName,
+      category: "Contrato (MRR)",
+      date: p.date,
+      amount: p.amount,
+      status: p.status,
+      rawDate: parseBrDate(p.date)
+    })),
+    ...safeServices.map((s) => ({
+      id: s.id,
+      description: s.clients?.name || "Serviço Avulso",
+      category: "Serviço Pontual",
+      date: safeFormatDate(s.date),
+      amount: Number(s.value),
+      status: s.received_date ? 'completed' : s.status,
+      rawDate: new Date(s.date)
+    }))
+  ].sort((a, b) => b.rawDate.getTime() - a.rawDate.getTime())
+
+  // 2. Saídas Gerais (Custos + Folha)
+  const generalOutflows = [
+    ...safeCosts.map((c) => ({
+      id: c.id,
+      description: c.description,
+      category: c.category,
+      date: safeFormatDate(c.date),
+      amount: Number(c.value),
+      status: c.status,
+      rawDate: new Date(c.date)
+    })),
+    ...employeePaymentsData.map((e: any) => ({
+      id: e.uniqueKey,
+      description: `Salário: ${e.employeeName}`,
+      category: "Folha de Pagamento",
+      date: e.date,
+      amount: e.amount,
+      status: e.status,
+      rawDate: parseBrDate(e.date)
+    }))
+  ].sort((a, b) => b.rawDate.getTime() - a.rawDate.getTime())
+
   const totalCosts = salariesPaid + salariesPending + otherCostsPaid + otherCostsPending
 
   return {
@@ -214,7 +272,9 @@ async function getFinancialData(period: string) {
     employeePayments: employeePaymentsData,
     services: safeServices,
     employees: safeEmployees,
-    costCategories: costCategoriesResult.data || []
+    costCategories: costCategoriesResult.data || [],
+    generalInflows,
+    generalOutflows
   }
 }
 
@@ -245,6 +305,8 @@ export default async function FinancialPage({
     services: rawData.services.map(s => ({ ...s, value: 0 })),
     employeePayments: rawData.employeePayments.map(e => ({ ...e, amount: 0 })),
     clientPayments: rawData.clientPayments.map(c => ({ ...c, amount: 0 })),
+    generalInflows: rawData.generalInflows.map(i => ({ ...i, amount: 0 })),
+    generalOutflows: rawData.generalOutflows.map(o => ({ ...o, amount: 0 })),
   } : rawData
 
   return (
@@ -276,14 +338,24 @@ export default async function FinancialPage({
       
       <FinancialCharts costs={data.costs} costsByCategory={data.costsByCategory} />
       
-      <Tabs defaultValue="costs" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="clientPayments"><Users className="mr-2 h-4 w-4" /> Pagamentos de Clientes</TabsTrigger>
-          <TabsTrigger value="employeePayments"><Users className="mr-2 h-4 w-4" /> Pagamentos de Funcionários</TabsTrigger>
-          <TabsTrigger value="costs">Custos Detalhados</TabsTrigger>
-          <TabsTrigger value="services">Serviços Pontuais</TabsTrigger>
+      <Tabs defaultValue="inflows" className="space-y-4">
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-6 h-auto">
+          <TabsTrigger value="inflows" className="gap-2"><ArrowUpCircle className="h-4 w-4" /> Entradas Gerais</TabsTrigger>
+          <TabsTrigger value="outflows" className="gap-2"><ArrowDownCircle className="h-4 w-4" /> Saídas Gerais</TabsTrigger>
+          <TabsTrigger value="clientPayments"><Users className="mr-2 h-4 w-4" /> Clientes</TabsTrigger>
+          <TabsTrigger value="employeePayments"><Users className="mr-2 h-4 w-4" /> Equipe</TabsTrigger>
+          <TabsTrigger value="costs">Custos</TabsTrigger>
+          <TabsTrigger value="services">Serviços</TabsTrigger>
         </TabsList>
         
+        <TabsContent value="inflows">
+          <GeneralInflowsTable data={data.generalInflows} />
+        </TabsContent>
+
+        <TabsContent value="outflows">
+          <GeneralOutflowsTable data={data.generalOutflows} />
+        </TabsContent>
+
         <TabsContent value="clientPayments">
           <ClientPaymentsTable clientPayments={data.clientPayments} />
         </TabsContent>
