@@ -151,7 +151,8 @@ async function getFinancialData(period: string) {
       amount: Number(payment.amount),
       date: safeFormatDate(payment.payment_date), 
       status: 'paid',
-      proofUrl: payment.proof_url
+      proofUrl: payment.proof_url, // Comprovante de Pagamento
+      invoiceUrl: (payment as any).invoice_url || null // Nota Fiscal (se existir no banco)
     })
   })
   safeContracts.forEach(contract => {
@@ -167,7 +168,8 @@ async function getFinancialData(period: string) {
       amount: Number(contract.valor_mensal),
       date: format(nextDate, "dd/MM/yyyy"), 
       status: 'pending',
-      proofUrl: null
+      proofUrl: null,
+      invoiceUrl: null
     })
   })
   clientPaymentsData.sort((a, b) => a.clientName.localeCompare(b.clientName) || (a.status === 'pending' ? 1 : -1))
@@ -182,7 +184,8 @@ async function getFinancialData(period: string) {
       amount: Number(payment.amount),
       date: safeFormatDate(payment.payment_date), 
       status: 'paid',
-      proofUrl: payment.proof_url
+      proofUrl: payment.proof_url, // Comprovante (Recibo)
+      invoiceUrl: null // Geralmente não tem NF de funcionário CLT, mas PJ pode ter
     })
   })
   safeEmployees.forEach(emp => {
@@ -199,7 +202,8 @@ async function getFinancialData(period: string) {
           amount: Number(emp.salary),
           date: format(nextDate, "dd/MM/yyyy"),
           status: 'pending',
-          proofUrl: null
+          proofUrl: null,
+          invoiceUrl: null
         })
     }
   })
@@ -219,7 +223,9 @@ async function getFinancialData(period: string) {
       date: p.date,
       amount: p.amount,
       status: p.status,
-      rawDate: parseBrDate(p.date)
+      rawDate: parseBrDate(p.date),
+      receiptUrl: p.proofUrl,
+      invoiceUrl: p.invoiceUrl
     })),
     ...safeServices.map((s) => ({
       id: s.id,
@@ -228,7 +234,9 @@ async function getFinancialData(period: string) {
       date: safeFormatDate(s.date),
       amount: Number(s.value),
       status: s.received_date ? 'completed' : s.status,
-      rawDate: new Date(s.date)
+      rawDate: new Date(s.date),
+      receiptUrl: s.payment_proof_url || (s as any).proof_url, // Tenta mapear o que tiver
+      invoiceUrl: (s as any).invoice_url || null
     }))
   ].sort((a, b) => b.rawDate.getTime() - a.rawDate.getTime())
 
@@ -241,7 +249,9 @@ async function getFinancialData(period: string) {
       date: safeFormatDate(c.date),
       amount: Number(c.value),
       status: c.status,
-      rawDate: new Date(c.date)
+      rawDate: new Date(c.date),
+      receiptUrl: c.payment_proof_url || (c as any).proof_url, // Comprovante de Pagamento
+      invoiceUrl: (c as any).invoice_url || null // Nota Fiscal
     })),
     ...employeePaymentsData.map((e: any) => ({
       id: e.uniqueKey,
@@ -250,7 +260,9 @@ async function getFinancialData(period: string) {
       date: e.date,
       amount: e.amount,
       status: e.status,
-      rawDate: parseBrDate(e.date)
+      rawDate: parseBrDate(e.date),
+      receiptUrl: e.proofUrl,
+      invoiceUrl: null
     }))
   ].sort((a, b) => b.rawDate.getTime() - a.rawDate.getTime())
 
