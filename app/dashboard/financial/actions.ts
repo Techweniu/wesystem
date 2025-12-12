@@ -282,6 +282,7 @@ export async function markCostAsPaid(formData: FormData) {
       access: "public",
     })
 
+    // 1. Atualiza o custo atual para PAGO
     const { error: paymentError } = await supabaseAdmin
       .from("costs")
       .update({
@@ -293,11 +294,15 @@ export async function markCostAsPaid(formData: FormData) {
 
     if (paymentError) return { error: paymentError.message }
 
+    // 2. Se for recorrente, cria o PRÓXIMO custo
     if (cost.is_recurring) {
       const recurrenceDays = cost.recurrence_days || 30 // fallback to 30 if not set
       const nextDate = new Date(cost.date)
       nextDate.setDate(nextDate.getDate() + recurrenceDays)
 
+      // Cria a nova linha (histórico cumulativo).
+      // IMPORTANTE: proof_url é setado como null, pois o comprovante do novo custo
+      // (a fatura do próximo mês) ainda não existe.
       await supabaseAdmin.from("costs").insert({
         description: cost.description,
         value: cost.value,
@@ -307,8 +312,8 @@ export async function markCostAsPaid(formData: FormData) {
         recurrence_days: recurrenceDays,
         paid_date: null,
         status: "pending",
-        proof_url: cost.proof_url, // Keep original cost proof
-        payment_proof_url: null,
+        proof_url: null, // Novo custo começa sem comprovante (nota fiscal)
+        payment_proof_url: null, // E sem comprovante de pagamento
       })
     }
 
