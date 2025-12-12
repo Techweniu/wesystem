@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { FileText, ExternalLink, Pencil, Trash2 } from "lucide-react"
+import { FileText, Trash2 } from "lucide-react"
 import { MarkCostPaymentButton } from "./mark-cost-payment-button"
 import {
   AlertDialog,
@@ -25,15 +25,12 @@ import {
 } from "@/components/ui/alert-dialog"
 import { deleteCost } from "@/app/dashboard/financial/actions"
 import { toast } from "sonner"
-import { EditCostDialog } from "@/components/edit-cost-dialog" // Assumindo que você tem este componente ou vai criar
-import { useState } from "react"
 import { formatCurrency } from "@/lib/utils"
 
 // --- FUNÇÃO DE FORMATAÇÃO SEGURA ---
 // Recebe "YYYY-MM-DD" e retorna "DD/MM/YYYY" sem alterar fuso horário
 const formatDateDisplay = (dateString: string) => {
   if (!dateString) return "-";
-  // Quebra a string e remonta invertida. Simples e infalível contra timezone.
   const parts = dateString.split("T")[0].split("-");
   if (parts.length === 3) {
       const [year, month, day] = parts;
@@ -61,8 +58,6 @@ interface FinancialTableProps {
 }
 
 export function FinancialTable({ costs, userRole }: FinancialTableProps) {
-  const [editingCost, setEditingCost] = useState<Cost | null>(null)
-
   const handleDelete = async (id: string) => {
     const result = await deleteCost(id)
     if (result.success) {
@@ -101,7 +96,6 @@ export function FinancialTable({ costs, userRole }: FinancialTableProps) {
                 </TableCell>
                 <TableCell>{cost.category}</TableCell>
                 
-                {/* AQUI ESTÁ A CORREÇÃO VISUAL: Usa formatDateDisplay */}
                 <TableCell>{formatDateDisplay(cost.date)}</TableCell>
                 
                 <TableCell>
@@ -137,13 +131,6 @@ export function FinancialTable({ costs, userRole }: FinancialTableProps) {
                         isPaid={cost.status === "paid"}
                       />
                       
-                      {/* Botão de Editar (Simplificado) */}
-                      {/* Se você tiver o EditCostDialog, descomente e use aqui */}
-                      {/* <Button variant="ghost" size="icon" onClick={() => setEditingCost(cost)}>
-                           <Pencil className="h-4 w-4" />
-                         </Button> 
-                      */}
-
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive">
