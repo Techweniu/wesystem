@@ -8,24 +8,25 @@ import Link from "next/link"
 import { MarkPaymentButton } from "./mark-payment-button"
 import { FileText, ExternalLink } from "lucide-react"
 
-interface EmployeePaymentInfo {
+interface EmployeePaymentItem {
+  uniqueKey: string
   employeeId: string
   employeeName: string
-  salary: number
-  isPaidThisMonth: boolean
-  nextPaymentDate: string | null
+  amount: number
+  date: string // Data do pagamento ou vencimento
+  status: 'paid' | 'pending'
   proofUrl?: string | null
 }
 
 interface EmployeePaymentsTableProps {
-  employeePayments: EmployeePaymentInfo[]
+  employeePayments: EmployeePaymentItem[]
 }
 
 export function EmployeePaymentsTable({ employeePayments }: EmployeePaymentsTableProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Próximos Pagamentos de Funcionários</CardTitle>
+        <CardTitle>Folha de Pagamento (Histórico e Previsão)</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="rounded-md border">
@@ -33,52 +34,51 @@ export function EmployeePaymentsTable({ employeePayments }: EmployeePaymentsTabl
             <TableHeader>
               <TableRow>
                 <TableHead>Funcionário</TableHead>
-                <TableHead>Próximo Pagamento</TableHead>
-                <TableHead className="text-right">Salário</TableHead>
-                <TableHead className="text-center">Status (Mês Atual)</TableHead>
+                <TableHead>Data (Ref.)</TableHead>
+                <TableHead className="text-right">Valor</TableHead>
+                <TableHead className="text-center">Status</TableHead>
                 <TableHead className="text-center w-[180px]">Ação</TableHead>
                 <TableHead className="text-center">Comprovante</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {employeePayments.length > 0 ? (
-                employeePayments.map((payment) => (
-                  <TableRow key={payment.employeeId}>
+                employeePayments.map((item) => (
+                  <TableRow key={item.uniqueKey}>
                     <TableCell className="font-medium">
-                      <Link href={`/dashboard/team/${payment.employeeId}`} className="hover:underline">
-                        {payment.employeeName}
+                      <Link href={`/dashboard/team/${item.employeeId}`} className="hover:underline">
+                        {item.employeeName}
                       </Link>
                     </TableCell>
                     <TableCell>
-                      {payment.nextPaymentDate || <span className="text-muted-foreground italic">Não definido</span>}
+                      {item.date}
                     </TableCell>
                     <TableCell className="text-right font-medium">
-                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(payment.salary)}
+                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(item.amount)}
                     </TableCell>
                     <TableCell className="text-center">
-                      <Badge variant={payment.isPaidThisMonth ? "default" : "secondary"}>
-                        {payment.isPaidThisMonth ? "Pago" : "Pendente"}
+                      <Badge variant={item.status === 'paid' ? "default" : "secondary"}>
+                        {item.status === 'paid' ? "Pago" : "Pendente"}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-center">
                       <MarkPaymentButton
-                        employeeId={payment.employeeId}
-                        employeeName={payment.employeeName}
-                        salary={payment.salary}
-                        isPaidThisMonth={payment.isPaidThisMonth}
+                        employeeId={item.employeeId}
+                        salary={item.amount}
+                        isPaidThisMonth={item.status === 'paid'}
                       />
                     </TableCell>
                     <TableCell className="text-center">
-                      {payment.proofUrl ? (
+                      {item.proofUrl ? (
                         <Button variant="ghost" size="sm" asChild className="gap-2">
-                          <a href={payment.proofUrl} target="_blank" rel="noopener noreferrer">
+                          <a href={item.proofUrl} target="_blank" rel="noopener noreferrer">
                             <FileText className="h-4 w-4" />
                             Ver comprovante
                             <ExternalLink className="h-3 w-3" />
                           </a>
                         </Button>
                       ) : (
-                        <span className="text-sm text-muted-foreground">Sem comprovante</span>
+                        <span className="text-sm text-muted-foreground">-</span>
                       )}
                     </TableCell>
                   </TableRow>
@@ -86,7 +86,7 @@ export function EmployeePaymentsTable({ employeePayments }: EmployeePaymentsTabl
               ) : (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                    Nenhum funcionário ativo encontrado.
+                    Nenhum registro encontrado.
                   </TableCell>
                 </TableRow>
               )}
