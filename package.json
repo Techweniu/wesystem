@@ -43,6 +43,7 @@
     "@vercel/blob": "latest",
     "ai": "latest",
     "autoprefixer": "^10.4.20",
+    "bufferutil": "latest",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "latest",
@@ -66,6 +67,7 @@
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
     "use-debounce": "latest",
+    "utf-8-validate": "latest",
     "vaul": "^0.9.9",
     "ws": "latest",
     "zod": "3.25.76"
