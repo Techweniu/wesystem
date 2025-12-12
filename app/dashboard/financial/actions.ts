@@ -282,7 +282,7 @@ export async function markCostAsPaid(formData: FormData) {
       access: "public",
     })
 
-    // 1. Atualiza o custo atual para PAGO
+    // 1. Atualiza o custo ATUAL para PAGO
     const { error: paymentError } = await supabaseAdmin
       .from("costs")
       .update({
@@ -294,15 +294,17 @@ export async function markCostAsPaid(formData: FormData) {
 
     if (paymentError) return { error: paymentError.message }
 
-    // 2. Se for recorrente, cria o PRÓXIMO custo
+    // 2. Se for recorrente, CRIA A PRÓXIMA FATURA IMEDIATAMENTE
     if (cost.is_recurring) {
-      const recurrenceDays = cost.recurrence_days || 30 // fallback to 30 if not set
-      const nextDate = new Date(cost.date)
-      nextDate.setDate(nextDate.getDate() + recurrenceDays)
+      const recurrenceDays = cost.recurrence_days || 30 // fallback
+      
+      // Calcula a data da próxima fatura baseada na data original da fatura atual
+      // para manter o ciclo (ex: dia 10 de cada mês), independente de que dia pagou.
+      const currentDueDate = new Date(cost.date)
+      const nextDate = new Date(currentDueDate)
+      nextDate.setDate(currentDueDate.getDate() + recurrenceDays)
 
-      // Cria a nova linha (histórico cumulativo).
-      // IMPORTANTE: proof_url é setado como null, pois o comprovante do novo custo
-      // (a fatura do próximo mês) ainda não existe.
+      // Inserção imediata da nova linha no banco
       await supabaseAdmin.from("costs").insert({
         description: cost.description,
         value: cost.value,
@@ -312,8 +314,8 @@ export async function markCostAsPaid(formData: FormData) {
         recurrence_days: recurrenceDays,
         paid_date: null,
         status: "pending",
-        proof_url: null, // Novo custo começa sem comprovante (nota fiscal)
-        payment_proof_url: null, // E sem comprovante de pagamento
+        proof_url: null, // Nasce sem comprovante (nota fiscal)
+        payment_proof_url: null, // Nasce sem comprovante de pagamento
       })
     }
 
@@ -342,12 +344,16 @@ export async function undoCostPayment(formData: FormData) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
     )
 
+    // Reverte apenas o status do custo atual.
+    // NOTA: Se o custo era recorrente, o markCostAsPaid já criou o próximo.
+    // Optamos por não deletar automaticamente o próximo para evitar perda de dados
+    // caso o usuário já tenha editado a nova fatura. O usuário pode deletar manualmente se for duplicata.
     const { error } = await supabaseAdmin
       .from("costs")
       .update({
         paid_date: null,
         status: "pending",
-        payment_proof_url: null, // Only clear payment proof
+        payment_proof_url: null,
       })
       .eq("id", costId)
 
