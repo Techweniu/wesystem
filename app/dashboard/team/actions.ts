@@ -266,7 +266,7 @@ export async function addEmployeeContribution(formData: FormData) {
   return { success: "Contribuição registrada com sucesso!" }
 }
 
-// --- AÇÃO PARA ADICIONAR PLANO DE CARREIRA ---
+// --- AÇÃO PARA ADICIONAR ARQUIVO DE PLANO DE CARREIRA (LEGADO) ---
 const addCareerPlanSchema = z.object({
   employeeId: z.string().uuid("ID do colaborador inválido."),
   career_plan_file: z.instanceof(File).refine((file) => file.size > 0, "O arquivo do plano de carreira é obrigatório."),
@@ -332,4 +332,45 @@ export async function addCareerPlan(formData: FormData) {
     console.error("Erro ao processar plano de carreira:", error)
     return { error: "Erro ao processar plano de carreira." }
   }
+}
+
+// --- NOVA AÇÃO: SALVAR PAINEL DO PLANO DE CARREIRA ---
+const updateCareerPlanPanelSchema = z.object({
+  employeeId: z.string().uuid(),
+  content: z.string().optional().or(z.literal("")),
+  goals: z.string(), // JSON String
+  expirationDate: z.string().optional().or(z.literal("")),
+})
+
+export async function updateCareerPlanPanel(formData: FormData) {
+  const rawData = Object.fromEntries(formData)
+  const validatedFields = updateCareerPlanPanelSchema.safeParse(rawData)
+
+  if (!validatedFields.success) {
+    return { error: "Dados inválidos." }
+  }
+
+  const { employeeId, content, goals, expirationDate } = validatedFields.data
+  
+  const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+
+  // Converte string vazia para null para data
+  const dateToSave = expirationDate && expirationDate.length > 0 ? expirationDate : null;
+
+  const { error } = await supabaseAdmin
+    .from("employees")
+    .update({
+      career_plan_content: content || null,
+      career_plan_goals: JSON.parse(goals),
+      career_plan_expiration_date: dateToSave // Atualiza a data existente
+    })
+    .eq("id", employeeId)
+
+  if (error) {
+    console.error("Erro ao atualizar plano de carreira (painel):", error)
+    return { error: "Erro ao salvar o plano de carreira." }
+  }
+
+  revalidatePath(`/dashboard/team/${employeeId}`)
+  return { success: "Plano de carreira atualizado com sucesso!" }
 }
