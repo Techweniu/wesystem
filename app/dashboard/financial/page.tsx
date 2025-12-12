@@ -58,15 +58,20 @@ async function getFinancialData(period: string) {
 
   // 1. Buscar Dados em Paralelo
   const [
-    { data: costs },
-    { data: oneTimeServices },
-    { data: clientPayments },
-    { data: employeePayments },
-    { data: activeContracts },
-    { data: activeEmployees },
-    { data: costCategories }
+    costsInRangeResult,
+    overdueCostsResult, // Buscar custos atrasados
+    oneTimeServicesResult,
+    clientPaymentsResult,
+    employeePaymentsResult,
+    activeContractsResult,
+    activeEmployeesResult,
+    costCategoriesResult
   ] = await Promise.all([
+    // Custos dentro do período selecionado
     supabase.from("costs").select("*").gte("date", start).lte("date", end).order("date", { ascending: false }),
+    // Custos atrasados (pending) anteriores ao início do período
+    supabase.from("costs").select("*").eq("status", "pending").lt("date", start).order("date", { ascending: true }),
+    
     supabase.from("one_time_services").select("*, clients(name)").gte("date", start).lte("date", end).order("date", { ascending: false }),
     supabase.from("client_payments").select("*, clients(name)").gte("payment_date", start).lte("payment_date", end).order("payment_date", { ascending: false }),
     supabase.from("employee_payments").select("*, employees(name)").gte("payment_date", start).lte("payment_date", end).order("payment_date", { ascending: false }),
@@ -75,12 +80,17 @@ async function getFinancialData(period: string) {
     supabase.from("cost_categories").select("*").order("name")
   ])
 
-  const safeCosts = costs || []
-  const safeServices = oneTimeServices || []
-  const safeClientPayments = clientPayments || []
-  const safeEmployeePayments = employeePayments || []
-  const safeContracts = activeContracts || []
-  const safeEmployees = activeEmployees || []
+  // Combinar custos do período com custos atrasados
+  const safeCosts = [
+    ...(overdueCostsResult.data || []),
+    ...(costsInRangeResult.data || [])
+  ]
+
+  const safeServices = oneTimeServicesResult.data || []
+  const safeClientPayments = clientPaymentsResult.data || []
+  const safeEmployeePayments = employeePaymentsResult.data || []
+  const safeContracts = activeContractsResult.data || []
+  const safeEmployees = activeEmployeesResult.data || []
 
   // --- CÁLCULOS DE RECEITA ---
   const contractsReceived = safeClientPayments.reduce((sum, p) => sum + Number(p.amount), 0)
@@ -185,13 +195,13 @@ async function getFinancialData(period: string) {
     otherCostsPaid,
     otherCostsPending,
     totalCosts,
-    costs: safeCosts,
+    costs: safeCosts, // Agora inclui custos atrasados
     costsByCategory,
     clientPayments: uniqueClientPayments,
     employeePayments: employeePaymentsData,
     services: safeServices,
     employees: safeEmployees,
-    costCategories: costCategories || []
+    costCategories: costCategoriesResult.data || []
   }
 }
 
