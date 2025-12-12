@@ -57,7 +57,7 @@ async function getFinancialData(period: string) {
   // 1. Buscar Dados em Paralelo
   const [
     costsInRangeResult,
-    overdueCostsResult, // Buscar custos atrasados
+    allPendingCostsResult, // ALTERADO: Busca TODOS os pendentes (passado e futuro)
     oneTimeServicesResult,
     clientPaymentsResult,
     employeePaymentsResult,
@@ -65,10 +65,13 @@ async function getFinancialData(period: string) {
     activeEmployeesResult,
     costCategoriesResult
   ] = await Promise.all([
-    // Custos dentro do período selecionado
+    // Custos dentro do período selecionado (pagos ou pendentes que caem no mês)
     supabase.from("costs").select("*").gte("date", start).lte("date", end).order("date", { ascending: false }),
-    // Custos atrasados (pending) anteriores ao início do período
-    supabase.from("costs").select("*").eq("status", "pending").lt("date", start).order("date", { ascending: true }),
+    
+    // ALTERAÇÃO CRÍTICA: Busca TODOS os custos pendentes, sem filtro de data.
+    // Isso garante que se eu pagar uma conta hoje e ela gerar uma para o mês que vem,
+    // a do mês que vem aparece aqui.
+    supabase.from("costs").select("*").eq("status", "pending").order("date", { ascending: true }),
     
     supabase.from("one_time_services").select("*, clients(name)").gte("date", start).lte("date", end).order("date", { ascending: false }),
     supabase.from("client_payments").select("*, clients(name)").gte("payment_date", start).lte("payment_date", end).order("payment_date", { ascending: false }),
@@ -78,11 +81,20 @@ async function getFinancialData(period: string) {
     supabase.from("cost_categories").select("*").order("name")
   ])
 
-  // Combinar custos do período com custos atrasados
-  const safeCosts = [
-    ...(overdueCostsResult.data || []),
-    ...(costsInRangeResult.data || [])
-  ]
+  // --- COMBINAÇÃO DE CUSTOS (Lógica Cumulativa) ---
+  const safeCostsMap = new Map()
+
+  // 1. Adiciona custos do mês atual (Pagos e Pendentes da data)
+  costsInRangeResult.data?.forEach(c => safeCostsMap.set(c.id, c))
+
+  // 2. Adiciona/Sobrescreve com TODOS os pendentes (Atrasados e Futuros)
+  // Isso garante que a "próxima conta" sempre apareça, mesmo se for mês que vem
+  allPendingCostsResult.data?.forEach(c => safeCostsMap.set(c.id, c))
+
+  // 3. Converte para array e ordena (Mais recente/futuro no topo)
+  const safeCosts = Array.from(safeCostsMap.values()).sort((a, b) => {
+    return new Date(b.date).getTime() - new Date(a.date).getTime()
+  })
 
   const safeServices = oneTimeServicesResult.data || []
   const safeClientPayments = clientPaymentsResult.data || []
@@ -104,22 +116,27 @@ async function getFinancialData(period: string) {
     .reduce((sum, s) => sum + Number(s.value), 0)
 
   // --- CÁLCULOS DE CUSTOS (KPIs) ---
+  // Nota: Para os totais do dashboard (KPI cards), usamos apenas os dados DENTRO do período (range),
+  // para não distorcer o fluxo de caixa do mês com contas de 2025.
   const salariesPaid = safeEmployeePayments.reduce((sum, p) => sum + Number(p.amount), 0)
   const totalSalariesExpected = safeEmployees.reduce((sum, e) => sum + Number(e.salary), 0)
   const salariesPending = Math.max(0, totalSalariesExpected - salariesPaid)
 
-  const otherCostsPaid = safeCosts
+  // Filtra apenas custos DO MÊS para os cartões de resumo
+  const costsForKpi = safeCosts.filter(c => c.date >= start && c.date <= end)
+
+  const otherCostsPaid = costsForKpi
     .filter(c => c.status === 'paid')
     .reduce((sum, c) => sum + Number(c.value), 0)
   
-  const otherCostsPending = safeCosts
+  const otherCostsPending = costsForKpi
     .filter(c => c.status === 'pending')
     .reduce((sum, c) => sum + Number(c.value), 0)
 
-  // --- PREPARAÇÃO DE DADOS PARA TABELAS (LÓGICA CUMULATIVA) ---
+  // --- PREPARAÇÃO DE DADOS PARA TABELAS ---
 
   const costsByCategory: Record<string, number> = {}
-  safeCosts.forEach(c => {
+  costsForKpi.forEach(c => {
     const cat = c.category || 'Outros'
     costsByCategory[cat] = (costsByCategory[cat] || 0) + Number(c.value)
   })
@@ -127,10 +144,8 @@ async function getFinancialData(period: string) {
     costsByCategory['Salários'] = salariesPaid + salariesPending
   }
 
-  // --- LÓGICA DE CLIENTES (Histórico + Previsão) ---
+  // --- LÓGICA DE CLIENTES ---
   const clientPaymentsData = [] as any[]
-  
-  // 1. Adicionar Histórico (Pagamentos já feitos no período)
   safeClientPayments.forEach(payment => {
     clientPaymentsData.push({
       uniqueKey: payment.id,
@@ -142,23 +157,12 @@ async function getFinancialData(period: string) {
       proofUrl: payment.proof_url
     })
   })
-
-  // 2. Adicionar Previsão (Próximo pagamento pendente)
   safeContracts.forEach(contract => {
-    // Verifica se já pagou neste mês (considerando o range selecionado)
     const paidThisMonth = safeClientPayments.some(p => p.client_id === contract.client_id)
-    
-    // Define a data de vencimento (ex: dia 10)
     const today = new Date()
     let nextDate = new Date(today.getFullYear(), today.getMonth(), 10)
-    
-    // Se já pagou o atual, projeta o próximo
-    if (paidThisMonth) {
-       nextDate = addMonths(nextDate, 1)
-    }
+    if (paidThisMonth) nextDate = addMonths(nextDate, 1)
 
-    // Se não pagou, a data é a deste mês.
-    
     clientPaymentsData.push({
       uniqueKey: `${contract.client_id}-pending`,
       clientId: contract.client_id,
@@ -169,20 +173,10 @@ async function getFinancialData(period: string) {
       proofUrl: null
     })
   })
+  clientPaymentsData.sort((a, b) => a.clientName.localeCompare(b.clientName) || (a.status === 'pending' ? 1 : -1))
 
-  // Ordenar por data (mais recente no topo para histórico, futuro no topo para pendentes? Vamos ordenar tudo por data)
-  clientPaymentsData.sort((a, b) => {
-    // Inverter datas para string sort YYYYMMDD ou converter
-    // Simplificando: vamos ordenar status pending primeiro se quiser, ou por data
-    // Vamos agrupar por Cliente para ficar mais organizado visualmente
-    return a.clientName.localeCompare(b.clientName) || (a.status === 'pending' ? 1 : -1)
-  })
-
-
-  // --- LÓGICA DE FUNCIONÁRIOS (Histórico + Previsão) ---
+  // --- LÓGICA DE FUNCIONÁRIOS ---
   const employeePaymentsData = [] as any[]
-
-  // 1. Histórico de pagamentos (tabela employee_payments)
   safeEmployeePayments.forEach(payment => {
     employeePaymentsData.push({
       uniqueKey: payment.id,
@@ -194,20 +188,12 @@ async function getFinancialData(period: string) {
       proofUrl: payment.proof_url
     })
   })
-
-  // 2. Previsão de pagamentos (baseado no cadastro)
   safeEmployees.forEach(emp => {
-    // Verifica se já existe pagamento neste mês para este funcionário
     const paidThisMonth = safeEmployeePayments.some(p => p.employee_id === emp.id)
-    
     if (emp.payment_day) {
         const today = new Date()
         let nextDate = new Date(today.getFullYear(), today.getMonth(), emp.payment_day)
-        
-        // Se já pagou o deste mês, a previsão é para o próximo
-        if (paidThisMonth) {
-            nextDate = addMonths(nextDate, 1)
-        }
+        if (paidThisMonth) nextDate = addMonths(nextDate, 1)
         
         employeePaymentsData.push({
           uniqueKey: `${emp.id}-pending`,
@@ -220,14 +206,8 @@ async function getFinancialData(period: string) {
         })
     }
   })
-
-  // Ordenar: Pendentes primeiro, depois Histórico, ou agrupar por nome
   employeePaymentsData.sort((a, b) => {
-     // Agrupar por nome, depois colocar pendente por último (ou primeiro, dependendo da preferência)
-     // Vamos colocar Pendente NO TOPO se for a mesma pessoa, para ação rápida
-     if (a.employeeName === b.employeeName) {
-        return a.status === 'pending' ? -1 : 1
-     }
+     if (a.employeeName === b.employeeName) return a.status === 'pending' ? -1 : 1
      return a.employeeName.localeCompare(b.employeeName)
   })
 
@@ -243,7 +223,7 @@ async function getFinancialData(period: string) {
     otherCostsPaid,
     otherCostsPending,
     totalCosts,
-    costs: safeCosts, // Agora inclui custos atrasados
+    costs: safeCosts, // AQUI: Lista completa incluindo futuros pendentes
     costsByCategory,
     clientPayments: clientPaymentsData,
     employeePayments: employeePaymentsData,
