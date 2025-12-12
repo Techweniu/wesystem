@@ -271,7 +271,13 @@ export async function markCostAsPaid(formData: FormData) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
     )
 
-    const { data: cost } = await supabaseAdmin.from("costs").select("*").eq("id", costId).single()
+    // CORREÇÃO: Buscamos o funcionário associado para pegar o payment_day
+    const { data: cost } = await supabaseAdmin
+        .from("costs")
+        .select("*, employees(payment_day)")
+        .eq("id", costId)
+        .single()
+
     if (!cost) return { error: "Custo não encontrado." }
 
     const proofFile = formData.get("proof_file") as File
@@ -296,8 +302,25 @@ export async function markCostAsPaid(formData: FormData) {
     // 2. Se for recorrente, cria o PRÓXIMO custo
     if (cost.is_recurring) {
       const recurrenceDays = cost.recurrence_days || 30
-      // CORREÇÃO: Usa função segura que não altera o fuso horário
-      const nextDateString = addDaysToDateString(cost.date, recurrenceDays)
+      let nextDateString = "";
+
+      // LÓGICA DE PAGAMENTO DE FUNCIONÁRIO:
+      // Se houver um funcionário vinculado e ele tiver dia de pagamento definido,
+      // a nova data deve ser esse dia no PRÓXIMO mês.
+      if (cost.employee_id && cost.employees?.payment_day) {
+          const parts = cost.date.split('-')
+          const year = parseInt(parts[0])
+          const monthIndex = parseInt(parts[1]) - 1 // 0-based
+          
+          // Calcula o próximo mês. O objeto Date lida automaticamente com virada de ano.
+          // Usamos 12:00 para evitar problemas de fuso horário voltando o dia.
+          const nextPaymentDate = new Date(year, monthIndex + 1, cost.employees.payment_day, 12, 0, 0)
+          
+          nextDateString = nextPaymentDate.toISOString().split('T')[0]
+      } else {
+          // Lógica padrão: Soma os dias de recorrência
+          nextDateString = addDaysToDateString(cost.date, recurrenceDays)
+      }
 
       await supabaseAdmin.from("costs").insert({
         description: cost.description,
@@ -306,6 +329,7 @@ export async function markCostAsPaid(formData: FormData) {
         date: nextDateString,
         is_recurring: true,
         recurrence_days: recurrenceDays,
+        employee_id: cost.employee_id, // Mantém o vínculo
         paid_date: null,
         status: "pending",
         proof_url: null,
