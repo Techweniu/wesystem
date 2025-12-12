@@ -299,7 +299,6 @@ export async function markCostAsPaid(formData: FormData) {
       const recurrenceDays = cost.recurrence_days || 30 // fallback
       
       // Calcula a data da próxima fatura baseada na data original da fatura atual
-      // para manter o ciclo (ex: dia 10 de cada mês), independente de que dia pagou.
       const currentDueDate = new Date(cost.date)
       const nextDate = new Date(currentDueDate)
       nextDate.setDate(currentDueDate.getDate() + recurrenceDays)
@@ -345,9 +344,6 @@ export async function undoCostPayment(formData: FormData) {
     )
 
     // Reverte apenas o status do custo atual.
-    // NOTA: Se o custo era recorrente, o markCostAsPaid já criou o próximo.
-    // Optamos por não deletar automaticamente o próximo para evitar perda de dados
-    // caso o usuário já tenha editado a nova fatura. O usuário pode deletar manualmente se for duplicata.
     const { error } = await supabaseAdmin
       .from("costs")
       .update({
