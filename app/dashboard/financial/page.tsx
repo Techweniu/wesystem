@@ -22,6 +22,7 @@ import Link from "next/link"
 import { MarkServiceReceivedButton } from "@/components/mark-service-received-button"
 import { cookies } from "next/headers"
 import { formatCurrency } from "@/lib/utils"
+import { ServiceApprovalActions } from "@/components/service-approval-actions" // IMPORTANTE
 
 // CONFIGURAÇÃO DE CACHE:
 export const dynamic = "force-dynamic"
@@ -99,7 +100,7 @@ async function getFinancialData(period: string) {
     supabase.from("one_time_services").select("*, clients(name)").gte("date", start).lte("date", end).order("date", { ascending: false }),
     supabase.from("client_payments").select("*, clients(name)").gte("payment_date", start).lte("payment_date", end).order("payment_date", { ascending: false }),
     supabase.from("employee_payments").select("*, employees(name)").gte("payment_date", start).lte("payment_date", end).order("payment_date", { ascending: false }),
-    supabase.from("contracts").select("id, name, valor_mensal, client_id, approval_status, clients(name)").eq("status", "active"), // Added approval_status
+    supabase.from("contracts").select("id, name, valor_mensal, client_id, approval_status, approved_by, clients(name)").eq("status", "active"), // Added approved_by
     supabase.from("employees").select("id, name, salary, payment_day").eq("status", "active"),
     supabase.from("cost_categories").select("*").order("name")
   ])
@@ -129,16 +130,12 @@ async function getFinancialData(period: string) {
 
   // --- KPI FILTERS (Contabilizar apenas Aprovados) ---
   
-  // 1. Receita de Contratos
-  const contractsReceived = safeClientPayments.reduce((sum, p) => sum + Number(p.amount), 0) // Recebido real (independe de aprovação, pois já entrou)
+  const contractsReceived = safeClientPayments.reduce((sum, p) => sum + Number(p.amount), 0) 
   
-  // Contratos Pendentes: Só conta se o contrato estiver Aprovado
   const approvedContracts = safeContracts.filter((c: any) => c.approval_status === 'approved')
   const totalMrrExpected = approvedContracts.reduce((sum, c) => sum + Number(c.valor_mensal), 0)
   const contractsPending = Math.max(0, totalMrrExpected - contractsReceived)
 
-  // 2. Receita de Serviços
-  // Considera apenas serviços APROVADOS
   const approvedServices = safeServices.filter(s => s.approval_status === 'approved')
   
   const servicesRevenue = approvedServices
@@ -149,18 +146,13 @@ async function getFinancialData(period: string) {
     .filter(s => s.status === 'pending' && !s.received_date)
     .reduce((sum, s) => sum + Number(s.value), 0)
 
-  // 3. Pagamentos a Funcionários
-  // Considera apenas pagamentos APROVADOS
   const approvedEmployeePayments = safeEmployeePayments.filter(p => p.approval_status === 'approved')
   const salariesPaid = approvedEmployeePayments.reduce((sum, p) => sum + Number(p.amount), 0)
   
   const totalSalariesExpected = safeEmployees.reduce((sum, e) => sum + Number(e.salary), 0)
   const salariesPending = Math.max(0, totalSalariesExpected - salariesPaid)
 
-  // 4. Custos Gerais
-  // Filtra custos relevantes para o KPI (apenas os que realmente afetam o período)
   const costsForKpi = safeCosts.filter(c => {
-    // Regra principal: Só entra no cálculo se for APROVADO
     if (c.approval_status !== 'approved') return false;
 
     const dueDateInRange = c.date >= start && c.date <= end;
@@ -182,6 +174,8 @@ async function getFinancialData(period: string) {
 
   // --- LÓGICA DE CLIENTES ---
   const clientPaymentsData = [] as any[]
+  
+  // Pagamentos Recebidos (Histórico)
   safeClientPayments.forEach(payment => {
     clientPaymentsData.push({
       uniqueKey: payment.id,
@@ -190,12 +184,15 @@ async function getFinancialData(period: string) {
       amount: Number(payment.amount),
       date: safeFormatDate(payment.payment_date), 
       status: 'paid',
-      proofUrl: payment.proof_url, // Comprovante de Pagamento
-      invoiceUrl: (payment as any).invoice_url || null // Nota Fiscal (se existir no banco)
+      proofUrl: payment.proof_url, 
+      invoiceUrl: (payment as any).invoice_url || null,
+      // Pagamentos históricos não têm aprovação no schema, apenas o contrato
+      contractId: null 
     })
   })
-  // Pending payments (apenas de contratos aprovados)
-  approvedContracts.forEach(contract => {
+
+  // Pagamentos Pendentes (Contratos Ativos)
+  safeContracts.forEach(contract => {
     const paidThisMonth = safeClientPayments.some(p => p.client_id === contract.client_id)
     const today = new Date()
     let nextDate = new Date(today.getFullYear(), today.getMonth(), 10)
@@ -209,16 +206,17 @@ async function getFinancialData(period: string) {
       date: format(nextDate, "dd/MM/yyyy"), 
       status: 'pending',
       proofUrl: null,
-      invoiceUrl: null
+      invoiceUrl: null,
+      // Dados para Aprovação do Contrato
+      contractId: contract.id,
+      approvalStatus: contract.approval_status,
+      approvedBy: contract.approved_by
     })
   })
   clientPaymentsData.sort((a, b) => a.clientName.localeCompare(b.clientName) || (a.status === 'pending' ? 1 : -1))
 
   // --- LÓGICA DE FUNCIONÁRIOS ---
   const employeePaymentsData = [] as any[]
-  // Mostra apenas pagamentos aprovados ou todos? 
-  // Na lista de pagamentos, o usuário pode querer ver os pendentes para aprovar.
-  // Vou manter TODOS na lista, mas os cálculos acima (salariesPaid) só usam os aprovados.
   safeEmployeePayments.forEach(payment => {
     employeePaymentsData.push({
       uniqueKey: payment.id,
@@ -227,14 +225,13 @@ async function getFinancialData(period: string) {
       amount: Number(payment.amount),
       date: safeFormatDate(payment.payment_date), 
       status: 'paid',
-      approvalStatus: payment.approval_status, // Para usar na tabela
+      approvalStatus: payment.approval_status, 
       approvedBy: payment.approved_by,
-      proofUrl: payment.proof_url, // Comprovante (Recibo)
-      invoiceUrl: null // Geralmente não tem NF de funcionário CLT, mas PJ pode ter
+      proofUrl: payment.proof_url,
+      invoiceUrl: null
     })
   })
   safeEmployees.forEach(emp => {
-    // Lógica para salários pendentes (estimativa base)
     const paidThisMonth = safeEmployeePayments.some(p => p.employee_id === emp.id)
     if (emp.payment_day) {
         const today = new Date()
@@ -248,7 +245,7 @@ async function getFinancialData(period: string) {
           amount: Number(emp.salary),
           date: format(nextDate, "dd/MM/yyyy"),
           status: 'pending',
-          approvalStatus: 'approved', // Salário base é tecnicamente "aprovado" por contrato
+          approvalStatus: 'approved',
           proofUrl: null,
           invoiceUrl: null
         })
@@ -260,13 +257,6 @@ async function getFinancialData(period: string) {
   })
 
   // --- CONSTRUÇÃO DAS TABELAS GERAIS ---
-  // Nestas tabelas de fluxo, vamos mostrar apenas o que foi FINANCEIRAMENTE APROVADO para entrar no caixa/fluxo?
-  // Geralmente fluxo de caixa reflete o real. Se não está aprovado, não deveria estar aqui como realizado.
-  // Como as tabelas misturam pendentes e realizados, vou passar os dados completos para visualização, 
-  // mas marcando visualmente ou filtrando se o usuário pediu estritamente "contabilizar".
-  // Vou manter a visualização de tudo nas tabelas para gestão, mas os Cards e Gráficos (KPIs) respeitam o filtro acima.
-
-  // 1. Entradas Gerais (Contratos + Serviços)
   const generalInflows = [
     ...clientPaymentsData.map((p: any) => ({
       id: p.uniqueKey,
@@ -276,8 +266,8 @@ async function getFinancialData(period: string) {
       amount: p.amount,
       status: p.status,
       rawDate: parseBrDate(p.date),
-      receiptUrl: p.proofUrl, // Comprovante de Pagamento
-      invoiceUrl: p.invoiceUrl // Nota Fiscal
+      receiptUrl: p.proofUrl, 
+      invoiceUrl: p.invoiceUrl 
     })),
     ...safeServices.map((s) => ({
       id: s.id,
@@ -286,15 +276,13 @@ async function getFinancialData(period: string) {
       date: safeFormatDate(s.date),
       amount: Number(s.value),
       status: s.received_date ? 'completed' : s.status,
-      approvalStatus: s.approval_status, // Importante para UI
+      approvalStatus: s.approval_status, 
       rawDate: new Date(s.date),
-      // CORREÇÃO: Mapeia comprovantes corretamente
-      receiptUrl: s.payment_proof_url, // Comprovante de recebimento (dinheiro na conta)
-      invoiceUrl: (s as any).proof_url || (s as any).invoice_url || null // Contrato/Nota gerada
+      receiptUrl: s.payment_proof_url,
+      invoiceUrl: (s as any).proof_url || (s as any).invoice_url || null 
     }))
   ].sort((a, b) => b.rawDate.getTime() - a.rawDate.getTime())
 
-  // 2. Saídas Gerais (Custos + Folha)
   const generalOutflows = [
     ...safeCosts.map((c) => ({
       id: c.id,
@@ -303,11 +291,10 @@ async function getFinancialData(period: string) {
       date: safeFormatDate(c.date),
       amount: Number(c.value),
       status: c.status,
-      approvalStatus: c.approval_status, // Importante para UI
+      approvalStatus: c.approval_status, 
       rawDate: new Date(c.date),
-      // CORREÇÃO: Mapeia comprovantes corretamente
-      receiptUrl: c.payment_proof_url, // Comprovante de Pagamento (Bancário)
-      invoiceUrl: c.proof_url || (c as any).invoice_url || null // Nota Fiscal/Boleto original
+      receiptUrl: c.payment_proof_url, 
+      invoiceUrl: c.proof_url || (c as any).invoice_url || null
     })),
     ...employeePaymentsData.map((e: any) => ({
       id: e.uniqueKey,
@@ -335,11 +322,11 @@ async function getFinancialData(period: string) {
     otherCostsPaid,
     otherCostsPending,
     totalCosts,
-    costs: safeCosts, // Passa tudo para tabela
-    costsByCategory, // KPI filtrado
+    costs: safeCosts, 
+    costsByCategory, 
     clientPayments: clientPaymentsData,
     employeePayments: employeePaymentsData,
-    services: safeServices, // Passa tudo para tabela
+    services: safeServices,
     employees: safeEmployees,
     costCategories: costCategoriesResult.data || [],
     generalInflows,
@@ -426,15 +413,14 @@ export default async function FinancialPage({
         </TabsContent>
 
         <TabsContent value="clientPayments">
-          <ClientPaymentsTable clientPayments={data.clientPayments} />
+          <ClientPaymentsTable clientPayments={data.clientPayments} userRole={userRole} />
         </TabsContent>
         
         <TabsContent value="employeePayments">
-          <EmployeePaymentsTable employeePayments={data.employeePayments} />
+          <EmployeePaymentsTable employeePayments={data.employeePayments} userRole={userRole} />
         </TabsContent>
         
         <TabsContent value="costs">
-          {/* O componente FinancialTable agora cuida da formatação */}
           <FinancialTable costs={data.costs} userRole={userRole as "admin" | "limited" | null} />
         </TabsContent>
         
@@ -451,6 +437,8 @@ export default async function FinancialPage({
                       <TableHead>Serviço</TableHead>
                       <TableHead>Cliente</TableHead>
                       <TableHead>Data</TableHead>
+                      {/* NOVA COLUNA */}
+                      <TableHead className="text-center">Aprovação</TableHead>
                       <TableHead className="text-right">Valor</TableHead>
                       <TableHead className="text-center">Status</TableHead>
                       <TableHead className="text-center w-[180px]">Ação</TableHead>
@@ -468,6 +456,17 @@ export default async function FinancialPage({
                             </Link>
                           </TableCell>
                           <TableCell>{safeFormatDate(service.date)}</TableCell>
+                          
+                          {/* AÇÃO DE APROVAÇÃO */}
+                          <TableCell className="text-center">
+                            <ServiceApprovalActions 
+                                serviceId={service.id}
+                                approvalStatus={service.approval_status || 'pending'}
+                                approvedBy={service.approved_by}
+                                userRole={userRole}
+                            />
+                          </TableCell>
+
                           <TableCell className="text-right font-medium">
                             {formatCurrency(service.value, isLimited)}
                           </TableCell>
@@ -483,6 +482,8 @@ export default async function FinancialPage({
                                 clientId={service.client_id}
                                 expectedAmount={service.value}
                                 isReceived={!!service.received_date}
+                                // Bloqueia pagamento se estiver rejeitado
+                                disabled={service.approval_status === 'rejected'}
                               />
                             )}
                             {isLimited && <span className="text-muted-foreground text-xs">Acesso restrito</span>}
@@ -504,7 +505,7 @@ export default async function FinancialPage({
                       ))
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                        <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
                           Nenhum serviço pontual encontrado no período.
                         </TableCell>
                       </TableRow>
