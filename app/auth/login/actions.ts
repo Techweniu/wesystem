@@ -4,42 +4,68 @@ import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import { createClient, createAdminClient } from "@/lib/supabase/server"
 
+// Definição dos tipos de usuários permitidos via variáveis de ambiente
+interface AuthConfig {
+  envKey: string
+  email: string
+  role: string
+}
+
+const AUTH_CONFIGS: AuthConfig[] = [
+  // Acesso original
+  { envKey: "ADMIN_PASSWORD", email: "admin@wesystem.app", role: "admin" },
+  
+  // Novos acessos da Diretoria (@weniu.com)
+  { envKey: "PAULO_PASSWORD", email: "paulo@weniu.com", role: "admin" },
+  { envKey: "ATILA_PASSWORD", email: "atila@weniu.com", role: "admin" },
+  { envKey: "VINICIUS_PASSWORD", email: "vinicius@weniu.com", role: "admin" },
+  { envKey: "ISADORA_PASSWORD", email: "isadora@weniu.com", role: "admin" },
+  { envKey: "JOAO_PASSWORD", email: "joao@weniu.com", role: "admin" },
+]
+
 export async function loginAction(formData: FormData) {
   const password = formData.get("password") as string
-
-  const adminPwd = process.env.ADMIN_PASSWORD
   const limitedPwd = process.env.LIMITED_PASSWORD
-
-  if (!adminPwd || !limitedPwd) {
-    return { error: "Erro de configuração: Senhas não definidas no servidor." }
-  }
 
   let email = ""
   let role = ""
 
-  if (password === adminPwd) {
-    email = "admin@wesystem.app"
-    role = "admin"
-  } else if (password === limitedPwd) {
+  // 1. Verificar se a senha corresponde a algum administrador configurado
+  const matchedAdmin = AUTH_CONFIGS.find(config => {
+    const envPassword = process.env[config.envKey]
+    return envPassword && envPassword === password
+  })
+
+  if (matchedAdmin) {
+    email = matchedAdmin.email
+    role = matchedAdmin.role
+  } 
+  // 2. Verificar acesso limitado (legado)
+  else if (limitedPwd && password === limitedPwd) {
     email = "limited@wesystem.app"
     role = "limited"
-  } else {
+  } 
+  // 3. Senha incorreta
+  else {
     return { error: "Chave de acesso incorreta." }
   }
 
   const supabase = await createClient()
   const supabaseAdmin = createAdminClient()
 
+  // Tentativa de login normal
   const { error: signInError } = await supabase.auth.signInWithPassword({
     email,
     password,
   })
 
+  // Se falhar (usuário não existe ou senha mudou), usamos o Admin Client para corrigir
   if (signInError) {
     const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers()
     const userExists = existingUsers?.users?.find((u) => u.email === email)
 
     if (userExists) {
+      // Atualiza a senha do usuário existente para bater com a do .env
       const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(userExists.id, { password })
 
       if (updateError) {
@@ -47,6 +73,7 @@ export async function loginAction(formData: FormData) {
         return { error: "Erro ao sincronizar acesso." }
       }
     } else {
+      // Cria o usuário automaticamente se ele não existir (Auto-Provisioning)
       const { error: createError } = await supabaseAdmin.auth.admin.createUser({
         email,
         password,
@@ -59,6 +86,7 @@ export async function loginAction(formData: FormData) {
       }
     }
 
+    // Tenta logar novamente após a correção/criação
     const { error: retryError } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -70,6 +98,7 @@ export async function loginAction(formData: FormData) {
     }
   }
 
+  // Define o cookie de sessão da aplicação
   const cookieStore = await cookies()
   cookieStore.set("user_role", role, {
     httpOnly: true,
