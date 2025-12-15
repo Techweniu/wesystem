@@ -5,6 +5,21 @@ import { revalidatePath } from "next/cache"
 import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
 import { isNonRecurringService } from "@/lib/non-recurring-services"
+import { cookies } from "next/headers"
+
+// --- FUNÇÕES AUXILIARES DE SEGURANÇA E AUDITORIA ---
+async function checkAdminPermission() {
+  const cookieStore = await cookies()
+  const role = cookieStore.get("user_role")?.value
+  if (role !== "admin") {
+    throw new Error("Acesso negado: Apenas administradores podem realizar esta ação.")
+  }
+}
+
+async function getApproverName() {
+  const cookieStore = await cookies()
+  return cookieStore.get("user_name")?.value || "Administrador"
+}
 
 // --- Action para Serviço Pontual ---
 const oneTimeServiceSchema = z.object({
@@ -33,7 +48,12 @@ export async function addOneTimeService(formData: FormData) {
       name,
       value,
       date,
-      status,
+      status, // Status operacional (pendente/concluido)
+      
+      // Status de Aprovação (Novo Fluxo)
+      approval_status: "pending",
+      approved_by: null,
+      approved_at: null
     },
   ])
   if (error) {
@@ -43,7 +63,54 @@ export async function addOneTimeService(formData: FormData) {
   revalidatePath(`/dashboard/clients/${clientId}`)
   revalidatePath("/dashboard/clients")
   revalidatePath("/dashboard/financial")
-  return { success: "Serviço pontual adicionado com sucesso!" }
+  return { success: "Serviço adicionado e enviado para aprovação!" }
+}
+
+// --- NOVAS AÇÕES DE APROVAÇÃO (SERVIÇOS) ---
+export async function approveService(id: string) {
+  try {
+    await checkAdminPermission()
+    const approverName = await getApproverName()
+    const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+
+    const { error } = await supabaseAdmin
+      .from("one_time_services")
+      .update({
+        approval_status: "approved",
+        approved_by: approverName,
+        approved_at: new Date().toISOString()
+      })
+      .eq("id", id)
+
+    if (error) throw error
+    revalidatePath("/dashboard/clients")
+    return { success: true, message: "Serviço aprovado!" }
+  } catch (e: any) {
+    return { success: false, error: e.message }
+  }
+}
+
+export async function rejectService(id: string) {
+  try {
+    await checkAdminPermission()
+    const approverName = await getApproverName()
+    const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+
+    const { error } = await supabaseAdmin
+      .from("one_time_services")
+      .update({
+        approval_status: "rejected",
+        approved_by: approverName,
+        approved_at: new Date().toISOString()
+      })
+      .eq("id", id)
+
+    if (error) throw error
+    revalidatePath("/dashboard/clients")
+    return { success: true, message: "Serviço rejeitado." }
+  } catch (e: any) {
+    return { success: false, error: e.message }
+  }
 }
 
 // --- Action para o NPS Interno ---
@@ -118,8 +185,6 @@ export async function addNpsResponse(formData: FormData) {
   return { success: "Avaliação NPS salva com sucesso!" }
 }
 
-// ... (Restante do arquivo permanece inalterado: updateClient, updateClientNotes, addContract, etc.)
-// Mantenha o restante das funções abaixo exatamente como estavam no arquivo original para não quebrar outras funcionalidades.
 
 const updateClientSchema = z.object({
   clientId: z.string().uuid("ID do cliente inválido."),
@@ -313,6 +378,11 @@ export async function addContract(formData: FormData) {
     start_date: start_date,
     end_date: end_date || null,
     status: "active",
+
+    // Status de Aprovação (Novo Fluxo)
+    approval_status: "pending",
+    approved_by: null,
+    approved_at: null
   }
 
   if (servicesArray.length > 0) {
@@ -357,7 +427,54 @@ export async function addContract(formData: FormData) {
 
   revalidatePath(`/dashboard/clients/${clientId}`)
   revalidatePath("/dashboard/clients")
-  return { success: "Contrato adicionado com sucesso!" }
+  return { success: "Contrato enviado para aprovação!" }
+}
+
+// --- NOVAS AÇÕES DE APROVAÇÃO (CONTRATOS) ---
+export async function approveContract(id: string) {
+  try {
+    await checkAdminPermission()
+    const approverName = await getApproverName()
+    const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+
+    const { error } = await supabaseAdmin
+      .from("contracts")
+      .update({
+        approval_status: "approved",
+        approved_by: approverName,
+        approved_at: new Date().toISOString()
+      })
+      .eq("id", id)
+
+    if (error) throw error
+    revalidatePath("/dashboard/clients")
+    return { success: true, message: "Contrato aprovado!" }
+  } catch (e: any) {
+    return { success: false, error: e.message }
+  }
+}
+
+export async function rejectContract(id: string) {
+  try {
+    await checkAdminPermission()
+    const approverName = await getApproverName()
+    const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+
+    const { error } = await supabaseAdmin
+      .from("contracts")
+      .update({
+        approval_status: "rejected",
+        approved_by: approverName,
+        approved_at: new Date().toISOString()
+      })
+      .eq("id", id)
+
+    if (error) throw error
+    revalidatePath("/dashboard/clients")
+    return { success: true, message: "Contrato rejeitado." }
+  } catch (e: any) {
+    return { success: false, error: e.message }
+  }
 }
 
 const updateDeliverableSchema = z.object({
