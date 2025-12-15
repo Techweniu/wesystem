@@ -9,6 +9,7 @@ import Link from "next/link"
 import { MarkClientPaymentButton } from "./mark-client-payment-button"
 import { FileText, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown, Search } from "lucide-react"
 import { useState, useMemo } from "react"
+import { ContractApprovalActions } from "@/components/contract-approval-actions"
 
 interface ClientPaymentItem {
   uniqueKey: string
@@ -18,14 +19,20 @@ interface ClientPaymentItem {
   date: string // Data de vencimento ou pagamento
   status: 'paid' | 'pending'
   proofUrl?: string | null
+  
+  // Campos para aprovação (apenas para itens derivados de Contratos)
+  contractId?: string
+  approvalStatus?: 'pending' | 'approved' | 'rejected'
+  approvedBy?: string | null
 }
 
 interface ClientPaymentsTableProps {
   clientPayments: ClientPaymentItem[]
+  userRole?: string | null
 }
 
 type SortConfig = {
-  key: keyof ClientPaymentItem;
+  key: keyof ClientPaymentItem | 'approvalStatus';
   direction: 'asc' | 'desc';
 } | null;
 
@@ -39,11 +46,11 @@ const parseBrDateToTimestamp = (dateStr: string) => {
   return 0;
 }
 
-export function ClientPaymentsTable({ clientPayments }: ClientPaymentsTableProps) {
+export function ClientPaymentsTable({ clientPayments, userRole }: ClientPaymentsTableProps) {
   const [searchTerm, setSearchTerm] = useState("")
   const [sortConfig, setSortConfig] = useState<SortConfig>(null)
 
-  const handleSort = (key: keyof ClientPaymentItem) => {
+  const handleSort = (key: keyof ClientPaymentItem | 'approvalStatus') => {
     let direction: 'asc' | 'desc' = 'asc';
     if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
       direction = 'desc';
@@ -65,8 +72,8 @@ export function ClientPaymentsTable({ clientPayments }: ClientPaymentsTableProps
     // 2. Sort
     if (sortConfig) {
       filtered.sort((a, b) => {
-        let aValue: any = a[sortConfig.key];
-        let bValue: any = b[sortConfig.key];
+        let aValue: any = a[sortConfig.key as keyof ClientPaymentItem];
+        let bValue: any = b[sortConfig.key as keyof ClientPaymentItem];
 
         // Custom sort for date string "DD/MM/YYYY"
         if (sortConfig.key === 'date') {
@@ -75,6 +82,11 @@ export function ClientPaymentsTable({ clientPayments }: ClientPaymentsTableProps
         }
 
         if (aValue === bValue) return 0;
+        
+        // Handle undefined/null safely
+        if (aValue == null) return 1;
+        if (bValue == null) return -1;
+
         if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
         if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
         return 0;
@@ -122,6 +134,15 @@ export function ClientPaymentsTable({ clientPayments }: ClientPaymentsTableProps
                 >
                   <div className="flex items-center">Data Ref. {renderSortIcon('date')}</div>
                 </TableHead>
+                
+                {/* NOVA COLUNA: Aprovação (Contratos) */}
+                <TableHead 
+                   className="text-center cursor-pointer hover:bg-muted/50 transition-colors"
+                   onClick={() => handleSort('approvalStatus')}
+                >
+                  <div className="flex items-center justify-center">Aprovação (Contrato) {renderSortIcon('approvalStatus')}</div>
+                </TableHead>
+
                 <TableHead 
                    className="text-right cursor-pointer hover:bg-muted/50 transition-colors"
                    onClick={() => handleSort('amount')}
@@ -132,7 +153,7 @@ export function ClientPaymentsTable({ clientPayments }: ClientPaymentsTableProps
                   className="text-center cursor-pointer hover:bg-muted/50 transition-colors"
                    onClick={() => handleSort('status')}
                 >
-                  <div className="flex items-center justify-center">Status {renderSortIcon('status')}</div>
+                  <div className="flex items-center justify-center">Status Pagto. {renderSortIcon('status')}</div>
                 </TableHead>
                 <TableHead className="text-center w-[180px]">Ação</TableHead>
                 <TableHead className="text-center">Comprovante</TableHead>
@@ -150,6 +171,24 @@ export function ClientPaymentsTable({ clientPayments }: ClientPaymentsTableProps
                     <TableCell>
                       {item.date}
                     </TableCell>
+                    
+                    {/* COLUNA APROVAÇÃO */}
+                    <TableCell className="text-center">
+                        {/* Apenas exibe a ação se for um item de contrato (tem contractId e status de aprovação) */}
+                        {item.contractId && item.approvalStatus ? (
+                            <div className="flex justify-center">
+                                <ContractApprovalActions
+                                    contractId={item.contractId}
+                                    approvalStatus={item.approvalStatus}
+                                    approvedBy={item.approvedBy}
+                                    userRole={userRole || undefined}
+                                />
+                            </div>
+                        ) : (
+                            <span className="text-xs text-muted-foreground">-</span>
+                        )}
+                    </TableCell>
+
                     <TableCell className="text-right font-medium">
                       {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
                         item.amount,
@@ -165,6 +204,8 @@ export function ClientPaymentsTable({ clientPayments }: ClientPaymentsTableProps
                         clientId={item.clientId}
                         expectedAmount={item.amount}
                         isPaidThisMonth={item.status === 'paid'}
+                        // Bloqueia pagamento se o contrato estiver rejeitado
+                        disabled={item.approvalStatus === 'rejected'}
                       />
                     </TableCell>
                     <TableCell className="text-center">
@@ -184,7 +225,7 @@ export function ClientPaymentsTable({ clientPayments }: ClientPaymentsTableProps
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                     Nenhum registro encontrado.
                   </TableCell>
                 </TableRow>
