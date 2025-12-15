@@ -37,7 +37,7 @@ const costSchema = z.object({
   date: z.string().min(1, "Data é obrigatória"),
   is_recurring: z.preprocess((val) => val === "true", z.boolean()).default(false),
   recurrence_days: z.coerce.number().min(1).max(365).default(30),
-  recurrence_end_date: z.string().optional().or(z.literal('')), // Novo campo
+  recurrence_end_date: z.string().optional().or(z.literal('')), 
 })
 
 // --- AÇÃO addCost ---
@@ -327,7 +327,7 @@ export async function markCostAsPaid(formData: FormData) {
           
           nextDateString = nextPaymentDate.toISOString().split('T')[0]
       } else {
-          // Lógica padrão: Soma os dias de recorrência
+          // Lógica padrão: Soma os dias de recorrência baseado na data original de vencimento
           nextDateString = addDaysToDateString(cost.date, recurrenceDays)
       }
 
@@ -355,7 +355,7 @@ export async function markCostAsPaid(formData: FormData) {
             employee_id: cost.employee_id, // Mantém o vínculo
             paid_date: null,
             status: "pending",
-            proof_url: null,
+            proof_url: cost.proof_url, // Opcional: manter URL original ou null
             payment_proof_url: null,
         })
       }
@@ -385,6 +385,9 @@ export async function undoCostPayment(formData: FormData) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
     )
 
+    // Ao desfazer, apenas voltamos o status para pending. 
+    // OBS: Isso pode deixar o boleto futuro (já criado) duplicado se não for tratado manualmente,
+    // mas deletar automaticamente é perigoso sem saber se o usuário já editou o próximo.
     const { error } = await supabaseAdmin
       .from("costs")
       .update({
