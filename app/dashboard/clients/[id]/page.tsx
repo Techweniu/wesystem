@@ -47,6 +47,9 @@ import { Label } from "@/components/ui/label"
 import { ContractServiceBadges } from "@/components/contract-service-badges"
 import { cookies } from "next/headers"
 import { formatCurrency } from "@/lib/utils"
+// NOVOS COMPONENTES DE APROVAÇÃO
+import { ContractApprovalActions } from "@/components/contract-approval-actions"
+import { ServiceApprovalActions } from "@/components/service-approval-actions"
 
 const LOOKER_STUDIO_URL =
   "https://lookerstudio.google.com/embed/reporting/dd2d13f5-60b6-4926-ba5d-afe9db7dbcd1/page/jCyaF"
@@ -515,33 +518,43 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
             <CardContent>
               <ul className="space-y-3">
                 {client.contracts?.map((contract: any) => (
-                  <li key={contract.id} className="rounded-md border p-3 text-sm">
-                    <div className="flex items-start justify-between">
-                      <div className="flex flex-col flex-1">
-                        <span className="font-medium">{contract.name}</span>
-                        <span className="text-xs text-muted-foreground">
-                          Início: {format(parseISO(contract.start_date), "dd/MM/yy")}{" "}
-                          {contract.end_date ? `- Fim: ${format(parseISO(contract.end_date), "dd/MM/yy")}` : ""}
-                        </span>
-                        <Badge variant={contract.status === "active" ? "default" : "outline"} className="mt-1 w-fit">
-                          {contract.status === "active" ? "Ativo" : "Inativo"}
-                        </Badge>
-                        <ContractServiceBadges
-                          contractId={contract.id}
-                          clientId={client.id}
-                          services={contract.services || []}
-                          deliverables={contract.deliverables || []}
-                        />
-                      </div>
-                      <div className="flex items-center gap-1 ml-2">
-                        {contract.downloadUrl && (
-                          <a href={contract.downloadUrl} target="_blank" rel="noopener noreferrer">
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <Download className="h-4 w-4" />
-                            </Button>
-                          </a>
-                        )}
-                        {!isLimited && <EditContractForm contract={contract} />}
+                  <li key={contract.id} className="rounded-md border p-3 text-sm bg-card">
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-start justify-between">
+                        <div className="flex flex-col flex-1">
+                          <span className="font-medium flex items-center gap-2">
+                            {contract.name}
+                             {/* --- COMPONENTE DE APROVAÇÃO INSERIDO --- */}
+                             <ContractApprovalActions 
+                                contractId={contract.id} 
+                                approvalStatus={contract.approval_status || 'approved'} 
+                                approvedBy={contract.approved_by}
+                                userRole={userRole}
+                             />
+                          </span>
+                          <span className="text-xs text-muted-foreground mt-1">
+                            Início: {format(parseISO(contract.start_date), "dd/MM/yy")}
+                            {contract.end_date ? `- Fim: ${format(parseISO(contract.end_date), "dd/MM/yy")}` : ""}
+                          </span>
+                          <div className="mt-2">
+                            <ContractServiceBadges
+                              contractId={contract.id}
+                              clientId={client.id}
+                              services={contract.services || []}
+                              deliverables={contract.deliverables || []}
+                            />
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 ml-2">
+                          {contract.downloadUrl && (
+                            <a href={contract.downloadUrl} target="_blank" rel="noopener noreferrer">
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <Download className="h-4 w-4" />
+                              </Button>
+                            </a>
+                          )}
+                          {!isLimited && <EditContractForm contract={contract} />}
+                        </div>
                       </div>
                     </div>
                   </li>
@@ -584,9 +597,8 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
           </Card>
         </div>
 
-        {/* --- NOVA SEÇÃO: OPORTUNIDADES DE UPSELL --- */}
+        {/* --- SEÇÃO DE UPSELLS (Mantida) --- */}
         <ClientUpsellsSection clientId={client.id} upsells={client.client_upsells || []} />
-        {/* ------------------------------------------- */}
 
         <Card>
           <CardHeader>
@@ -623,7 +635,9 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
                     <TableRow>
                       <TableHead>Serviço</TableHead>
                       <TableHead>Data</TableHead>
-                      <TableHead>Status</TableHead>
+                      {/* --- NOVA COLUNA: APROVAÇÃO --- */}
+                      <TableHead className="text-center">Aprovação</TableHead>
+                      <TableHead className="text-center">Status</TableHead>
                       <TableHead className="text-right">Valor</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -632,7 +646,18 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
                       <TableRow key={service.id}>
                         <TableCell>{service.name}</TableCell>
                         <TableCell>{format(parseISO(service.date), "dd/MM/yyyy")}</TableCell>
-                        <TableCell>
+                        
+                        {/* --- COMPONENTE DE APROVAÇÃO INSERIDO --- */}
+                        <TableCell className="text-center">
+                            <ServiceApprovalActions 
+                                serviceId={service.id} 
+                                approvalStatus={service.approval_status || 'approved'} 
+                                approvedBy={service.approved_by}
+                                userRole={userRole}
+                            />
+                        </TableCell>
+
+                        <TableCell className="text-center">
                           <ServiceStatusChanger
                             service={{ id: service.id, clientId: client.id, status: service.status }}
                           />
@@ -644,7 +669,7 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
                     ))}
                     {client.one_time_services?.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={4} className="h-24 text-center">
+                        <TableCell colSpan={5} className="h-24 text-center">
                           Nenhum serviço.
                         </TableCell>
                       </TableRow>
