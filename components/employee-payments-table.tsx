@@ -9,6 +9,8 @@ import Link from "next/link"
 import { MarkPaymentButton } from "./mark-payment-button"
 import { FileText, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown, Search } from "lucide-react"
 import { useState, useMemo } from "react"
+// IMPORTANTE: Importa o componente de aprovação
+import { EmployeePaymentApprovalActions } from "@/components/employee-payment-approval-actions"
 
 interface EmployeePaymentItem {
   uniqueKey: string
@@ -18,14 +20,18 @@ interface EmployeePaymentItem {
   date: string // Data do pagamento ou vencimento
   status: 'paid' | 'pending'
   proofUrl?: string | null
+  // Campos de aprovação
+  approvalStatus?: 'pending' | 'approved' | 'rejected'
+  approvedBy?: string | null
 }
 
 interface EmployeePaymentsTableProps {
   employeePayments: EmployeePaymentItem[]
+  userRole?: string | null // Adicionado para controlar a visualização dos botões
 }
 
 type SortConfig = {
-  key: keyof EmployeePaymentItem;
+  key: keyof EmployeePaymentItem | 'approvalStatus';
   direction: 'asc' | 'desc';
 } | null;
 
@@ -39,11 +45,11 @@ const parseBrDateToTimestamp = (dateStr: string) => {
   return 0;
 }
 
-export function EmployeePaymentsTable({ employeePayments }: EmployeePaymentsTableProps) {
+export function EmployeePaymentsTable({ employeePayments, userRole }: EmployeePaymentsTableProps) {
   const [searchTerm, setSearchTerm] = useState("")
   const [sortConfig, setSortConfig] = useState<SortConfig>(null)
 
-  const handleSort = (key: keyof EmployeePaymentItem) => {
+  const handleSort = (key: keyof EmployeePaymentItem | 'approvalStatus') => {
     let direction: 'asc' | 'desc' = 'asc';
     if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
       direction = 'desc';
@@ -65,8 +71,8 @@ export function EmployeePaymentsTable({ employeePayments }: EmployeePaymentsTabl
     // 2. Sort
     if (sortConfig) {
       filtered.sort((a, b) => {
-        let aValue: any = a[sortConfig.key];
-        let bValue: any = b[sortConfig.key];
+        let aValue: any = a[sortConfig.key as keyof EmployeePaymentItem];
+        let bValue: any = b[sortConfig.key as keyof EmployeePaymentItem];
 
         // Custom sort for date string "DD/MM/YYYY"
         if (sortConfig.key === 'date') {
@@ -75,6 +81,11 @@ export function EmployeePaymentsTable({ employeePayments }: EmployeePaymentsTabl
         }
 
         if (aValue === bValue) return 0;
+        
+        // Handle undefined/null safely
+        if (aValue == null) return 1;
+        if (bValue == null) return -1;
+
         if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
         if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
         return 0;
@@ -122,6 +133,15 @@ export function EmployeePaymentsTable({ employeePayments }: EmployeePaymentsTabl
                 >
                   <div className="flex items-center">Data (Ref.) {renderSortIcon('date')}</div>
                 </TableHead>
+                
+                {/* NOVA COLUNA APROVAÇÃO */}
+                <TableHead 
+                   className="text-center cursor-pointer hover:bg-muted/50 transition-colors"
+                   onClick={() => handleSort('approvalStatus')}
+                >
+                   <div className="flex items-center justify-center">Aprovação {renderSortIcon('approvalStatus')}</div>
+                </TableHead>
+
                 <TableHead 
                   className="text-right cursor-pointer hover:bg-muted/50 transition-colors"
                   onClick={() => handleSort('amount')}
@@ -150,6 +170,17 @@ export function EmployeePaymentsTable({ employeePayments }: EmployeePaymentsTabl
                     <TableCell>
                       {item.date}
                     </TableCell>
+                    
+                    {/* COLUNA APROVAÇÃO */}
+                    <TableCell className="text-center">
+                        <EmployeePaymentApprovalActions 
+                            paymentId={item.uniqueKey}
+                            approvalStatus={item.approvalStatus || 'approved'} // Fallback 'approved' para legados
+                            approvedBy={item.approvedBy}
+                            userRole={userRole || undefined}
+                        />
+                    </TableCell>
+
                     <TableCell className="text-right font-medium">
                       {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(item.amount)}
                     </TableCell>
@@ -163,6 +194,8 @@ export function EmployeePaymentsTable({ employeePayments }: EmployeePaymentsTabl
                         employeeId={item.employeeId}
                         salary={item.amount}
                         isPaidThisMonth={item.status === 'paid'}
+                        // Só libera pagamento se estiver aprovado
+                        disabled={item.approvalStatus === 'rejected' || item.approvalStatus === 'pending'}
                       />
                     </TableCell>
                     <TableCell className="text-center">
@@ -182,7 +215,7 @@ export function EmployeePaymentsTable({ employeePayments }: EmployeePaymentsTabl
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                     Nenhum registro encontrado.
                   </TableCell>
                 </TableRow>
