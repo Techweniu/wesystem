@@ -18,6 +18,10 @@ export interface Contract {
   status: "active" | "completed" | "cancelled"
   created_at: string
   updated_at: string
+  // Campos de Aprovação
+  approval_status: "pending" | "approved" | "rejected"
+  approved_by: string | null
+  approved_at: string | null
 }
 
 export interface OneTimeService {
@@ -29,6 +33,10 @@ export interface OneTimeService {
   status: "pending" | "completed" | "cancelled"
   created_at: string
   updated_at: string
+  // Campos de Aprovação
+  approval_status: "pending" | "approved" | "rejected"
+  approved_by: string | null
+  approved_at: string | null
 }
 
 export interface NpsResponse {
@@ -49,6 +57,10 @@ export interface Cost {
   is_recurring: boolean
   created_at: string
   updated_at: string
+  // Campos de Aprovação
+  approval_status: "pending" | "approved" | "rejected"
+  approved_by: string | null
+  approved_at: string | null
 }
 
 export interface Employee {
@@ -75,4 +87,30 @@ export interface TimeLog {
   description: string | null
   created_at: string
   updated_at: string
+}
+
+export interface EmployeePayment {
+  id: string
+  employee_id: string
+  amount: number
+  payment_date: string
+  created_at: string
+  // Campos de Aprovação
+  approval_status: "pending" | "approved" | "rejected"
+  approved_by: string | null
+  approved_at: string | null
+}
+
+export interface EmployeeContribution {
+  id: string
+  employee_id: string
+  description: string
+  category: "Venda" | "Upsell" | "Ideia" | "Melhoria de Processo" | "Outro"
+  value: number | null
+  date: string
+  created_at: string
+  // Campos de Aprovação
+  approval_status: "pending" | "approved" | "rejected"
+  approved_by: string | null
+  approved_at: string | null
 }
