@@ -45,8 +45,8 @@ export function ServiceApprovalActions({ serviceId, approvalStatus, approvedBy, 
         <Tooltip>
           <TooltipTrigger asChild>
             <div className="flex justify-center">
-             <Badge className="bg-green-600 hover:bg-green-700 flex gap-1 h-6 w-fit cursor-default">
-                <CheckCircle className="h-3 w-3" />
+             <Badge className="bg-green-600 hover:bg-green-700 flex gap-1 cursor-default">
+                <CheckCircle className="h-3 w-3" /> {approvedBy || "Aprovado"}
              </Badge>
             </div>
           </TooltipTrigger>
@@ -64,8 +64,8 @@ export function ServiceApprovalActions({ serviceId, approvalStatus, approvedBy, 
         <Tooltip>
           <TooltipTrigger asChild>
             <div className="flex justify-center">
-                <Badge variant="destructive" className="flex gap-1 h-6 w-fit cursor-default">
-                    <XCircle className="h-3 w-3" />
+                <Badge variant="destructive" className="flex gap-1 cursor-default">
+                    <XCircle className="h-3 w-3" /> {approvedBy || "Rejeitado"}
                 </Badge>
             </div>
           </TooltipTrigger>
