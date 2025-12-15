@@ -47,6 +47,7 @@ async function getDashboardData() {
   const supabase = createAdminClient()
 
   // 1. Buscar Clientes
+  // Adicionado approval_status na query dos contratos
   const { data: clientsData, error } = await supabase
     .from("clients")
     .select(`
@@ -54,7 +55,7 @@ async function getDashboardData() {
       name, 
       status,
       health_status,
-      contracts ( valor_mensal, status, start_date, end_date ),
+      contracts ( valor_mensal, status, start_date, end_date, approval_status ),
       nps_responses ( score, response_date ),
       assigned_assessor_id,
       assigned_videomaker_id,
@@ -189,7 +190,12 @@ async function getDashboardData() {
       else npsSummary.promoters++
     }
 
-    const revenue = client.contracts?.filter(c => c.status === 'active' && isContractVigent(c))
+    // MODIFICAÇÃO: Filtra apenas contratos APROVADOS para o KPI de receita
+    const revenue = client.contracts?.filter(c => 
+        c.status === 'active' && 
+        isContractVigent(c) && 
+        c.approval_status === 'approved' // <--- FILTRO ADICIONADO
+      )
       .reduce((sum, c) => sum + Number(c.valor_mensal), 0) || 0
     
     totalRevenue += revenue
