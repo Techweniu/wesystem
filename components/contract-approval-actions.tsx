@@ -43,7 +43,7 @@ export function ContractApprovalActions({ contractId, approvalStatus, approvedBy
     return (
       <TooltipProvider>
         <Tooltip>
-          <TooltipTrigger>
+          <TooltipTrigger asChild>
              <Badge className="bg-green-600 hover:bg-green-700 flex gap-1 cursor-default">
                 <CheckCircle className="h-3 w-3" /> {approvedBy || "Aprovado"}
              </Badge>
@@ -58,9 +58,18 @@ export function ContractApprovalActions({ contractId, approvalStatus, approvedBy
 
   if (approvalStatus === "rejected") {
     return (
-      <Badge variant="destructive" className="flex gap-1">
-        <XCircle className="h-3 w-3" /> Rejeitado
-      </Badge>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge variant="destructive" className="flex gap-1 cursor-default">
+              <XCircle className="h-3 w-3" /> {approvedBy || "Rejeitado"}
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Rejeitado por {approvedBy || "Admin"}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     )
   }
 
