@@ -77,8 +77,10 @@ async function getFinancialData(period: string) {
   const supabase = createAdminClient()
   const { start, end, startObj, endObj } = getDateRange(period)
 
+  // Agora buscamos por VENCIMENTO (Competência) E por PAGAMENTO (Caixa)
   const [
-    costsInRangeResult,
+    costsByDueDate,
+    costsByPaidDate,
     allPendingCostsResult,
     oneTimeServicesResult,
     clientPaymentsResult,
@@ -87,8 +89,13 @@ async function getFinancialData(period: string) {
     activeEmployeesResult,
     costCategoriesResult
   ] = await Promise.all([
+    // Busca por Vencimento (o padrão)
     supabase.from("costs").select("*").gte("date", start).lte("date", end).order("date", { ascending: false }),
+    // Busca por Data de Pagamento (para pegar contas antigas pagas agora)
+    supabase.from("costs").select("*").gte("paid_date", start).lte("paid_date", end).order("paid_date", { ascending: false }),
+    // Busca pendentes gerais
     supabase.from("costs").select("*").eq("status", "pending").order("date", { ascending: true }),
+    
     supabase.from("one_time_services").select("*, clients(name)").gte("date", start).lte("date", end).order("date", { ascending: false }),
     supabase.from("client_payments").select("*, clients(name)").gte("payment_date", start).lte("payment_date", end).order("payment_date", { ascending: false }),
     supabase.from("employee_payments").select("*, employees(name)").gte("payment_date", start).lte("payment_date", end).order("payment_date", { ascending: false }),
@@ -97,13 +104,21 @@ async function getFinancialData(period: string) {
     supabase.from("cost_categories").select("*").order("name")
   ])
 
-  // Lógica Cumulativa de Custos
+  // Lógica Cumulativa de Custos (Mescla os resultados para não duplicar)
   const safeCostsMap = new Map()
-  costsInRangeResult.data?.forEach(c => safeCostsMap.set(c.id, c))
+  
+  // 1. Adiciona os que vencem no período
+  costsByDueDate.data?.forEach(c => safeCostsMap.set(c.id, c))
+  // 2. Adiciona os que foram pagos no período (mesmo que vencidos antes)
+  costsByPaidDate.data?.forEach(c => safeCostsMap.set(c.id, c))
+  // 3. Adiciona todos os pendentes (opcional, para visualização de backlog)
   allPendingCostsResult.data?.forEach(c => safeCostsMap.set(c.id, c))
   
   const safeCosts = Array.from(safeCostsMap.values()).sort((a, b) => {
-    return new Date(b.date).getTime() - new Date(a.date).getTime()
+    // Ordena pela data mais relevante (Pagamento se existir, senão Vencimento)
+    const dateA = a.paid_date ? new Date(a.paid_date) : new Date(a.date);
+    const dateB = b.paid_date ? new Date(b.paid_date) : new Date(b.date);
+    return dateB.getTime() - dateA.getTime();
   })
 
   const safeServices = oneTimeServicesResult.data || []
@@ -128,7 +143,13 @@ async function getFinancialData(period: string) {
   const totalSalariesExpected = safeEmployees.reduce((sum, e) => sum + Number(e.salary), 0)
   const salariesPending = Math.max(0, totalSalariesExpected - salariesPaid)
 
-  const costsForKpi = safeCosts.filter(c => c.date >= start && c.date <= end)
+  // Filtra custos relevantes para o KPI (apenas os que realmente afetam o período)
+  const costsForKpi = safeCosts.filter(c => {
+    const dueDateInRange = c.date >= start && c.date <= end;
+    const paidDateInRange = c.paid_date && c.paid_date >= start && c.paid_date <= end;
+    return dueDateInRange || paidDateInRange;
+  })
+
   const otherCostsPaid = costsForKpi.filter(c => c.status === 'paid').reduce((sum, c) => sum + Number(c.value), 0)
   const otherCostsPending = costsForKpi.filter(c => c.status === 'pending').reduce((sum, c) => sum + Number(c.value), 0)
 
