@@ -258,7 +258,7 @@ export function FinancialTable({ costs, userRole }: FinancialTableProps) {
                                 <Tooltip>
                                     <TooltipTrigger asChild>
                                         <Badge variant="destructive" className="flex items-center gap-1 cursor-default">
-                                            <XCircle className="h-3 w-3" /> Rejeitado
+                                            <XCircle className="h-3 w-3" /> {cost.approved_by || "Rejeitado"}
                                         </Badge>
                                     </TooltipTrigger>
                                     <TooltipContent>
