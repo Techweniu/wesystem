@@ -242,8 +242,8 @@ export function FinancialTable({ costs, userRole }: FinancialTableProps) {
                         {cost.approval_status === 'approved' ? (
                             <TooltipProvider>
                                 <Tooltip>
-                                    <TooltipTrigger>
-                                        <Badge className="bg-green-600 hover:bg-green-700 flex items-center gap-1">
+                                    <TooltipTrigger asChild>
+                                        <Badge className="bg-green-600 hover:bg-green-700 flex items-center gap-1 cursor-default">
                                             <CheckCircle className="h-3 w-3" /> 
                                             {cost.approved_by ? cost.approved_by : "Aprovado"}
                                         </Badge>
@@ -254,9 +254,18 @@ export function FinancialTable({ costs, userRole }: FinancialTableProps) {
                                 </Tooltip>
                             </TooltipProvider>
                         ) : cost.approval_status === 'rejected' ? (
-                            <Badge variant="destructive" className="flex items-center gap-1">
-                                <XCircle className="h-3 w-3" /> Rejeitado
-                            </Badge>
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Badge variant="destructive" className="flex items-center gap-1 cursor-default">
+                                            <XCircle className="h-3 w-3" /> Rejeitado
+                                        </Badge>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p>Rejeitado por {cost.approved_by || "Admin"}</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
                         ) : (
                             <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200 border-yellow-300 flex items-center gap-1">
                                 <Clock className="h-3 w-3" /> Aguardando
