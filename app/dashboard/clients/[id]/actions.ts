@@ -241,7 +241,7 @@ export async function updateClient(formData: FormData) {
     assigned_videomaker_id: assigned_videomaker_id,
     assigned_relationship_manager_id: assigned_relationship_manager_id,
     assigned_editor_id: assigned_editor_id,
-    updated_at: new Date().toISOString(),
+    // REMOVIDO: updated_at: new Date().toISOString(), -- O Banco já tem trigger para isso e causava erro se a coluna estivesse desincronizada
   }
 
   const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
@@ -738,4 +738,6 @@ export async function toggleServiceDelivery(data: {
 
   revalidatePath(`/dashboard/clients/${clientId}`)
   return { success: currentStatus ? "Marcado como não entregue" : "Marcado como entregue!" }
+}
+
 }
