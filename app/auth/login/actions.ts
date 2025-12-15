@@ -9,18 +9,19 @@ interface AuthConfig {
   envKey: string
   email: string
   role: string
+  name: string // Adicionado para identificar quem aprovou
 }
 
 const AUTH_CONFIGS: AuthConfig[] = [
   // Acesso original
-  { envKey: "ADMIN_PASSWORD", email: "admin@wesystem.app", role: "admin" },
+  { envKey: "ADMIN_PASSWORD", email: "admin@wesystem.app", role: "admin", name: "Administrador" },
   
   // Novos acessos da Diretoria (@weniu.com)
-  { envKey: "PAULO_PASSWORD", email: "paulo@weniu.com", role: "admin" },
-  { envKey: "ATILA_PASSWORD", email: "atila@weniu.com", role: "admin" },
-  { envKey: "VINICIUS_PASSWORD", email: "vinicius@weniu.com", role: "admin" },
-  { envKey: "ISADORA_PASSWORD", email: "isadora@weniu.com", role: "admin" },
-  { envKey: "JOAO_PASSWORD", email: "joao@weniu.com", role: "admin" },
+  { envKey: "PAULO_PASSWORD", email: "paulo@weniu.com", role: "admin", name: "Paulo" },
+  { envKey: "ATILA_PASSWORD", email: "atila@weniu.com", role: "admin", name: "Atila" },
+  { envKey: "VINICIUS_PASSWORD", email: "vinicius@weniu.com", role: "admin", name: "Vinicius" },
+  { envKey: "ISADORA_PASSWORD", email: "isadora@weniu.com", role: "admin", name: "Isadora" },
+  { envKey: "JOAO_PASSWORD", email: "joao@weniu.com", role: "admin", name: "Joao" },
 ]
 
 export async function loginAction(formData: FormData) {
@@ -29,6 +30,7 @@ export async function loginAction(formData: FormData) {
 
   let email = ""
   let role = ""
+  let name = ""
 
   // 1. Verificar se a senha corresponde a algum administrador configurado
   const matchedAdmin = AUTH_CONFIGS.find(config => {
@@ -39,11 +41,13 @@ export async function loginAction(formData: FormData) {
   if (matchedAdmin) {
     email = matchedAdmin.email
     role = matchedAdmin.role
+    name = matchedAdmin.name
   } 
   // 2. Verificar acesso limitado (legado)
   else if (limitedPwd && password === limitedPwd) {
     email = "limited@wesystem.app"
     role = "limited"
+    name = "Visualizador"
   } 
   // 3. Senha incorreta
   else {
@@ -98,9 +102,19 @@ export async function loginAction(formData: FormData) {
     }
   }
 
-  // Define o cookie de sessão da aplicação
+  // Define os cookies de sessão da aplicação
   const cookieStore = await cookies()
+  
+  // Cookie de Role (já existia)
   cookieStore.set("user_role", role, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    maxAge: 60 * 60 * 24 * 7, // 7 dias
+    path: "/",
+  })
+
+  // NOVO: Cookie de Nome (para auditoria de aprovação)
+  cookieStore.set("user_name", name, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     maxAge: 60 * 60 * 24 * 7, // 7 dias
@@ -115,5 +129,6 @@ export async function logoutAction() {
   await supabase.auth.signOut()
   const cookieStore = await cookies()
   cookieStore.delete("user_role")
+  cookieStore.delete("user_name")
   redirect("/auth/login")
 }
