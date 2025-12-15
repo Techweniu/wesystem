@@ -43,7 +43,7 @@ export function ServiceApprovalActions({ serviceId, approvalStatus, approvedBy, 
     return (
       <TooltipProvider>
         <Tooltip>
-          <TooltipTrigger>
+          <TooltipTrigger asChild>
             <div className="flex justify-center">
              <Badge className="bg-green-600 hover:bg-green-700 flex gap-1 h-6 w-fit cursor-default">
                 <CheckCircle className="h-3 w-3" />
@@ -60,11 +60,20 @@ export function ServiceApprovalActions({ serviceId, approvalStatus, approvedBy, 
 
   if (approvalStatus === "rejected") {
     return (
-        <div className="flex justify-center">
-            <Badge variant="destructive" className="flex gap-1 h-6 w-fit">
-                <XCircle className="h-3 w-3" />
-            </Badge>
-        </div>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="flex justify-center">
+                <Badge variant="destructive" className="flex gap-1 h-6 w-fit cursor-default">
+                    <XCircle className="h-3 w-3" />
+                </Badge>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Rejeitado por {approvedBy || "Admin"}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     )
   }
 
