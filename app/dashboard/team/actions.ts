@@ -249,12 +249,18 @@ export async function addEmployeeContribution(formData: FormData) {
 
   const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
+  // CORREÇÃO: Inserção com campos de aprovação
   const { error } = await supabaseAdmin.from("employee_contributions").insert({
     employee_id: employeeId,
     description: contributionData.description,
     category: contributionData.category,
     value: contributionData.value,
     date: contributionData.date ? new Date(contributionData.date).toISOString().split("T")[0] : null,
+    
+    // Novos campos de controle
+    approval_status: 'pending',
+    approved_by: null,
+    approved_at: null
   })
 
   if (error) {
@@ -263,7 +269,8 @@ export async function addEmployeeContribution(formData: FormData) {
   }
 
   revalidatePath(`/dashboard/team/${employeeId}`)
-  return { success: "Contribuição registrada com sucesso!" }
+  // A mensagem agora reflete que precisa de aprovação
+  return { success: "Contribuição registrada! Aguardando aprovação." }
 }
 
 // --- AÇÃO PARA ADICIONAR ARQUIVO DE PLANO DE CARREIRA (LEGADO) ---
