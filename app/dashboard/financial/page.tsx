@@ -224,8 +224,8 @@ async function getFinancialData(period: string) {
       amount: p.amount,
       status: p.status,
       rawDate: parseBrDate(p.date),
-      receiptUrl: p.proofUrl,
-      invoiceUrl: p.invoiceUrl
+      receiptUrl: p.proofUrl, // Comprovante de Pagamento
+      invoiceUrl: p.invoiceUrl // Nota Fiscal
     })),
     ...safeServices.map((s) => ({
       id: s.id,
@@ -235,8 +235,9 @@ async function getFinancialData(period: string) {
       amount: Number(s.value),
       status: s.received_date ? 'completed' : s.status,
       rawDate: new Date(s.date),
-      receiptUrl: s.payment_proof_url || (s as any).proof_url, // Tenta mapear o que tiver
-      invoiceUrl: (s as any).invoice_url || null
+      // CORREÇÃO: Mapeia comprovantes corretamente
+      receiptUrl: s.payment_proof_url, // Comprovante de recebimento (dinheiro na conta)
+      invoiceUrl: (s as any).proof_url || (s as any).invoice_url || null // Contrato/Nota gerada
     }))
   ].sort((a, b) => b.rawDate.getTime() - a.rawDate.getTime())
 
@@ -250,8 +251,9 @@ async function getFinancialData(period: string) {
       amount: Number(c.value),
       status: c.status,
       rawDate: new Date(c.date),
-      receiptUrl: c.payment_proof_url || (c as any).proof_url, // Comprovante de Pagamento
-      invoiceUrl: (c as any).invoice_url || null // Nota Fiscal
+      // CORREÇÃO: Mapeia comprovantes corretamente
+      receiptUrl: c.payment_proof_url, // Comprovante de Pagamento (Bancário)
+      invoiceUrl: c.proof_url || (c as any).invoice_url || null // Nota Fiscal/Boleto original
     })),
     ...employeePaymentsData.map((e: any) => ({
       id: e.uniqueKey,
