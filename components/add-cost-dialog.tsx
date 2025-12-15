@@ -30,6 +30,8 @@ export function AddCostDialog({ employees, costCategories }: AddCostDialogProps)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isRecurring, setIsRecurring] = useState(false)
   const [recurrenceDays, setRecurrenceDays] = useState(30)
+  // Estado para armazenar a data final (string vazia = sem expiração)
+  const [recurrenceEndDate, setRecurrenceEndDate] = useState<string>("")
   const [proofFile, setProofFile] = useState<File | null>(null)
   const formRef = useRef<HTMLFormElement>(null)
 
@@ -46,6 +48,8 @@ export function AddCostDialog({ employees, costCategories }: AddCostDialogProps)
     const formData = new FormData(e.currentTarget)
     formData.set("is_recurring", isRecurring.toString())
     formData.set("recurrence_days", recurrenceDays.toString())
+    // Envia a data final (vazia ou preenchida)
+    formData.set("recurrence_end_date", recurrenceEndDate)
     formData.set("proof_file", proofFile)
 
     const result = await addCost(formData)
@@ -55,6 +59,7 @@ export function AddCostDialog({ employees, costCategories }: AddCostDialogProps)
       formRef.current?.reset()
       setIsRecurring(false)
       setRecurrenceDays(30)
+      setRecurrenceEndDate("") // Reseta para sem expiração
       setProofFile(null)
       setOpen(false)
     } else {
@@ -84,6 +89,7 @@ export function AddCostDialog({ employees, costCategories }: AddCostDialogProps)
           setProofFile(null)
           setIsRecurring(false)
           setRecurrenceDays(30)
+          setRecurrenceEndDate("")
         }
       }}
     >
@@ -180,7 +186,9 @@ export function AddCostDialog({ employees, costCategories }: AddCostDialogProps)
               </div>
 
               {isRecurring && (
-                <div className="ml-6 p-4 border rounded-lg bg-muted/30 space-y-3">
+                <div className="ml-6 p-4 border rounded-lg bg-muted/30 space-y-4">
+                  
+                  {/* Bloco de Dias de Recorrência */}
                   <div className="space-y-2">
                     <Label htmlFor="recurrence_days">Intervalo de Recorrência (dias) *</Label>
                     <div className="flex items-center gap-3">
@@ -199,51 +207,11 @@ export function AddCostDialog({ employees, costCategories }: AddCostDialogProps)
                   <div className="flex flex-wrap gap-2">
                     <Button
                       type="button"
-                      variant={recurrenceDays === 7 ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setRecurrenceDays(7)}
-                    >
-                      Semanal (7)
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={recurrenceDays === 15 ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setRecurrenceDays(15)}
-                    >
-                      Quinzenal (15)
-                    </Button>
-                    <Button
-                      type="button"
                       variant={recurrenceDays === 30 ? "default" : "outline"}
                       size="sm"
                       onClick={() => setRecurrenceDays(30)}
                     >
                       Mensal (30)
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={recurrenceDays === 60 ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setRecurrenceDays(60)}
-                    >
-                      Bimestral (60)
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={recurrenceDays === 90 ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setRecurrenceDays(90)}
-                    >
-                      Trimestral (90)
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={recurrenceDays === 180 ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setRecurrenceDays(180)}
-                    >
-                      Semestral (180)
                     </Button>
                     <Button
                       type="button"
@@ -254,9 +222,39 @@ export function AddCostDialog({ employees, costCategories }: AddCostDialogProps)
                       Anual (365)
                     </Button>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Ao marcar este custo como pago, um novo será criado automaticamente para daqui a {recurrenceDays}{" "}
-                    dias.
+
+                  {/* NOVO BLOCO: Data Limite (Opção sem expiração) */}
+                  <div className="space-y-2 border-t pt-4 mt-2">
+                    <Label htmlFor="recurrence_end_date">Repetir até (Opcional)</Label>
+                    <div className="flex items-center gap-4">
+                        <Input
+                        id="recurrence_end_date"
+                        type="date"
+                        value={recurrenceEndDate}
+                        onChange={(e) => setRecurrenceEndDate(e.target.value)}
+                        className="w-full max-w-[200px]"
+                        />
+                        {recurrenceEndDate && (
+                            <Button 
+                                type="button" 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={() => setRecurrenceEndDate("")}
+                                className="text-xs text-muted-foreground hover:text-destructive"
+                            >
+                                <X className="mr-1 h-3 w-3" /> Limpar (Sem expiração)
+                            </Button>
+                        )}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {recurrenceEndDate 
+                        ? "A recorrência parará automaticamente após esta data." 
+                        : "Deixe em branco para repetir indefinidamente (Sem expiração)."}
+                    </p>
+                  </div>
+
+                  <p className="text-xs text-muted-foreground border-t pt-2">
+                    Ao marcar este custo como pago, um novo será criado automaticamente.
                   </p>
                 </div>
               )}
