@@ -18,7 +18,6 @@ async function checkAdminPermission() {
 // --- FUNÇÃO AUXILIAR: PEGAR NOME DO APROVADOR ---
 async function getApproverName() {
   const cookieStore = await cookies()
-  // Pega o nome salvo no cookie (definido no login) ou fallback para "Administrador"
   return cookieStore.get("user_name")?.value || "Administrador"
 }
 
@@ -33,7 +32,6 @@ function addDaysToDateString(dateStr: string, days: number): string {
   return date.toISOString().split("T")[0]
 }
 
-// --- SCHEMAS ---
 const costSchema = z.object({
   description: z.string().min(1, "Descrição é obrigatória"),
   value: z.coerce.number().positive("Valor deve ser positivo"),
@@ -92,12 +90,10 @@ export async function addCost(formData: FormData) {
         is_recurring: validated.data.is_recurring,
         recurrence_days: validated.data.is_recurring ? validated.data.recurrence_days : null,
         recurrence_end_date: validated.data.is_recurring ? recurrenceEndDate : null,
-        
-        // Status Financeiro
-        status: "pending", 
+        status: "pending",
         paid_date: null,
         
-        // Status de Aprovação (Novo Fluxo)
+        // Status de Aprovação
         approval_status: "pending", 
         approved_by: null,
         approved_at: null,
@@ -117,7 +113,7 @@ export async function addCost(formData: FormData) {
   }
 }
 
-// --- AÇÃO approveCost (NOVA) ---
+// --- AÇÃO approveCost ---
 export async function approveCost(id: string) {
   try {
     await checkAdminPermission()
@@ -146,7 +142,7 @@ export async function approveCost(id: string) {
   }
 }
 
-// --- AÇÃO rejectCost (NOVA) ---
+// --- AÇÃO rejectCost ---
 export async function rejectCost(id: string) {
   try {
     await checkAdminPermission()
@@ -191,22 +187,17 @@ export async function updateCost(id: string, formData: FormData) {
     }
 
     const validated = costSchema.safeParse(rawData)
-    if (!validated.success) {
-      return { success: false, error: "Dados inválidos." }
-    }
+    if (!validated.success) return { success: false, error: "Dados inválidos." }
 
     const supabaseAdmin = createAdminClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
     )
 
-    // Ao editar um custo, ele volta para status de aprovação pendente? 
-    // Por segurança, vamos manter o status atual ou resetar para pending.
-    // Vamos resetar para pending para garantir que edições críticas sejam re-aprovadas.
     const { error } = await supabaseAdmin.from("costs").update({
       ...validated.data,
       recurrence_end_date: validated.data.recurrence_end_date || null,
-      approval_status: "pending", // Reseta aprovação ao editar
+      approval_status: "pending", // Reseta aprovação
       approved_by: null,
       approved_at: null
     }).eq("id", id)
@@ -241,7 +232,101 @@ export async function deleteCost(id: string) {
   }
 }
 
-// --- AÇÃO markCostAsPaid (Atualizada para verificar aprovação) ---
+// --- AÇÃO markClientPaymentAsPaid ---
+const clientPaymentSchema = z.object({
+  clientId: z.string().uuid("ID do cliente inválido."),
+  amount: z.coerce.number().positive("O valor deve ser positivo."),
+})
+
+export async function markClientPaymentAsPaid(formData: FormData) {
+  try {
+    await checkAdminPermission()
+
+    const proofFile = formData.get("proof_file") as File
+    if (!proofFile || proofFile.size === 0) return { error: "Comprovante é obrigatório." }
+
+    const validatedFields = clientPaymentSchema.safeParse(Object.fromEntries(formData))
+    if (!validatedFields.success) return { error: "Dados inválidos." }
+
+    const { clientId, amount } = validatedFields.data
+    const supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    )
+
+    const fileExtension = proofFile.name.split(".").pop()
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExtension}`
+    const filePath = `client-payments/${fileName}`
+
+    const { error: uploadError } = await supabaseAdmin.storage.from("financial-proofs").upload(filePath, proofFile, {
+      contentType: proofFile.type,
+      upsert: false,
+    })
+
+    if (uploadError) return { error: "Erro no upload do comprovante." }
+    const { data: urlData } = supabaseAdmin.storage.from("financial-proofs").getPublicUrl(filePath)
+
+    const { error } = await supabaseAdmin.from("client_payments").insert({
+      client_id: clientId,
+      amount: amount,
+      payment_date: getBrazilDateString(),
+      proof_url: urlData.publicUrl,
+    })
+
+    if (error) return { error: error.message }
+
+    revalidatePath("/dashboard/financial")
+    revalidatePath(`/dashboard/clients/${clientId}`)
+    return { success: "Pagamento registrado!" }
+  } catch (e: any) {
+    return { error: e.message }
+  }
+}
+
+// --- AÇÃO undoClientPayment ---
+const undoClientPaymentSchema = z.object({
+  clientId: z.string().uuid(),
+})
+
+export async function undoClientPayment(formData: FormData) {
+  try {
+    await checkAdminPermission()
+    const validatedFields = undoClientPaymentSchema.safeParse(Object.fromEntries(formData))
+    if (!validatedFields.success) return { error: "ID inválido." }
+
+    const { clientId } = validatedFields.data
+    const supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    )
+
+    const startOfMonth = new Date()
+    startOfMonth.setDate(1)
+    startOfMonth.setHours(0, 0, 0, 0)
+
+    const { data: recentPayment } = await supabaseAdmin
+      .from("client_payments")
+      .select("id")
+      .eq("client_id", clientId)
+      .gte("payment_date", startOfMonth.toISOString())
+      .order("payment_date", { ascending: false })
+      .limit(1)
+      .single()
+
+    if (!recentPayment) return { error: "Nenhum pagamento encontrado neste mês." }
+
+    const { error } = await supabaseAdmin.from("client_payments").delete().eq("id", recentPayment.id)
+    if (error) return { error: error.message }
+
+    revalidatePath("/dashboard/financial")
+    revalidatePath(`/dashboard/clients/${clientId}`)
+    return { success: "Pagamento revertido!" }
+  } catch (e: any) {
+    return { error: e.message }
+  }
+}
+
+// --- AÇÃO markCostAsPaid ---
 const costPaymentSchema = z.object({
   costId: z.string().uuid(),
   amount: z.coerce.number().positive(),
@@ -268,7 +353,7 @@ export async function markCostAsPaid(formData: FormData) {
 
     if (!cost) return { error: "Custo não encontrado." }
 
-    // BLOQUEIO: Não permitir pagar se não estiver aprovado
+    // CHECK: Aprovação necessária
     if (cost.approval_status !== 'approved') {
         return { error: "Este custo precisa ser aprovado pela diretoria antes do pagamento." }
     }
@@ -291,7 +376,6 @@ export async function markCostAsPaid(formData: FormData) {
 
     if (paymentError) return { error: paymentError.message }
 
-    // Lógica de Recorrência
     if (cost.is_recurring) {
       const recurrenceDays = cost.recurrence_days || 30
       let nextDateString = "";
@@ -323,16 +407,14 @@ export async function markCostAsPaid(formData: FormData) {
             recurrence_days: recurrenceDays,
             recurrence_end_date: cost.recurrence_end_date,
             employee_id: cost.employee_id,
-            
-            // Novos custos recorrentes também precisam de aprovação (conforme solicitado)
-            approval_status: "pending", 
-            approved_by: null,
-            approved_at: null,
-            
             status: "pending",
             paid_date: null,
             proof_url: cost.proof_url,
             payment_proof_url: null,
+            // Novos recorrentes também precisam de aprovação
+            approval_status: "pending",
+            approved_by: null,
+            approved_at: null,
         })
       }
     }
@@ -344,323 +426,282 @@ export async function markCostAsPaid(formData: FormData) {
   }
 }
 
-// --- Outras funções de pagamento (Mantidas iguais, mas idealmente deveriam ter check de aprovação futuramente) ---
-// ... markClientPaymentAsPaid, undoClientPayment, undoCostPayment ...
-// ... markPaymentAsPaid, undoEmployeePayment, markServiceAsReceived, undoServiceReceipt ...
-
-// Vou manter o restante das funções inalteradas para focar no módulo de CUSTOS primeiro,
-// mas adicionei as exportações necessárias abaixo para o arquivo compilar corretamente.
-
-export async function deleteClientPayment(id: string) { return {success:false} } // Placeholder se necessário
-
-// Re-exportando as funções originais que não mudaram para manter o arquivo completo
-// (Copiei a lógica original para garantir integridade)
-
-// --- AÇÃO markClientPaymentAsPaid ---
-const clientPaymentSchema = z.object({
-    clientId: z.string().uuid("ID do cliente inválido."),
-    amount: z.coerce.number().positive("O valor deve ser positivo."),
-  })
-  
-  export async function markClientPaymentAsPaid(formData: FormData) {
-    try {
-      await checkAdminPermission()
-  
-      const proofFile = formData.get("proof_file") as File
-      if (!proofFile || proofFile.size === 0) return { error: "Comprovante é obrigatório." }
-  
-      const validatedFields = clientPaymentSchema.safeParse(Object.fromEntries(formData))
-      if (!validatedFields.success) return { error: "Dados inválidos." }
-  
-      const { clientId, amount } = validatedFields.data
-      const supabaseAdmin = createAdminClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      )
-  
-      const fileExtension = proofFile.name.split(".").pop()
-      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExtension}`
-      const filePath = `client-payments/${fileName}`
-  
-      const { error: uploadError } = await supabaseAdmin.storage.from("financial-proofs").upload(filePath, proofFile, {
-        contentType: proofFile.type,
-        upsert: false,
-      })
-  
-      if (uploadError) return { error: "Erro no upload do comprovante." }
-      const { data: urlData } = supabaseAdmin.storage.from("financial-proofs").getPublicUrl(filePath)
-  
-      const { error } = await supabaseAdmin.from("client_payments").insert({
-        client_id: clientId,
-        amount: amount,
-        payment_date: getBrazilDateString(), 
-        proof_url: urlData.publicUrl,
-      })
-  
-      if (error) return { error: error.message }
-  
-      revalidatePath("/dashboard/financial")
-      revalidatePath(`/dashboard/clients/${clientId}`)
-      return { success: "Pagamento registrado!" }
-    } catch (e: any) {
-      return { error: e.message }
-    }
-  }
-  
-  // --- AÇÃO undoClientPayment ---
-  const undoClientPaymentSchema = z.object({
-    clientId: z.string().uuid(),
-  })
-  
-  export async function undoClientPayment(formData: FormData) {
-    try {
-      await checkAdminPermission()
-      const validatedFields = undoClientPaymentSchema.safeParse(Object.fromEntries(formData))
-      if (!validatedFields.success) return { error: "ID inválido." }
-  
-      const { clientId } = validatedFields.data
-      const supabaseAdmin = createAdminClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      )
-  
-      const startOfMonth = new Date()
-      startOfMonth.setDate(1)
-      startOfMonth.setHours(0, 0, 0, 0)
-  
-      const { data: recentPayment } = await supabaseAdmin
-        .from("client_payments")
-        .select("id")
-        .eq("client_id", clientId)
-        .gte("payment_date", startOfMonth.toISOString())
-        .order("payment_date", { ascending: false })
-        .limit(1)
-        .single()
-  
-      if (!recentPayment) return { error: "Nenhum pagamento encontrado neste mês." }
-  
-      const { error } = await supabaseAdmin.from("client_payments").delete().eq("id", recentPayment.id)
-      if (error) return { error: error.message }
-  
-      revalidatePath("/dashboard/financial")
-      revalidatePath(`/dashboard/clients/${clientId}`)
-      return { success: "Pagamento revertido!" }
-    } catch (e: any) {
-      return { error: e.message }
-    }
-  }
-
-  // --- AÇÃO undoCostPayment ---
+// --- AÇÃO undoCostPayment ---
 const undoCostPaymentSchema = z.object({
-    costId: z.string().uuid(),
-  })
-  
-  export async function undoCostPayment(formData: FormData) {
-    try {
-      await checkAdminPermission()
-      const validatedFields = undoCostPaymentSchema.safeParse(Object.fromEntries(formData))
-      if (!validatedFields.success) return { error: "ID inválido." }
-  
-      const { costId } = validatedFields.data
-      const supabaseAdmin = createAdminClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      )
-  
-      const { error } = await supabaseAdmin
-        .from("costs")
-        .update({
-          paid_date: null,
-          status: "pending",
-          payment_proof_url: null,
-        })
-        .eq("id", costId)
-  
-      if (error) return { error: error.message }
-  
-      revalidatePath("/dashboard/financial")
-      return { success: "Pagamento revertido!" }
-    } catch (e: any) {
-      return { error: e.message }
-    }
-  }
-  
-  // --- AÇÃO markPaymentAsPaid (Funcionários) ---
-  const paymentSchema = z.object({
-    employeeId: z.string().uuid(),
-    amount: z.coerce.number().positive(),
-  })
-  
-  export async function markPaymentAsPaid(formData: FormData) {
-    try {
-      await checkAdminPermission()
-      const proofFile = formData.get("proof_file") as File
-      if (!proofFile || proofFile.size === 0) return { error: "Comprovante obrigatório." }
-  
-      const validatedFields = paymentSchema.safeParse(Object.fromEntries(formData))
-      if (!validatedFields.success) return { error: "Dados inválidos." }
-  
-      const { employeeId, amount } = validatedFields.data
-      const supabaseAdmin = createAdminClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      )
-  
-      const fileExtension = proofFile.name.split(".").pop()
-      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExtension}`
-      const filePath = `employee-payments/${fileName}`
-  
-      const { error: uploadError } = await supabaseAdmin.storage.from("financial-proofs").upload(filePath, proofFile, {
-        contentType: proofFile.type,
-        upsert: false,
+  costId: z.string().uuid(),
+})
+
+export async function undoCostPayment(formData: FormData) {
+  try {
+    await checkAdminPermission()
+    const validatedFields = undoCostPaymentSchema.safeParse(Object.fromEntries(formData))
+    if (!validatedFields.success) return { error: "ID inválido." }
+
+    const { costId } = validatedFields.data
+    const supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    )
+
+    const { error } = await supabaseAdmin
+      .from("costs")
+      .update({
+        paid_date: null,
+        status: "pending",
+        payment_proof_url: null,
       })
-      if (uploadError) return { error: "Erro no upload." }
-      const { data: urlData } = supabaseAdmin.storage.from("financial-proofs").getPublicUrl(filePath)
-  
-      const { error } = await supabaseAdmin.from("employee_payments").insert({
-        employee_id: employeeId,
-        amount: amount,
-        payment_date: getBrazilDateString(), 
-        proof_url: urlData.publicUrl,
+      .eq("id", costId)
+
+    if (error) return { error: error.message }
+
+    revalidatePath("/dashboard/financial")
+    return { success: "Pagamento revertido!" }
+  } catch (e: any) {
+    return { error: e.message }
+  }
+}
+
+// --- AÇÃO markPaymentAsPaid (Funcionários) ---
+const paymentSchema = z.object({
+  employeeId: z.string().uuid(),
+  amount: z.coerce.number().positive(),
+})
+
+export async function markPaymentAsPaid(formData: FormData) {
+  try {
+    await checkAdminPermission()
+    const proofFile = formData.get("proof_file") as File
+    if (!proofFile || proofFile.size === 0) return { error: "Comprovante obrigatório." }
+
+    const validatedFields = paymentSchema.safeParse(Object.fromEntries(formData))
+    if (!validatedFields.success) return { error: "Dados inválidos." }
+
+    const { employeeId, amount } = validatedFields.data
+    const supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    )
+
+    const fileExtension = proofFile.name.split(".").pop()
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExtension}`
+    const filePath = `employee-payments/${fileName}`
+
+    const { error: uploadError } = await supabaseAdmin.storage.from("financial-proofs").upload(filePath, proofFile, {
+      contentType: proofFile.type,
+      upsert: false,
+    })
+    if (uploadError) return { error: "Erro no upload." }
+    const { data: urlData } = supabaseAdmin.storage.from("financial-proofs").getPublicUrl(filePath)
+
+    // Insere o pagamento como PENDENTE de aprovação da diretoria
+    const { error } = await supabaseAdmin.from("employee_payments").insert({
+      employee_id: employeeId,
+      amount: amount,
+      payment_date: getBrazilDateString(),
+      proof_url: urlData.publicUrl,
+      
+      // Status de Aprovação
+      approval_status: "pending",
+      approved_by: null,
+      approved_at: null
+    })
+
+    if (error) return { error: error.message }
+
+    revalidatePath("/dashboard/financial")
+    revalidatePath("/dashboard/team")
+    return { success: "Pagamento registrado! Aguardando aprovação da diretoria." }
+  } catch (e: any) {
+    return { error: e.message }
+  }
+}
+
+// --- NOVAS AÇÕES DE APROVAÇÃO (PAGAMENTO FUNCIONÁRIOS) ---
+export async function approveEmployeePayment(id: string) {
+  try {
+    await checkAdminPermission()
+    const approverName = await getApproverName()
+    const supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    )
+
+    const { error } = await supabaseAdmin
+      .from("employee_payments")
+      .update({
+        approval_status: "approved",
+        approved_by: approverName,
+        approved_at: new Date().toISOString(),
       })
-  
-      if (error) return { error: error.message }
-  
-      revalidatePath("/dashboard/financial")
-      revalidatePath("/dashboard/team")
-      return { success: "Pagamento registrado!" }
-    } catch (e: any) {
-      return { error: e.message }
-    }
+      .eq("id", id)
+
+    if (error) throw error
+
+    revalidatePath("/dashboard/financial")
+    revalidatePath("/dashboard/team")
+    return { success: true, message: "Pagamento aprovado!" }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Erro ao aprovar." }
   }
-  
-  // --- AÇÃO undoEmployeePayment ---
-  const undoPaymentSchema = z.object({
-    employeeId: z.string().uuid(),
-  })
-  
-  export async function undoEmployeePayment(formData: FormData) {
-    try {
-      await checkAdminPermission()
-      const validatedFields = undoPaymentSchema.safeParse(Object.fromEntries(formData))
-      if (!validatedFields.success) return { error: "ID inválido." }
-  
-      const { employeeId } = validatedFields.data
-      const supabaseAdmin = createAdminClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      )
-  
-      const startOfMonth = new Date()
-      startOfMonth.setDate(1)
-      startOfMonth.setHours(0, 0, 0, 0)
-  
-      const { data: recentPayment } = await supabaseAdmin
-        .from("employee_payments")
-        .select("id")
-        .eq("employee_id", employeeId)
-        .gte("payment_date", startOfMonth.toISOString())
-        .order("payment_date", { ascending: false })
-        .limit(1)
-        .single()
-  
-      if (!recentPayment) return { error: "Nenhum pagamento encontrado neste mês." }
-  
-      const { error } = await supabaseAdmin.from("employee_payments").delete().eq("id", recentPayment.id)
-      if (error) return { error: error.message }
-  
-      revalidatePath("/dashboard/financial")
-      revalidatePath("/dashboard/team")
-      return { success: "Pagamento revertido!" }
-    } catch (e: any) {
-      return { error: e.message }
-    }
-  }
-  
-  // --- AÇÃO markServiceAsReceived ---
-  const servicePaymentSchema = z.object({
-    serviceId: z.string().uuid(),
-    clientId: z.string().uuid(),
-    amount: z.coerce.number().positive(),
-  })
-  
-  export async function markServiceAsReceived(formData: FormData) {
-    try {
-      await checkAdminPermission()
-      const proofFile = formData.get("proof_file") as File
-      if (!proofFile || proofFile.size === 0) return { error: "Comprovante obrigatório." }
-  
-      const validatedFields = servicePaymentSchema.safeParse(Object.fromEntries(formData))
-      if (!validatedFields.success) return { error: "Dados inválidos." }
-  
-      const { serviceId, clientId } = validatedFields.data
-      const supabaseAdmin = createAdminClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      )
-  
-      const fileExtension = proofFile.name.split(".").pop()
-      const fileName = `service-payments/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExtension}`
-  
-      const { error: uploadError } = await supabaseAdmin.storage.from("financial-proofs").upload(fileName, proofFile, {
-        contentType: proofFile.type,
-        upsert: false,
+}
+
+export async function rejectEmployeePayment(id: string) {
+  try {
+    await checkAdminPermission()
+    const approverName = await getApproverName()
+    const supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    )
+
+    const { error } = await supabaseAdmin
+      .from("employee_payments")
+      .update({
+        approval_status: "rejected",
+        approved_by: approverName,
+        approved_at: new Date().toISOString(),
       })
-      if (uploadError) return { error: "Erro no upload." }
-      const { data: urlData } = supabaseAdmin.storage.from("financial-proofs").getPublicUrl(fileName)
-  
-      const { error: updateError } = await supabaseAdmin
-        .from("one_time_services")
-        .update({
-          received_date: getBrazilDateString(), 
-          payment_proof_url: urlData.publicUrl,
-          status: "completed",
-        })
-        .eq("id", serviceId)
-  
-      if (updateError) return { error: updateError.message }
-  
-      revalidatePath("/dashboard/financial")
-      revalidatePath(`/dashboard/clients/${clientId}`)
-      return { success: "Recebimento registrado!" }
-    } catch (e: any) {
-      return { error: e.message }
-    }
+      .eq("id", id)
+
+    if (error) throw error
+
+    revalidatePath("/dashboard/financial")
+    revalidatePath("/dashboard/team")
+    return { success: true, message: "Pagamento rejeitado." }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Erro ao rejeitar." }
   }
-  
-  // --- AÇÃO undoServiceReceipt ---
-  const undoServiceReceiptSchema = z.object({
-    serviceId: z.string().uuid(),
-    clientId: z.string().uuid(),
-  })
-  
-  export async function undoServiceReceipt(formData: FormData) {
-    try {
-      await checkAdminPermission()
-      const validatedFields = undoServiceReceiptSchema.safeParse(Object.fromEntries(formData))
-      if (!validatedFields.success) return { error: "Dados inválidos." }
-  
-      const { serviceId, clientId } = validatedFields.data
-      const supabaseAdmin = createAdminClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      )
-  
-      const { error: updateError } = await supabaseAdmin
-        .from("one_time_services")
-        .update({
-          received_date: null,
-          payment_proof_url: null,
-          status: "pending",
-        })
-        .eq("id", serviceId)
-  
-      if (updateError) return { error: updateError.message }
-  
-      revalidatePath("/dashboard/financial")
-      revalidatePath(`/dashboard/clients/${clientId}`)
-      return { success: "Recebimento revertido!" }
-    } catch (e: any) {
-      return { error: e.message }
-    }
+}
+
+// --- AÇÃO undoEmployeePayment ---
+const undoPaymentSchema = z.object({
+  employeeId: z.string().uuid(),
+})
+
+export async function undoEmployeePayment(formData: FormData) {
+  try {
+    await checkAdminPermission()
+    const validatedFields = undoPaymentSchema.safeParse(Object.fromEntries(formData))
+    if (!validatedFields.success) return { error: "ID inválido." }
+
+    const { employeeId } = validatedFields.data
+    const supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    )
+
+    const startOfMonth = new Date()
+    startOfMonth.setDate(1)
+    startOfMonth.setHours(0, 0, 0, 0)
+
+    const { data: recentPayment } = await supabaseAdmin
+      .from("employee_payments")
+      .select("id")
+      .eq("employee_id", employeeId)
+      .gte("payment_date", startOfMonth.toISOString())
+      .order("payment_date", { ascending: false })
+      .limit(1)
+      .single()
+
+    if (!recentPayment) return { error: "Nenhum pagamento encontrado neste mês." }
+
+    const { error } = await supabaseAdmin.from("employee_payments").delete().eq("id", recentPayment.id)
+    if (error) return { error: error.message }
+
+    revalidatePath("/dashboard/financial")
+    revalidatePath("/dashboard/team")
+    return { success: "Pagamento revertido!" }
+  } catch (e: any) {
+    return { error: e.message }
   }
+}
+
+// --- AÇÃO markServiceAsReceived ---
+const servicePaymentSchema = z.object({
+  serviceId: z.string().uuid(),
+  clientId: z.string().uuid(),
+  amount: z.coerce.number().positive(),
+})
+
+export async function markServiceAsReceived(formData: FormData) {
+  try {
+    await checkAdminPermission()
+    const proofFile = formData.get("proof_file") as File
+    if (!proofFile || proofFile.size === 0) return { error: "Comprovante obrigatório." }
+
+    const validatedFields = servicePaymentSchema.safeParse(Object.fromEntries(formData))
+    if (!validatedFields.success) return { error: "Dados inválidos." }
+
+    const { serviceId, clientId } = validatedFields.data
+    const supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    )
+
+    const fileExtension = proofFile.name.split(".").pop()
+    const fileName = `service-payments/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExtension}`
+
+    const { error: uploadError } = await supabaseAdmin.storage.from("financial-proofs").upload(fileName, proofFile, {
+      contentType: proofFile.type,
+      upsert: false,
+    })
+    if (uploadError) return { error: "Erro no upload." }
+    const { data: urlData } = supabaseAdmin.storage.from("financial-proofs").getPublicUrl(fileName)
+
+    const { error: updateError } = await supabaseAdmin
+      .from("one_time_services")
+      .update({
+        received_date: getBrazilDateString(),
+        payment_proof_url: urlData.publicUrl,
+        status: "completed",
+      })
+      .eq("id", serviceId)
+
+    if (updateError) return { error: updateError.message }
+
+    revalidatePath("/dashboard/financial")
+    revalidatePath(`/dashboard/clients/${clientId}`)
+    return { success: "Recebimento registrado!" }
+  } catch (e: any) {
+    return { error: e.message }
+  }
+}
+
+// --- AÇÃO undoServiceReceipt ---
+const undoServiceReceiptSchema = z.object({
+  serviceId: z.string().uuid(),
+  clientId: z.string().uuid(),
+})
+
+export async function undoServiceReceipt(formData: FormData) {
+  try {
+    await checkAdminPermission()
+    const validatedFields = undoServiceReceiptSchema.safeParse(Object.fromEntries(formData))
+    if (!validatedFields.success) return { error: "Dados inválidos." }
+
+    const { serviceId, clientId } = validatedFields.data
+    const supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    )
+
+    const { error: updateError } = await supabaseAdmin
+      .from("one_time_services")
+      .update({
+        received_date: null,
+        payment_proof_url: null,
+        status: "pending",
+      })
+      .eq("id", serviceId)
+
+    if (updateError) return { error: updateError.message }
+
+    revalidatePath("/dashboard/financial")
+    revalidatePath(`/dashboard/clients/${clientId}`)
+    return { success: "Recebimento revertido!" }
+  } catch (e: any) {
+    return { error: e.message }
+  }
+}
+
+export async function deleteClientPayment(id: string) { return {success:false} }
