@@ -22,7 +22,7 @@ import Link from "next/link"
 import { MarkServiceReceivedButton } from "@/components/mark-service-received-button"
 import { cookies } from "next/headers"
 import { formatCurrency } from "@/lib/utils"
-import { ServiceApprovalActions } from "@/components/service-approval-actions" // IMPORTANTE
+import { ServiceApprovalActions } from "@/components/service-approval-actions"
 
 // CONFIGURAÇÃO DE CACHE:
 export const dynamic = "force-dynamic"
@@ -100,7 +100,7 @@ async function getFinancialData(period: string) {
     supabase.from("one_time_services").select("*, clients(name)").gte("date", start).lte("date", end).order("date", { ascending: false }),
     supabase.from("client_payments").select("*, clients(name)").gte("payment_date", start).lte("payment_date", end).order("payment_date", { ascending: false }),
     supabase.from("employee_payments").select("*, employees(name)").gte("payment_date", start).lte("payment_date", end).order("payment_date", { ascending: false }),
-    supabase.from("contracts").select("id, name, valor_mensal, client_id, approval_status, approved_by, clients(name)").eq("status", "active"), // Added approved_by
+    supabase.from("contracts").select("id, name, valor_mensal, client_id, approval_status, approved_by, clients(name)").eq("status", "active"),
     supabase.from("employees").select("id, name, salary, payment_day").eq("status", "active"),
     supabase.from("cost_categories").select("*").order("name")
   ])
@@ -175,7 +175,7 @@ async function getFinancialData(period: string) {
   // --- LÓGICA DE CLIENTES ---
   const clientPaymentsData = [] as any[]
   
-  // Pagamentos Recebidos (Histórico)
+  // Pagamentos Recebidos (Histórico) - Sempre aprovados pois já foram pagos
   safeClientPayments.forEach(payment => {
     clientPaymentsData.push({
       uniqueKey: payment.id,
@@ -186,7 +186,6 @@ async function getFinancialData(period: string) {
       status: 'paid',
       proofUrl: payment.proof_url, 
       invoiceUrl: (payment as any).invoice_url || null,
-      // Pagamentos históricos não têm aprovação no schema, apenas o contrato
       contractId: null 
     })
   })
@@ -207,7 +206,6 @@ async function getFinancialData(period: string) {
       status: 'pending',
       proofUrl: null,
       invoiceUrl: null,
-      // Dados para Aprovação do Contrato
       contractId: contract.id,
       approvalStatus: contract.approval_status,
       approvedBy: contract.approved_by
@@ -257,6 +255,8 @@ async function getFinancialData(period: string) {
   })
 
   // --- CONSTRUÇÃO DAS TABELAS GERAIS ---
+  // FILTRO: Apenas itens APROVADOS (ou já pagos) aparecem aqui.
+
   const generalInflows = [
     ...clientPaymentsData.map((p: any) => ({
       id: p.uniqueKey,
@@ -267,7 +267,8 @@ async function getFinancialData(period: string) {
       status: p.status,
       rawDate: parseBrDate(p.date),
       receiptUrl: p.proofUrl, 
-      invoiceUrl: p.invoiceUrl 
+      invoiceUrl: p.invoiceUrl,
+      approvalStatus: p.approvalStatus
     })),
     ...safeServices.map((s) => ({
       id: s.id,
@@ -281,7 +282,15 @@ async function getFinancialData(period: string) {
       receiptUrl: s.payment_proof_url,
       invoiceUrl: (s as any).proof_url || (s as any).invoice_url || null 
     }))
-  ].sort((a, b) => b.rawDate.getTime() - a.rawDate.getTime())
+  ]
+  .filter(item => {
+    // Se já foi pago/recebido, é porque foi aprovado implicitamente pelo fato consumado
+    if (item.status === 'paid' || item.status === 'completed') return true;
+    
+    // Se está pendente, só mostra se estiver explicitamente aprovado
+    return item.approvalStatus === 'approved';
+  })
+  .sort((a, b) => b.rawDate.getTime() - a.rawDate.getTime())
 
   const generalOutflows = [
     ...safeCosts.map((c) => ({
@@ -308,7 +317,13 @@ async function getFinancialData(period: string) {
       receiptUrl: e.proofUrl,
       invoiceUrl: null
     }))
-  ].sort((a, b) => b.rawDate.getTime() - a.rawDate.getTime())
+  ]
+  .filter(item => {
+    // Mesma lógica: Se já foi pago, ok. Se pendente, precisa de aprovação.
+    if (item.status === 'paid') return true;
+    return item.approvalStatus === 'approved';
+  })
+  .sort((a, b) => b.rawDate.getTime() - a.rawDate.getTime())
 
   const totalCosts = salariesPaid + salariesPending + otherCostsPaid + otherCostsPending
 
