@@ -37,6 +37,7 @@ const costSchema = z.object({
   date: z.string().min(1, "Data é obrigatória"),
   is_recurring: z.preprocess((val) => val === "true", z.boolean()).default(false),
   recurrence_days: z.coerce.number().min(1).max(365).default(30),
+  recurrence_end_date: z.string().optional().or(z.literal('')), // Novo campo
 })
 
 // --- AÇÃO addCost ---
@@ -56,6 +57,7 @@ export async function addCost(formData: FormData) {
       date: formData.get("date"),
       is_recurring: formData.get("is_recurring"),
       recurrence_days: formData.get("recurrence_days"),
+      recurrence_end_date: formData.get("recurrence_end_date"),
     }
 
     const validated = costSchema.safeParse(rawData)
@@ -75,6 +77,9 @@ export async function addCost(formData: FormData) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
     )
 
+    // Normaliza a data de fim para null se vier vazia
+    const recurrenceEndDate = validated.data.recurrence_end_date || null;
+
     const { error } = await supabaseAdmin.from("costs").insert([
       {
         description: validated.data.description,
@@ -83,6 +88,7 @@ export async function addCost(formData: FormData) {
         date: validated.data.date,
         is_recurring: validated.data.is_recurring,
         recurrence_days: validated.data.is_recurring ? validated.data.recurrence_days : null,
+        recurrence_end_date: validated.data.is_recurring ? recurrenceEndDate : null,
         status: "pending",
         paid_date: null,
         proof_url: blob.url,
@@ -112,6 +118,7 @@ export async function updateCost(id: string, formData: FormData) {
       date: formData.get("date"),
       is_recurring: formData.get("is_recurring"),
       recurrence_days: formData.get("recurrence_days"),
+      recurrence_end_date: formData.get("recurrence_end_date"),
     }
 
     const validated = costSchema.safeParse(rawData)
@@ -126,7 +133,12 @@ export async function updateCost(id: string, formData: FormData) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
     )
 
-    const { error } = await supabaseAdmin.from("costs").update(validated.data).eq("id", id)
+    const recurrenceEndDate = validated.data.recurrence_end_date || null;
+
+    const { error } = await supabaseAdmin.from("costs").update({
+      ...validated.data,
+      recurrence_end_date: recurrenceEndDate
+    }).eq("id", id)
 
     if (error) throw error
 
@@ -271,7 +283,7 @@ export async function markCostAsPaid(formData: FormData) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
     )
 
-    // CORREÇÃO: Buscamos o funcionário associado para pegar o payment_day
+    // Buscamos o custo e o campo recurrence_end_date
     const { data: cost } = await supabaseAdmin
         .from("costs")
         .select("*, employees(payment_day)")
@@ -299,21 +311,18 @@ export async function markCostAsPaid(formData: FormData) {
 
     if (paymentError) return { error: paymentError.message }
 
-    // 2. Se for recorrente, cria o PRÓXIMO custo
+    // 2. Se for recorrente, verifica se deve criar o PRÓXIMO
     if (cost.is_recurring) {
       const recurrenceDays = cost.recurrence_days || 30
       let nextDateString = "";
 
       // LÓGICA DE PAGAMENTO DE FUNCIONÁRIO:
-      // Se houver um funcionário vinculado e ele tiver dia de pagamento definido,
-      // a nova data deve ser esse dia no PRÓXIMO mês.
       if (cost.employee_id && cost.employees?.payment_day) {
           const parts = cost.date.split('-')
           const year = parseInt(parts[0])
           const monthIndex = parseInt(parts[1]) - 1 // 0-based
           
-          // Calcula o próximo mês. O objeto Date lida automaticamente com virada de ano.
-          // Usamos 12:00 para evitar problemas de fuso horário voltando o dia.
+          // Calcula o próximo mês
           const nextPaymentDate = new Date(year, monthIndex + 1, cost.employees.payment_day, 12, 0, 0)
           
           nextDateString = nextPaymentDate.toISOString().split('T')[0]
@@ -322,19 +331,34 @@ export async function markCostAsPaid(formData: FormData) {
           nextDateString = addDaysToDateString(cost.date, recurrenceDays)
       }
 
-      await supabaseAdmin.from("costs").insert({
-        description: cost.description,
-        value: cost.value,
-        category: cost.category,
-        date: nextDateString,
-        is_recurring: true,
-        recurrence_days: recurrenceDays,
-        employee_id: cost.employee_id, // Mantém o vínculo
-        paid_date: null,
-        status: "pending",
-        proof_url: null,
-        payment_proof_url: null,
-      })
+      // --- LÓGICA DE LIMITE DE RECORRÊNCIA ---
+      let shouldCreateNext = true;
+      if (cost.recurrence_end_date) {
+        const nextDateObj = new Date(nextDateString + "T12:00:00");
+        const endDateObj = new Date(cost.recurrence_end_date + "T12:00:00");
+        
+        // Se a próxima data for MAIOR que a data limite, paramos aqui.
+        if (nextDateObj > endDateObj) {
+            shouldCreateNext = false;
+        }
+      }
+
+      if (shouldCreateNext) {
+        await supabaseAdmin.from("costs").insert({
+            description: cost.description,
+            value: cost.value,
+            category: cost.category,
+            date: nextDateString,
+            is_recurring: true,
+            recurrence_days: recurrenceDays,
+            recurrence_end_date: cost.recurrence_end_date, // Passa o limite adiante
+            employee_id: cost.employee_id, // Mantém o vínculo
+            paid_date: null,
+            status: "pending",
+            proof_url: null,
+            payment_proof_url: null,
+        })
+      }
     }
 
     revalidatePath("/dashboard/financial")
