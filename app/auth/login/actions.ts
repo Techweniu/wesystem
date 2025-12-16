@@ -22,6 +22,7 @@ const AUTH_CONFIGS: AuthConfig[] = [
   { envKey: "VINICIUS_PASSWORD", email: "vinicius@weniu.com", role: "admin", name: "Vinicius" },
   { envKey: "ISADORA_PASSWORD", email: "isadora@weniu.com", role: "admin", name: "Isadora" },
   { envKey: "JOAO_PASSWORD", email: "joao@weniu.com", role: "admin", name: "Joao" },
+  { envKey: "LUCIANO_PASSWORD", email: "luciano@weniu.com", role: "admin", name: "Luciano" },
 ]
 
 export async function loginAction(formData: FormData) {
