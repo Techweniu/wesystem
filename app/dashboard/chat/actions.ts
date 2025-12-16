@@ -61,20 +61,22 @@ async function getFullBusinessContext() {
         manager_id
       `),
 
-    // Contratos com entregas
+    // Contratos com entregas e status de aprovação
     supabaseAdmin
       .from("contracts")
       .select(`
         id, name, client_id, start_date, end_date, status, valor_mensal, services,
+        approval_status, approved_by, approved_at,
         contract_deliverables(service_name, delivery_date, delivered)
       `),
 
-    // Custos (últimos 6 meses para análise)
+    // Custos (últimos 6 meses para análise) com status de aprovação
     supabaseAdmin
       .from("costs")
       .select(`
         id, description, value, category, subcategory, date, paid_date, status,
-        is_recurring, cost_type, payment_method, employee_id, notes
+        is_recurring, cost_type, payment_method, employee_id, notes,
+        approval_status, approved_by, approved_at
       `)
       .gte("date", format(subMonths(today, 6), "yyyy-MM-dd"))
       .order("date", { ascending: false }),
@@ -99,17 +101,18 @@ async function getFullBusinessContext() {
       .gte("payment_date", format(subMonths(today, 6), "yyyy-MM-dd"))
       .order("payment_date", { ascending: false }),
 
-    // Pagamentos de funcionários (últimos 3 meses)
+    // Pagamentos de funcionários (últimos 3 meses) com status de aprovação
     supabaseAdmin
       .from("employee_payments")
-      .select("id, employee_id, amount, payment_date")
+      .select("id, employee_id, amount, payment_date, approval_status, approved_by")
       .gte("payment_date", format(subMonths(today, 3), "yyyy-MM-dd"))
       .order("payment_date", { ascending: false }),
 
-    // Serviços avulsos
+    // Serviços avulsos com status de aprovação
     supabaseAdmin
       .from("one_time_services")
-      .select("id, client_id, name, value, date, status, services, received_date"),
+      .select("id, client_id, name, value, date, status, services, received_date, approval_status, approved_by")
+      .order("date", { ascending: false }),
 
     // Oportunidades de upsell
     supabaseAdmin
@@ -127,10 +130,10 @@ async function getFullBusinessContext() {
       .from("platform_access")
       .select("id, client_id, client_name, platform_name, department"),
 
-    // Contribuições de funcionários
+    // Contribuições de funcionários com aprovação
     supabaseAdmin
       .from("employee_contributions")
-      .select("id, employee_id, value, category, description, date")
+      .select("id, employee_id, value, category, description, date, approval_status")
       .gte("date", format(subMonths(today, 3), "yyyy-MM-dd")),
 
     // Observações de funcionários
@@ -165,14 +168,14 @@ async function getFullBusinessContext() {
   // Calcular métricas agregadas
   const activeClients = clients.filter((c) => c.status === "active")
   const activeEmployees = employees.filter((e) => e.status === "active")
-  const activeContracts = contracts.filter((c) => c.status === "active")
+  const activeContracts = contracts.filter((c) => c.status === "active" && c.approval_status === "approved")
 
   const mrrTotal = activeContracts.reduce((acc, c) => acc + Number(c.valor_mensal || 0), 0)
   const totalCosts6Months = costs.reduce((acc, c) => acc + Number(c.value || 0), 0)
   const avgNps = npsResponses.length > 0 ? npsResponses.reduce((acc, n) => acc + n.score, 0) / npsResponses.length : 0
   const totalSalaries = activeEmployees.reduce((acc, e) => acc + Number(e.salary || 0), 0)
   const oneTimeRevenue = oneTimeServices
-    .filter((s) => s.status === "received")
+    .filter((s) => s.status === "received" && s.approval_status === "approved")
     .reduce((acc, s) => acc + Number(s.value || 0), 0)
 
   // Criar mapa de funcionários para referência
@@ -206,6 +209,7 @@ async function getFullBusinessContext() {
     inicio: c.start_date,
     fim: c.end_date,
     status: c.status,
+    aprovacao: c.approval_status,
     valor_mensal: c.valor_mensal,
     servicos: c.services,
     entregas: c.contract_deliverables,
@@ -242,6 +246,7 @@ async function getFullBusinessContext() {
     subcategoria: c.subcategory,
     data: c.date,
     status: c.status,
+    aprovacao: c.approval_status,
     tipo: c.cost_type,
     recorrente: c.is_recurring,
     funcionario: c.employee_id ? employeeMap.get(c.employee_id) : null,
@@ -339,6 +344,7 @@ async function getFullBusinessContext() {
         nome: s.name,
         valor: s.value,
         status: s.status,
+        aprovacao: s.approval_status,
         data: s.date,
       })),
     },
@@ -358,6 +364,7 @@ async function getFullBusinessContext() {
       valor: c.value,
       categoria: c.category,
       descricao: c.description,
+      aprovacao: c.approval_status,
       data: c.date,
     })),
 
@@ -404,10 +411,10 @@ INSTRUÇÕES:
 4. Se perguntarem sobre valores financeiros, use o "resumo_executivo" e "financeiro".
 5. Se perguntarem sobre clientes específicos, busque na lista de "clientes".
 6. Se perguntarem sobre alertas ou riscos, verifique a seção "alertas".
-7. Seja direto, profissional e forneça dados específicos quando disponíveis.
-8. Mencione nomes, valores e datas quando relevante.
-9. Se não encontrar a informação solicitada nos dados, informe claramente.
-10. Para análises comparativas, use os dados históricos disponíveis.
+7. Considere o campo 'aprovacao' (approval_status) para contratos, custos e serviços. Se algo está 'pending', alerte que ainda não foi aprovado.
+8. Seja direto, profissional e forneça dados específicos quando disponíveis.
+9. Mencione nomes, valores e datas quando relevante.
+10. Se não encontrar a informação solicitada nos dados, informe claramente.
 `
 
     const { text } = await generateText({
