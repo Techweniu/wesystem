@@ -15,6 +15,7 @@ import {
   Sparkles,
   KeyRound,
   Target,
+  MessageSquareHeart, // Ícone novo para NPS
 } from "lucide-react"
 import {
   useSidebar,
@@ -41,6 +42,7 @@ type UserRole = "admin" | "limited" | null
 const allNavigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Clientes", href: "/dashboard/clients", icon: Users },
+  { name: "NPS", href: "/dashboard/nps", icon: MessageSquareHeart }, // Novo item
   { name: "Financeiro", href: "/dashboard/financial", icon: DollarSign },
   { name: "Comercial", href: "/dashboard/commercial", icon: Target },
   { name: "Equipe", href: "/dashboard/team", icon: UserCircle },
@@ -50,8 +52,7 @@ const allNavigation = [
 ]
 
 // Lista de nomes de links permitidos para o papel 'limited'
-// ADICIONADO: "Acessos"
-const limitedAccessNav = ["Clientes", "Organograma", "Acessos"]
+const limitedAccessNav = ["Clientes", "Organograma", "Acessos", "NPS"] // Adicionado NPS
 
 // Recebe 'userRole' como prop
 export function DashboardSidebarContent({ userRole }: { userRole: UserRole }) {
