@@ -1,7 +1,8 @@
 import { createAdminClient } from "@/lib/supabase/server" // Admin Client
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Target, TrendingUp, Users, DollarSign, BarChart3, AlertCircle } from "lucide-react"
+import { Button } from "@/components/ui/button" // Adicionado
+import { Target, TrendingUp, Users, DollarSign, BarChart3, AlertCircle, ExternalLink } from "lucide-react" // Adicionado ExternalLink
 import { AddCommercialGoalForm } from "@/components/add-commercial-goal-form"
 import { CommercialGoalCard } from "@/components/commercial-goal-card"
 import { ClientCommercialCard } from "@/components/client-commercial-card"
@@ -71,8 +72,6 @@ async function getCommercialData() {
     else if (goal.type === 'upsell_value') liveValue = currentUpsellValue
     else if (goal.type === 'churn_rate') liveValue = currentChurnRate
     
-    // Formata churn para ter no máximo 1 ou 2 casas decimais na visualização se desejar,
-    // mas aqui passamos o number puro.
     return { ...goal, current_value: liveValue }
   }) || []
 
@@ -96,6 +95,10 @@ export default async function CommercialPage() {
   
   const userRole = cookies().get("user_role")?.value
   const isAdmin = userRole === "admin"
+
+  // URL do Dashboard (Removendo /embed/ para o link externo funcionar melhor na interface completa)
+  const dashboardUrl = "https://lookerstudio.google.com/reporting/b261c2e6-5a13-4f31-9685-b3d78a368efa/page/p_8t7nuoz9xd"
+  const dashboardEmbedUrl = "https://lookerstudio.google.com/embed/reporting/b261c2e6-5a13-4f31-9685-b3d78a368efa/page/p_8t7nuoz9xd"
 
   return (
     <div className="space-y-6">
@@ -151,6 +154,8 @@ export default async function CommercialPage() {
         <TabsList>
           <TabsTrigger value="goals">Metas Ativas</TabsTrigger>
           <TabsTrigger value="funnel">Funil de Upsell</TabsTrigger>
+          <TabsTrigger value="analytics" className="hidden sm:inline-flex">Dashboard CRM</TabsTrigger>
+          <TabsTrigger value="analytics" className="sm:hidden">Dash</TabsTrigger>
         </TabsList>
 
         <TabsContent value="goals" className="space-y-4">
@@ -190,6 +195,49 @@ export default async function CommercialPage() {
                   Nenhuma oportunidade encontrada.
                 </p>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* NOVA ABA: Dashboard CRM */}
+        <TabsContent value="analytics" className="space-y-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div className="space-y-1">
+                <CardTitle>Analytics & Performance</CardTitle>
+                <CardDescription>
+                  Visão detalhada de performance via Looker Studio.
+                </CardDescription>
+              </div>
+              <Button variant="outline" size="sm" asChild className="hidden sm:flex">
+                <a href={dashboardUrl} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  Abrir Externamente
+                </a>
+              </Button>
+            </CardHeader>
+            <CardContent className="p-0 sm:p-6">
+              {/* Container responsivo 16:9 */}
+              <div className="w-full aspect-video rounded-md overflow-hidden border bg-muted relative">
+                <iframe 
+                  src={dashboardEmbedUrl}
+                  className="absolute inset-0 w-full h-full"
+                  frameBorder="0" 
+                  style={{ border: 0 }} 
+                  allowFullScreen 
+                  sandbox="allow-storage-access-by-user-activation allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+                />
+              </div>
+              
+              {/* Botão visível apenas em mobile abaixo do gráfico se necessário */}
+              <div className="sm:hidden p-4 pt-2">
+                 <Button variant="outline" className="w-full" asChild>
+                  <a href={dashboardUrl} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    Ver Dashboard Completo
+                  </a>
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
