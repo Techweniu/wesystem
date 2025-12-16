@@ -13,6 +13,13 @@ import {
   DialogTrigger,
   DialogClose,
 } from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -42,13 +49,29 @@ function SubmitButton() {
   )
 }
 
-export function AddNpsForm({ clientId }: { clientId: string }) {
+interface AddNpsFormProps {
+  clientId?: string
+  clients?: { id: string; name: string }[]
+}
+
+export function AddNpsForm({ clientId, clients }: AddNpsFormProps) {
   const [open, setOpen] = useState(false)
   const formRef = useRef<HTMLFormElement>(null)
   const router = useRouter()
 
   async function handleFormSubmit(formData: FormData) {
-    formData.append("clientId", clientId)
+    // Se o clientId foi passado como prop, adiciona manualmente
+    // Se não, o formulário já deve conter um campo "clientId" vindo do Select
+    if (clientId) {
+      formData.append("clientId", clientId)
+    }
+
+    // Validação extra caso não tenha clientId nem no prop nem no form
+    if (!formData.get("clientId")) {
+      toast.error("Por favor, selecione um cliente.")
+      return
+    }
+
     const result = await addNpsResponse(formData)
 
     if (result.error) {
@@ -64,19 +87,40 @@ export function AddNpsForm({ clientId }: { clientId: string }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm">
+        <Button size={clients ? "default" : "sm"}>
           <PlusCircle className="mr-2 h-4 w-4" />
-          Adicionar NPS
+          {clients ? "Nova Avaliação NPS" : "Adicionar NPS"}
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Registrar Avaliação NPS</DialogTitle>
           <DialogDescription>Preencha as notas de 0 a 10 para cada categoria.</DialogDescription>
         </DialogHeader>
-        <form ref={formRef} action={handleFormSubmit} className="space-y-4">
-          <div className="max-h-[60vh] overflow-y-auto pr-4">
-            <div className="grid gap-4">
+        
+        <form ref={formRef} action={handleFormSubmit} className="space-y-4 flex-1 overflow-hidden flex flex-col">
+          <div className="overflow-y-auto pr-4 -mr-4 px-1">
+            <div className="grid gap-4 py-2">
+              
+              {/* Se não temos um clientId fixo, mostra o seletor de clientes */}
+              {!clientId && clients && (
+                <div className="grid gap-2">
+                  <Label htmlFor="clientId">Cliente*</Label>
+                  <Select name="clientId" required>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o cliente..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {clients.map((client) => (
+                        <SelectItem key={client.id} value={client.id}>
+                          {client.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               {npsCategories.map((category) => (
                 <div key={category.id} className="grid grid-cols-3 items-center gap-4">
                   <Label htmlFor={category.id} className="col-span-2">
@@ -99,7 +143,8 @@ export function AddNpsForm({ clientId }: { clientId: string }) {
               </div>
             </div>
           </div>
-          <DialogFooter>
+          
+          <DialogFooter className="mt-auto pt-4 border-t">
             <DialogClose asChild>
               <Button type="button" variant="outline">
                 Cancelar
