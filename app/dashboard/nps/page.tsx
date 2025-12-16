@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { MessageSquareHeart } from "lucide-react"
 
 export default async function NpsPage() {
-  const supabase = createClient()
+  const supabase = await createClient()
 
   // Buscar clientes ativos para o seletor
   const { data: clients } = await supabase
