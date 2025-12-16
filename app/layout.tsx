@@ -23,6 +23,10 @@ export const metadata: Metadata = {
   title: "Wesystem",
   description: "Dashboard de Business Intelligence",
   generator: "v0.app",
+  // Configuração do favicon adicionada aqui
+  icons: {
+    icon: "/favicon.png", 
+  },
 }
 
 export default function RootLayout({
