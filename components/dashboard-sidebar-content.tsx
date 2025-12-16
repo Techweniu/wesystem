@@ -15,7 +15,7 @@ import {
   Sparkles,
   KeyRound,
   Target,
-  MessageSquareHeart, // Ícone novo para NPS
+  MessageSquareHeart,
 } from "lucide-react"
 import {
   useSidebar,
@@ -39,10 +39,10 @@ type Client = {
 type UserRole = "admin" | "limited" | null
 
 // Lista completa de navegação
+// REMOVIDO: "NPS" daqui, pois agora ficará dentro de Clientes
 const allNavigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Clientes", href: "/dashboard/clients", icon: Users },
-  { name: "NPS", href: "/dashboard/nps", icon: MessageSquareHeart }, // Novo item
   { name: "Financeiro", href: "/dashboard/financial", icon: DollarSign },
   { name: "Comercial", href: "/dashboard/commercial", icon: Target },
   { name: "Equipe", href: "/dashboard/team", icon: UserCircle },
@@ -52,7 +52,7 @@ const allNavigation = [
 ]
 
 // Lista de nomes de links permitidos para o papel 'limited'
-const limitedAccessNav = ["Clientes", "Organograma", "Acessos", "NPS"] // Adicionado NPS
+const limitedAccessNav = ["Clientes", "Organograma", "Acessos"]
 
 // Recebe 'userRole' como prop
 export function DashboardSidebarContent({ userRole }: { userRole: UserRole }) {
@@ -92,7 +92,7 @@ export function DashboardSidebarContent({ userRole }: { userRole: UserRole }) {
     }
 
     fetchClients()
-  }, [showClients]) // Re-executa se 'showClients' mudar
+  }, [showClients])
 
   return (
     <>
@@ -138,6 +138,20 @@ export function DashboardSidebarContent({ userRole }: { userRole: UserRole }) {
                   </div>
                   <CollapsibleContent>
                     <SidebarMenuSub>
+                      {/* --- ITEM ESTÁTICO: AVALIAÇÃO NPS --- */}
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/nps"}>
+                          <Link href="/dashboard/nps" className="flex items-center text-primary font-medium">
+                            <MessageSquareHeart className="mr-2 h-4 w-4" />
+                            <span>Avaliação NPS</span>
+                          </Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                      
+                      {/* Separador visual simples */}
+                      <div className="my-1 h-[1px] bg-sidebar-border/50" />
+
+                      {/* --- LISTA DINÂMICA DE CLIENTES --- */}
                       {isLoading ? (
                         <>
                           <SidebarMenuSkeleton />
