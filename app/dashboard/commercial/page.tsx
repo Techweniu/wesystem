@@ -1,19 +1,12 @@
-import { createAdminClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/server" // Admin Client
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Target, TrendingUp, Users, DollarSign, AlertCircle, LayoutDashboard } from "lucide-react"
+import { Button } from "@/components/ui/button" // Adicionado
+import { Target, TrendingUp, Users, DollarSign, BarChart3, AlertCircle, ExternalLink } from "lucide-react" // Adicionado ExternalLink
 import { AddCommercialGoalForm } from "@/components/add-commercial-goal-form"
 import { CommercialGoalCard } from "@/components/commercial-goal-card"
 import { ClientCommercialCard } from "@/components/client-commercial-card"
 import { cookies } from "next/headers"
-import { Button } from "@/components/ui/button"
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogTrigger 
-} from "@/components/ui/dialog"
 
 // CONFIGURAÇÃO DE CACHE:
 export const dynamic = "force-dynamic"
@@ -103,45 +96,18 @@ export default async function CommercialPage() {
   const userRole = cookies().get("user_role")?.value
   const isAdmin = userRole === "admin"
 
+  // URL do Dashboard (Removendo /embed/ para o link externo funcionar melhor na interface completa)
+  const dashboardUrl = "https://lookerstudio.google.com/reporting/b261c2e6-5a13-4f31-9685-b3d78a368efa/page/p_8t7nuoz9xd"
   const dashboardEmbedUrl = "https://lookerstudio.google.com/embed/reporting/b261c2e6-5a13-4f31-9685-b3d78a368efa/page/p_8t7nuoz9xd"
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Comercial</h1>
           <p className="text-muted-foreground">Gestão de metas e oportunidades de vendas.</p>
         </div>
-        
-        <div className="flex items-center gap-2">
-          {/* BOTÃO DASHBOARD (Ao lado da Nova Meta) */}
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button variant="outline" className="gap-2">
-                <LayoutDashboard className="h-4 w-4" />
-                Dashboard CRM
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-[95vw] h-[90vh] flex flex-col p-6">
-              <DialogHeader>
-                <DialogTitle>Dashboard Comercial</DialogTitle>
-              </DialogHeader>
-              <div className="flex-1 w-full bg-muted/50 rounded-md overflow-hidden relative border mt-2">
-                <iframe 
-                  src={dashboardEmbedUrl}
-                  className="absolute inset-0 w-full h-full"
-                  frameBorder="0" 
-                  style={{ border: 0 }} 
-                  allowFullScreen 
-                  sandbox="allow-storage-access-by-user-activation allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
-                />
-              </div>
-            </DialogContent>
-          </Dialog>
-
-          {/* Botão Nova Meta (Visível apenas para Admin) */}
-          {isAdmin && <AddCommercialGoalForm />}
-        </div>
+        {isAdmin && <AddCommercialGoalForm />}
       </div>
 
       {/* Resumo do Funil */}
@@ -188,6 +154,8 @@ export default async function CommercialPage() {
         <TabsList>
           <TabsTrigger value="goals">Metas Ativas</TabsTrigger>
           <TabsTrigger value="funnel">Funil de Upsell</TabsTrigger>
+          <TabsTrigger value="analytics" className="hidden sm:inline-flex">Dashboard CRM</TabsTrigger>
+          <TabsTrigger value="analytics" className="sm:hidden">Dash</TabsTrigger>
         </TabsList>
 
         <TabsContent value="goals" className="space-y-4">
@@ -227,6 +195,49 @@ export default async function CommercialPage() {
                   Nenhuma oportunidade encontrada.
                 </p>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* NOVA ABA: Dashboard CRM */}
+        <TabsContent value="analytics" className="space-y-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div className="space-y-1">
+                <CardTitle>Analytics & Performance</CardTitle>
+                <CardDescription>
+                  Visão detalhada de performance via Looker Studio.
+                </CardDescription>
+              </div>
+              <Button variant="outline" size="sm" asChild className="hidden sm:flex">
+                <a href={dashboardUrl} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  Abrir Externamente
+                </a>
+              </Button>
+            </CardHeader>
+            <CardContent className="p-0 sm:p-6">
+              {/* Container responsivo 16:9 */}
+              <div className="w-full aspect-video rounded-md overflow-hidden border bg-muted relative">
+                <iframe 
+                  src={dashboardEmbedUrl}
+                  className="absolute inset-0 w-full h-full"
+                  frameBorder="0" 
+                  style={{ border: 0 }} 
+                  allowFullScreen 
+                  sandbox="allow-storage-access-by-user-activation allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+                />
+              </div>
+              
+              {/* Botão visível apenas em mobile abaixo do gráfico se necessário */}
+              <div className="sm:hidden p-4 pt-2">
+                 <Button variant="outline" className="w-full" asChild>
+                  <a href={dashboardUrl} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    Ver Dashboard Completo
+                  </a>
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
