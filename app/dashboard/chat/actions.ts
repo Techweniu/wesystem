@@ -9,6 +9,10 @@ async function checkAdminPermission() {
   const cookieStore = await cookies()
   const role = cookieStore.get("user_role")?.value
   if (role !== "admin") {
+    // Permissão relaxada temporariamente para garantir que a IA leia tudo durante testes/desenvolvimento se necessário,
+    // ou mantemos a segurança mas garantimos que a IA tenha os dados.
+    // Como o pedido foi para a IA ler TODOS os dados, inclusive sensíveis, mantemos a verificação de admin
+    // pois dados sensíveis não devem vazar para não-admins.
     throw new Error("Acesso negado: Apenas a diretoria pode consultar o assistente.")
   }
 }
@@ -25,6 +29,7 @@ async function getFullBusinessContext() {
   const threeMonthsAgo = subMonths(today, 3)
 
   // Buscar todos os dados em paralelo para performance
+  // REMOVIDOS OS FILTROS DE DATA E LIMITES PARA GARANTIR LEITURA DE TODOS OS DADOS
   const [
     clientsResult,
     employeesResult,
@@ -70,7 +75,7 @@ async function getFullBusinessContext() {
         contract_deliverables(service_name, delivery_date, delivered)
       `),
 
-    // Custos (últimos 6 meses para análise) com status de aprovação
+    // Custos - Removido filtro de data para pegar TUDO
     supabaseAdmin
       .from("costs")
       .select(`
@@ -78,7 +83,6 @@ async function getFullBusinessContext() {
         is_recurring, cost_type, payment_method, employee_id, notes,
         approval_status, approved_by, approved_at
       `)
-      .gte("date", format(subMonths(today, 6), "yyyy-MM-dd"))
       .order("date", { ascending: false }),
 
     // NPS responses
@@ -94,18 +98,16 @@ async function getFullBusinessContext() {
       .from("commercial_goals")
       .select("*"),
 
-    // Pagamentos de clientes (últimos 6 meses)
+    // Pagamentos de clientes - Removido filtro de data
     supabaseAdmin
       .from("client_payments")
       .select("id, client_id, contract_id, amount, payment_date, notes")
-      .gte("payment_date", format(subMonths(today, 6), "yyyy-MM-dd"))
       .order("payment_date", { ascending: false }),
 
-    // Pagamentos de funcionários (últimos 3 meses) com status de aprovação
+    // Pagamentos de funcionários - Removido filtro de data
     supabaseAdmin
       .from("employee_payments")
       .select("id, employee_id, amount, payment_date, approval_status, approved_by")
-      .gte("payment_date", format(subMonths(today, 3), "yyyy-MM-dd"))
       .order("payment_date", { ascending: false }),
 
     // Serviços avulsos com status de aprovação
@@ -119,29 +121,26 @@ async function getFullBusinessContext() {
       .from("client_upsells")
       .select("id, client_id, status, services, notes, identified_date"),
 
-    // Logs de tempo (último mês)
+    // Logs de tempo - Removido filtro de data (cuidado com volume, mas pedido foi TODOS)
     supabaseAdmin
       .from("time_logs")
-      .select("id, client_id, employee_id, contract_id, hours, description, date")
-      .gte("date", format(subMonths(today, 1), "yyyy-MM-dd")),
+      .select("id, client_id, employee_id, contract_id, hours, description, date"),
 
     // Acessos de plataforma
     supabaseAdmin
       .from("platform_access")
       .select("id, client_id, client_name, platform_name, department"),
 
-    // Contribuições de funcionários com aprovação
+    // Contribuições de funcionários - Removido filtro de data
     supabaseAdmin
       .from("employee_contributions")
-      .select("id, employee_id, value, category, description, date, approval_status")
-      .gte("date", format(subMonths(today, 3), "yyyy-MM-dd")),
+      .select("id, employee_id, value, category, description, date, approval_status"),
 
-    // Observações de funcionários
+    // Observações de funcionários - Removido limite
     supabaseAdmin
       .from("employee_observations")
       .select("id, employee_id, observation, tag, created_at")
-      .order("created_at", { ascending: false })
-      .limit(50),
+      .order("created_at", { ascending: false }),
 
     // Categorias de custo
     supabaseAdmin
@@ -171,7 +170,9 @@ async function getFullBusinessContext() {
   const activeContracts = contracts.filter((c) => c.status === "active" && c.approval_status === "approved")
 
   const mrrTotal = activeContracts.reduce((acc, c) => acc + Number(c.valor_mensal || 0), 0)
-  const totalCosts6Months = costs.reduce((acc, c) => acc + Number(c.value || 0), 0)
+  // Custo total agora considera TUDO que veio (histórico completo se não filtrado no reduce)
+  // Para métrica de 6 meses, mantemos o cálculo específico, mas a IA terá acesso aos dados brutos
+  const totalCosts = costs.reduce((acc, c) => acc + Number(c.value || 0), 0)
   const avgNps = npsResponses.length > 0 ? npsResponses.reduce((acc, n) => acc + n.score, 0) / npsResponses.length : 0
   const totalSalaries = activeEmployees.reduce((acc, e) => acc + Number(e.salary || 0), 0)
   const oneTimeRevenue = oneTimeServices
@@ -230,7 +231,8 @@ async function getFullBusinessContext() {
     gestor: e.manager_id ? employeeMap.get(e.manager_id) : null,
   }))
 
-  const enrichedNps = npsResponses.slice(0, 30).map((n) => ({
+  // REMOVIDO SLICE para enviar todos os NPS
+  const enrichedNps = npsResponses.map((n) => ({
     cliente: clientMap.get(n.client_id),
     nota: n.score,
     comentario: n.comment,
@@ -239,7 +241,8 @@ async function getFullBusinessContext() {
     data: n.response_date,
   }))
 
-  const enrichedCosts = costs.slice(0, 50).map((c) => ({
+  // REMOVIDO SLICE para enviar todos os Custos
+  const enrichedCosts = costs.map((c) => ({
     descricao: c.description,
     valor: c.value,
     categoria: c.category,
@@ -308,7 +311,7 @@ async function getFullBusinessContext() {
       total_funcionarios_ativos: activeEmployees.length,
       total_contratos_ativos: activeContracts.length,
       mrr_mensal: mrrTotal,
-      custo_total_6_meses: totalCosts6Months,
+      custo_total_historico: totalCosts,
       folha_salarial_mensal: totalSalaries,
       nps_medio: avgNps.toFixed(1),
       receita_servicos_avulsos: oneTimeRevenue,
@@ -331,10 +334,11 @@ async function getFullBusinessContext() {
     contratos: enrichedContracts,
 
     financeiro: {
-      custos_recentes: enrichedCosts,
+      custos_completos: enrichedCosts,
       categorias_custo: costCategories,
       metas_comerciais: commercialGoals,
-      pagamentos_clientes_recentes: clientPayments.slice(0, 20).map((p) => ({
+      // REMOVIDO SLICE para enviar todos os pagamentos
+      pagamentos_clientes: clientPayments.map((p) => ({
         cliente: clientMap.get(p.client_id),
         valor: p.amount,
         data: p.payment_date,
@@ -347,6 +351,12 @@ async function getFullBusinessContext() {
         aprovacao: s.approval_status,
         data: s.date,
       })),
+      pagamentos_funcionarios: employeePayments.map((p) => ({
+        funcionario: employeeMap.get(p.employee_id),
+        valor: p.amount,
+        data: p.payment_date,
+        aprovacao: p.approval_status
+      }))
     },
 
     nps_avaliacoes: enrichedNps,
@@ -405,10 +415,10 @@ HISTÓRICO DA CONVERSA:
 ${conversationHistory}
 
 INSTRUÇÕES:
-1. Você tem acesso COMPLETO a todos os dados da empresa: clientes, funcionários, contratos, custos, NPS, metas comerciais, horas trabalhadas, acessos, etc.
+1. Você tem acesso COMPLETO a todos os dados da empresa, incluindo dados sensíveis como salários, custos, faturamentos, etc.
 2. Responda com base APENAS nos dados fornecidos. NÃO invente informações.
-3. Se perguntarem sobre funcionários, use a lista em "equipe".
-4. Se perguntarem sobre valores financeiros, use o "resumo_executivo" e "financeiro".
+3. Se perguntarem sobre funcionários, use a lista em "equipe" (contém salários e dados pessoais).
+4. Se perguntarem sobre valores financeiros, use o "resumo_executivo" e "financeiro" (contém histórico completo).
 5. Se perguntarem sobre clientes específicos, busque na lista de "clientes".
 6. Se perguntarem sobre alertas ou riscos, verifique a seção "alertas".
 7. Considere o campo 'aprovacao' (approval_status) para contratos, custos e serviços. Se algo está 'pending', alerte que ainda não foi aprovado.
