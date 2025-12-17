@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner"
 import { addEmployeeObservation } from "@/app/dashboard/team/actions"
 import { PlusCircle } from "lucide-react"
-import { useRole } from "@/app/dashboard/layout" // --- ALTERAÇÃO
+import { useRole } from "@/app/dashboard/layout"
 
 interface AddEmployeeObservationFormProps {
   employeeId: string;
@@ -22,13 +22,11 @@ function SubmitButton() {
 }
 
 export function AddEmployeeObservationForm({ employeeId }: AddEmployeeObservationFormProps) {
-  const userRole = useRole() // --- ALTERAÇÃO
+  const userRole = useRole()
   const [open, setOpen] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
-  // --- ALTERAÇÃO ---
   if (userRole === "limited") return null
-  // ----------------
 
   async function handleFormSubmit(formData: FormData) {
     formData.append('employeeId', employeeId);
@@ -48,7 +46,6 @@ export function AddEmployeeObservationForm({ employeeId }: AddEmployeeObservatio
         <Button variant="outline" size="sm"><PlusCircle className="mr-2 h-4 w-4" />Adicionar</Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-lg">
-        {/* ... conteúdo do modal (sem alteração) ... */}
         <DialogHeader>
           <DialogTitle>Adicionar Nova Observação</DialogTitle>
           <DialogDescription>Descreva o feedback sobre o colaborador.</DialogDescription>
@@ -59,12 +56,17 @@ export function AddEmployeeObservationForm({ employeeId }: AddEmployeeObservatio
             <Textarea id="observation" name="observation" required placeholder="Escreva seu feedback aqui..." />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="tag">Tag</Label>
-            <Select name="tag" required defaultValue="positive">
+            <Label htmlFor="tag">Tipo de Registro</Label>
+            <Select name="tag" required defaultValue="geral">
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="positive">Positiva</SelectItem>
-                <SelectItem value="negative">Negativa</SelectItem>
+                <SelectItem value="feedback_positivo">Feedback Positivo</SelectItem>
+                <SelectItem value="feedback_negativo">Feedback Negativo</SelectItem>
+                <SelectItem value="reuniao_1_1">Reunião 1:1</SelectItem>
+                <SelectItem value="desenvolvimento">Desenvolvimento</SelectItem>
+                <SelectItem value="performance">Performance</SelectItem>
+                <SelectItem value="comportamento">Comportamento</SelectItem>
+                <SelectItem value="geral">Geral</SelectItem>
               </SelectContent>
             </Select>
           </div>
